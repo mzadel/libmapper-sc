@@ -3400,6 +3400,7 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	post("called mapperPoll()\n");
 	mdev_poll(my_device, 0);
+	post("mapperPoll(): done calling mdev_poll()\n");
 	return errNone;
 }
 
