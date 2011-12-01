@@ -1018,6 +1018,7 @@ langEnv.Append(
                '#Headers/lang',
                '#Headers/server',
                '/home/mark/libmapperscintegration/install/include',
+               '/home/mark/libmapperscintegration/install/include/mapper-0',
                '#Source/lang/LangSource/Bison'],
     CPPDEFINES = [['USE_SC_TERMINAL_CLIENT', env['TERMINAL_CLIENT']]],
     LIBPATH = [ 'build', '/home/mark/libmapperscintegration/install/lib' ]
