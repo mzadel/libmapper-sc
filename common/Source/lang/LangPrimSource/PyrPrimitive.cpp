@@ -3407,7 +3407,7 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed);
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	post("called mapperDevFree()\n");
-	mdev_free( my_device, 0);
+	mdev_free( my_device );
 	return errNone;
 }
 
