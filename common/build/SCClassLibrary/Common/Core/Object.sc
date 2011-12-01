@@ -848,10 +848,14 @@ Object  {
 	*classRedirect { ^this }
 
 	// libmapper
-	callmapper {
+	mapperJustACall {
 		_MapperJustACall
 		^this.primitiveFailed
 	}
 
+	mapperDevNew {
+		_MapperDevNew
+		^this.primitiveFailed
+	}
 
 }

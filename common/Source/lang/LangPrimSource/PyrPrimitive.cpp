@@ -3383,6 +3383,14 @@ int mapperJustACall(struct VMGlobals *g, int numArgsPushed);
 int mapperJustACall(struct VMGlobals *g, int numArgsPushed)
 {
 	post("called mapperJustACall()\n");
+	return errNone;
+}
+
+
+int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
+int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
+{
+	post("called mapperDevNew()\n");
 	my_device = mdev_new("supercollider", 9000, 0);
 	return errNone;
 }
@@ -3941,7 +3949,8 @@ void initPrimitives()
 	definePrimitive(base, index++, "_UGenCodeString", prUGenCodeString, 5, 0);
 
 	// libmapper
-	definePrimitive(base, index++, "_MapperJustACall", mapperJustACall, 0, 0);
+	definePrimitive(base, index++, "_MapperJustACall", mapperJustACall, 1, 0);
+	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 1, 0);
 
 	//void initOscilPrimitives();
 	//void initControllerPrimitives();
