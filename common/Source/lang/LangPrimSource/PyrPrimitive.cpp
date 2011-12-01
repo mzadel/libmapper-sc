@@ -45,6 +45,8 @@
 #include "PyrDeepFreezer.h"
 //#include "Wacom.h"
 #include "InitAlloc.h"
+#include <mapper/mapper.h>
+#include <lo/lo.h>
 
 #define SANITYCHECK 0
 int yyparse();
@@ -3374,10 +3376,14 @@ int prBlork(struct VMGlobals *g, int numArgsPushed)
 }
 
 
+
+mapper_device my_device = NULL;
+
 int mapperJustACall(struct VMGlobals *g, int numArgsPushed);
 int mapperJustACall(struct VMGlobals *g, int numArgsPushed)
 {
 	post("called mapperJustACall()\n");
+	my_device = mdev_new("supercollider", 9000, 0);
 	return errNone;
 }
 
