@@ -3395,6 +3395,22 @@ int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperPoll(struct VMGlobals *g, int numArgsPushed);
+int mapperPoll(struct VMGlobals *g, int numArgsPushed)
+{
+	post("called mapperPoll()\n");
+	mdev_poll(my_device, 0);
+	return errNone;
+}
+
+int mapperDevFree(struct VMGlobals *g, int numArgsPushed);
+int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
+{
+	post("called mapperDevFree()\n");
+	mdev_free( my_device, 0);
+	return errNone;
+}
+
 
 #define PRIMGROWSIZE 480
 PrimitiveTable gPrimitiveTable;
@@ -3951,6 +3967,8 @@ void initPrimitives()
 	// libmapper
 	definePrimitive(base, index++, "_MapperJustACall", mapperJustACall, 1, 0);
 	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 1, 0);
+	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
+	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 
 	//void initOscilPrimitives();
 	//void initControllerPrimitives();

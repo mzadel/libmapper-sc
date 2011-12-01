@@ -858,4 +858,14 @@ Object  {
 		^this.primitiveFailed
 	}
 
+	mapperPoll {
+		_MapperPoll
+		^this.primitiveFailed
+	}
+
+	mapperDevFree {
+		_MapperDevFree
+		^this.primitiveFailed
+	}
+
 }
