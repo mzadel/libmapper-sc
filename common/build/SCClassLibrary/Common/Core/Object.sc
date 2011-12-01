@@ -846,4 +846,12 @@ Object  {
 
 	// support for ViewRedirect
 	*classRedirect { ^this }
+
+	// libmapper
+	callmapper {
+		_MapperJustACall
+		^this.primitiveFailed
+	}
+
+
 }

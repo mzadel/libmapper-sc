@@ -3374,6 +3374,14 @@ int prBlork(struct VMGlobals *g, int numArgsPushed)
 }
 
 
+int mapperJustACall(struct VMGlobals *g, int numArgsPushed);
+int mapperJustACall(struct VMGlobals *g, int numArgsPushed)
+{
+	post("called mapperJustACall()\n");
+	return errNone;
+}
+
+
 #define PRIMGROWSIZE 480
 PrimitiveTable gPrimitiveTable;
 
@@ -3925,6 +3933,9 @@ void initPrimitives()
 //	definePrimitive(base, index++, "_IsDemo", prIsDemo, 1, 0);
 	definePrimitive(base, index++, "_Blork", prBlork, 1, 0);
 	definePrimitive(base, index++, "_UGenCodeString", prUGenCodeString, 5, 0);
+
+	// libmapper
+	definePrimitive(base, index++, "_MapperJustACall", mapperJustACall, 0, 0);
 
 	//void initOscilPrimitives();
 	//void initControllerPrimitives();
