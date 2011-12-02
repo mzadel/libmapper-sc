@@ -3376,13 +3376,11 @@ int prBlork(struct VMGlobals *g, int numArgsPushed)
 }
 
 
-
 mapper_device my_device = NULL;
 
 int mapperJustACall(struct VMGlobals *g, int numArgsPushed);
 int mapperJustACall(struct VMGlobals *g, int numArgsPushed)
 {
-	//post("called mapperJustACall()\n");
 	return errNone;
 }
 
@@ -3390,7 +3388,6 @@ int mapperJustACall(struct VMGlobals *g, int numArgsPushed)
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 {
-	//post("called mapperDevNew()\n");
 	my_device = mdev_new("supercollider", 9444, 0);
 	return errNone;
 }
@@ -3409,7 +3406,6 @@ void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *t
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
-	//post("called mapperAddInput()\n");
     mdev_add_input(my_device, "/freq", 1, 'f', 0, &min0, &max1000, handler_freq, NULL);
 	return errNone;
 }
@@ -3418,18 +3414,15 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	int numhandled = 1;
-	//post("called mapperPoll()\n");
 	while ( numhandled > 0 ) {
 		numhandled = mdev_poll(my_device, 0);
 	}
-	//post("mapperPoll(): done calling mdev_poll()\n");
 	return errNone;
 }
 
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed);
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
-	//post("called mapperDevFree()\n");
 	mdev_free( my_device );
 	return errNone;
 }
