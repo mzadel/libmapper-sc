@@ -3434,7 +3434,13 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 int mapperGetCurrentValue(struct VMGlobals *g, int numArgsPushed);
 int mapperGetCurrentValue(struct VMGlobals *g, int numArgsPushed)
 {
-	post("called mapperGetCurrentValue()\n");
+	// pull the last polled value out of currentvalue
+
+	PyrSlot *receiver = g->sp;
+
+	// set the receiver slot to return the value
+	SetFloat(receiver, currentvalue);
+
 	return errNone;
 }
 
