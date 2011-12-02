@@ -3401,7 +3401,9 @@ float max1000 = 1000;
 void handler_freq(mapper_signal sig, float *pfreq)
 {
 	post("I'm in yr signal handler\n");
-	post("got value %f\n, *pfreq");
+	post("got value %f\n", *pfreq);
+	if ( (*pfreq) < 500.0 ) { post("*pfreq < 500"); };
+	if ( (*pfreq) > 500.0 ) { post("*pfreq > 500"); };
 }
 
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
