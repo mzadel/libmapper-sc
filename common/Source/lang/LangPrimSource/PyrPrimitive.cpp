@@ -3382,7 +3382,7 @@ mapper_device my_device = NULL;
 int mapperJustACall(struct VMGlobals *g, int numArgsPushed);
 int mapperJustACall(struct VMGlobals *g, int numArgsPushed)
 {
-	post("called mapperJustACall()\n");
+	//post("called mapperJustACall()\n");
 	return errNone;
 }
 
@@ -3390,44 +3390,44 @@ int mapperJustACall(struct VMGlobals *g, int numArgsPushed)
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 {
-	post("called mapperDevNew()\n");
-	my_device = mdev_new("supercollider", 9000, 0);
+	//post("called mapperDevNew()\n");
+	my_device = mdev_new("supercollider", 9444, 0);
 	return errNone;
 }
 
 float min0 = 0;
 float max1000 = 1000;
 
-void handler_freq(mapper_signal sig, float *pfreq)
+void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *timetag, void *pfreq)
 {
 	post("I'm in yr signal handler\n");
 	post("got value %f\n", *(float*)pfreq);
-	post("hex %x\n", *pfreq);
-	if ( (*pfreq) < 500.0 ) { post("*pfreq < 500\n"); };
-	if ( (*pfreq) > 500.0 ) { post("*pfreq > 500\n"); };
+	//post("hex %x\n", *pfreq);
+	if ( (*(float*)pfreq) < 500.0 ) { post("*pfreq < 500\n"); };
+	if ( (*(float*)pfreq) > 500.0 ) { post("*pfreq > 500\n"); };
 }
 
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
-	post("called mapperAddInput()\n");
-    mdev_add_input(my_device, "/freq", 1, 'f', "Hz", &min0, &max1000, (mapper_signal_handler*)handler_freq, NULL);
+	//post("called mapperAddInput()\n");
+    mdev_add_input(my_device, "/freq", 1, 'f', 0, &min0, &max1000, handler_freq, NULL);
 	return errNone;
 }
 
 int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
-	post("called mapperPoll()\n");
-	mdev_poll(my_device, 0);
-	post("mapperPoll(): done calling mdev_poll()\n");
+	//post("called mapperPoll()\n");
+	mdev_poll(my_device, 50);
+	//post("mapperPoll(): done calling mdev_poll()\n");
 	return errNone;
 }
 
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed);
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
-	post("called mapperDevFree()\n");
+	//post("called mapperDevFree()\n");
 	mdev_free( my_device );
 	return errNone;
 }
