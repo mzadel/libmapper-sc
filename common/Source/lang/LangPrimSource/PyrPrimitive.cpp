@@ -3417,8 +3417,11 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
+	int numhandled = 1;
 	//post("called mapperPoll()\n");
-	mdev_poll(my_device, 0);
+	while ( numhandled > 0 ) {
+		numhandled = mdev_poll(my_device, 0);
+	}
 	//post("mapperPoll(): done calling mdev_poll()\n");
 	return errNone;
 }
