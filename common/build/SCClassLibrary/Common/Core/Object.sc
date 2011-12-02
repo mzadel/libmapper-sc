@@ -873,4 +873,9 @@ Object  {
 		^this.primitiveFailed
 	}
 
+	mapperGetCurrentValue {
+		_MapperGetCurrentValue
+		^this.primitiveFailed
+	}
+
 }

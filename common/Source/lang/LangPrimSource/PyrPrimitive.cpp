@@ -3398,13 +3398,12 @@ int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 float min0 = 0;
 float max1000 = 1000;
 
+float currentvalue = 0.0;
+
 void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *timetag, void *pfreq)
 {
-	post("I'm in yr signal handler\n");
-	post("got value %f\n", *(float*)pfreq);
-	//post("hex %x\n", *pfreq);
-	if ( (*(float*)pfreq) < 500.0 ) { post("*pfreq < 500\n"); };
-	if ( (*(float*)pfreq) > 500.0 ) { post("*pfreq > 500\n"); };
+	// store the value in a local variable to poll later
+	currentvalue = *(float*)pfreq;
 }
 
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
@@ -3419,7 +3418,7 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	//post("called mapperPoll()\n");
-	mdev_poll(my_device, 50);
+	mdev_poll(my_device, 0);
 	//post("mapperPoll(): done calling mdev_poll()\n");
 	return errNone;
 }
@@ -3429,6 +3428,13 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	//post("called mapperDevFree()\n");
 	mdev_free( my_device );
+	return errNone;
+}
+
+int mapperGetCurrentValue(struct VMGlobals *g, int numArgsPushed);
+int mapperGetCurrentValue(struct VMGlobals *g, int numArgsPushed)
+{
+	post("called mapperGetCurrentValue()\n");
 	return errNone;
 }
 
@@ -3991,6 +3997,7 @@ void initPrimitives()
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
+	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);
 
 	//void initOscilPrimitives();
 	//void initControllerPrimitives();
