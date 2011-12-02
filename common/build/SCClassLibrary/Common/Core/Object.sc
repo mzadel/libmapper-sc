@@ -858,6 +858,11 @@ Object  {
 		^this.primitiveFailed
 	}
 
+	mapperAddInput {
+		_MapperAddInput
+		^this.primitiveFailed
+	}
+
 	mapperPoll {
 		_MapperPoll
 		^this.primitiveFailed

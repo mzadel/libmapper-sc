@@ -3395,6 +3395,22 @@ int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+float min0 = 0;
+float max1000 = 1000;
+
+void handler_freq(mapper_signal sig, float *pfreq)
+{
+	post("I'm in yr signal handler\n");
+}
+
+int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
+int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
+{
+	post("called mapperAddInput()\n");
+    mdev_add_input(my_device, "/freq", 1, 'f', "Hz", &min0, &max1000, (mapper_signal_handler*)handler_freq, NULL);
+	return errNone;
+}
+
 int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
@@ -3968,6 +3984,7 @@ void initPrimitives()
 	// libmapper
 	definePrimitive(base, index++, "_MapperJustACall", mapperJustACall, 1, 0);
 	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 1, 0);
+	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 
