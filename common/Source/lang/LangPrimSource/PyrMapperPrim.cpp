@@ -1,6 +1,6 @@
 
 #include "PyrPrimitive.h"
-//#include "VMGlobals.h"   // is this needed?
+#include "VMGlobals.h"
 
 #include <mapper/mapper.h>
 #include <lo/lo.h>
