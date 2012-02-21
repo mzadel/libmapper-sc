@@ -1,6 +1,9 @@
 
 #include "PyrPrimitive.h"
-#include "VMGlobals.h"   // is this needed?
+//#include "VMGlobals.h"   // is this needed?
+
+#include <mapper/mapper.h>
+#include <lo/lo.h>
 
 mapper_device my_device = NULL;
 
