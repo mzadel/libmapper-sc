@@ -15,5 +15,9 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);
+
+	// add getsym()s you need here
+
 }
 
+// vim:sw=4:ts=4:
