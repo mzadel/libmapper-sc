@@ -1,7 +1,7 @@
 
 Mapper {
 
-	var dataptr;
+	var <dataptr;
 
 	*new {
 		^super.new.init
