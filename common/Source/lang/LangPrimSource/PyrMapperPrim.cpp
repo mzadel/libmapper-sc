@@ -5,6 +5,18 @@
 #include <mapper/mapper.h>
 #include <lo/lo.h>
 
+class Mapper
+{
+
+public:
+	//Mapper() {}
+	//~Mapper() {}
+
+private:
+	mapper_device m_dev;
+
+};
+
 mapper_device my_device = NULL;
 
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
