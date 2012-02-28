@@ -3,6 +3,14 @@ Mapper {
 
 	var dataptr;
 
+	*new {
+		^super.new.init
+	}
+
+	init {
+		this.prMapperNew;
+	}
+
 	// libmapper
 	mapperDevNew {
 		_MapperDevNew
@@ -26,6 +34,11 @@ Mapper {
 
 	mapperGetCurrentValue {
 		_MapperGetCurrentValue
+		^this.primitiveFailed
+	}
+
+	prMapperNew {
+		_MapperNew
 		^this.primitiveFailed
 	}
 
