@@ -2,11 +2,6 @@
 Mapper {
 
 	// libmapper
-	mapperJustACall {
-		_MapperJustACall
-		^this.primitiveFailed
-	}
-
 	mapperDevNew {
 		_MapperDevNew
 		^this.primitiveFailed
