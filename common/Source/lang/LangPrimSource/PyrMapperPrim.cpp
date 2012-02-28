@@ -24,7 +24,7 @@ int mapperNew(struct VMGlobals *g, int numArgsPushed);
 int mapperNew(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	SetPtr(slotRawObject(a)->slots, new Mapper);
+	SetPtr(slotRawObject(a)->slots+0, new Mapper);
 	return errNone;
 }
 
