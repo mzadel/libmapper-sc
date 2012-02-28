@@ -19,6 +19,14 @@ private:
 
 mapper_device my_device = NULL;
 
+int mapperNew(struct VMGlobals *g, int numArgsPushed);
+int mapperNew(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+	SetPtr(slotRawObject(a)->slots, new Mapper);
+	return errNone;
+}
+
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 {
@@ -81,6 +89,7 @@ void initMapperPrimitives()
 	base = nextPrimitiveIndex();
 
 	// libmapper
+	definePrimitive(base, index++, "_MapperNew", mapperNew, 1, 0);
 	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 1, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
