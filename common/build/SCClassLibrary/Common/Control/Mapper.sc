@@ -1,6 +1,8 @@
 
 Mapper {
 
+	var dataptr;
+
 	// libmapper
 	mapperDevNew {
 		_MapperDevNew
