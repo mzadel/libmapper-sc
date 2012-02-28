@@ -1,4 +1,5 @@
 
+#include "PyrObject.h"
 #include "PyrPrimitive.h"
 #include "VMGlobals.h"
 
