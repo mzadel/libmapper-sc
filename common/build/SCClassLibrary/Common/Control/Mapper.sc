@@ -38,7 +38,7 @@ Mapper {
 	}
 
 	prMapperNew {
-		_MapperNew
+		_MapperInit
 		^this.primitiveFailed
 	}
 
