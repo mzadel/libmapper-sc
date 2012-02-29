@@ -15,7 +15,7 @@ public:
 	Mapper();
 	//~Mapper() {}
 
-	void devnew( void );
+	void devnew( int portrequested );
 	void add_input( void );
 	void poll( void );
 	void free( void );
@@ -34,8 +34,8 @@ Mapper::Mapper( void ) {
 	max1000 = 1000;
 }
 
-void Mapper::devnew( void ) {
-	m_dev = mdev_new("supercollider", 9444, 0);
+void Mapper::devnew( int portrequested ) {
+	m_dev = mdev_new("supercollider", portrequested, 0);
 }
 
 void Mapper::add_input( void ) {
@@ -70,9 +70,17 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 {
-	PyrSlot *a = g->sp;
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
 	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mdev->devnew();
+
+	int err, portrequested;
+	err = slotIntVal(b, &portrequested);
+	if (err) return errWrongType;
+
+	mdev->devnew( portrequested );
+
 	return errNone;
 }
 
@@ -141,7 +149,7 @@ void initMapperPrimitives()
 
 	// libmapper
 	definePrimitive(base, index++, "_MapperInit", mapperInit, 1, 0);
-	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 1, 0);
+	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 2, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
