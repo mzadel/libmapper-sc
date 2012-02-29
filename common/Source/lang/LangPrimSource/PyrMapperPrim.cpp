@@ -62,8 +62,21 @@ unsigned int Mapper::port( void ) {
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
 int mapperInit(struct VMGlobals *g, int numArgsPushed)
 {
-	PyrSlot *a = g->sp;
-	SetPtr(slotRawObject(a)->slots+0, new Mapper);
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	// allocate a new Mapper class instance
+	Mapper *mdev = new Mapper;
+
+	int err, portrequested;
+	err = slotIntVal(b, &portrequested);
+	if (err) return errWrongType;
+
+	// poplate the device field in the Mapper instance
+	mdev->devnew( portrequested );
+
+	SetPtr(slotRawObject(a)->slots+0, mdev);
+
 	return errNone;
 }
 
@@ -148,8 +161,8 @@ void initMapperPrimitives()
 	base = nextPrimitiveIndex();
 
 	// libmapper
-	definePrimitive(base, index++, "_MapperInit", mapperInit, 1, 0);
-	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 2, 0);
+	definePrimitive(base, index++, "_MapperInit", mapperInit, 2, 0);
+	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 1, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
