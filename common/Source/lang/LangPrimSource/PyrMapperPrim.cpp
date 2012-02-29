@@ -4,7 +4,6 @@
 #include "VMGlobals.h"
 
 #include <mapper/mapper.h>
-#include <lo/lo.h>
 
 void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *timetag, void *pfreq);
 
