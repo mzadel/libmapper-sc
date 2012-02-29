@@ -37,6 +37,11 @@ Mapper {
 		^this.primitiveFailed
 	}
 
+	mapperPort {
+		_MapperPort
+		^this.primitiveFailed
+	}
+
 	prMapperInit {
 		_MapperInit
 		^this.primitiveFailed

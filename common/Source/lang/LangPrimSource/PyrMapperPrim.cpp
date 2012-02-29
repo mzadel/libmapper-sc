@@ -19,6 +19,7 @@ public:
 	void add_input( void );
 	void poll( void );
 	void free( void );
+	unsigned int port( void );
 
 private:
 	mapper_device m_dev;
@@ -51,6 +52,11 @@ void Mapper::poll( void ) {
 void Mapper::free( void ) {
 	mdev_free( m_dev );
 	m_dev = NULL;
+}
+
+unsigned int Mapper::port( void ) {
+	// return the port number that the device was able to get
+	return mdev_port( m_dev );
 }
 
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
@@ -118,6 +124,15 @@ int mapperGetCurrentValue(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperPort(struct VMGlobals *g, int numArgsPushed);
+int mapperPort(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+	SetInt( a, mdev->port() );
+	return errNone;
+}
+
 void initMapperPrimitives()
 {
 	int base, index = 0;
@@ -131,6 +146,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);
+	definePrimitive(base, index++, "_MapperPort", mapperPort, 1, 0);
 
 	// add getsym()s you need here
 
