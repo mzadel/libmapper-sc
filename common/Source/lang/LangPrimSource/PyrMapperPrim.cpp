@@ -13,12 +13,10 @@ public:
 	//Mapper() {}
 	//~Mapper() {}
 
-private:
+//private:
 	mapper_device m_dev;
 
 };
-
-mapper_device my_device = NULL;
 
 int mapperNew(struct VMGlobals *g, int numArgsPushed);
 int mapperNew(struct VMGlobals *g, int numArgsPushed)
@@ -31,7 +29,9 @@ int mapperNew(struct VMGlobals *g, int numArgsPushed)
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 {
-	my_device = mdev_new("supercollider", 9444, 0);
+	PyrSlot *a = g->sp;
+	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+	mapperdata->m_dev = mdev_new("supercollider", 9444, 0);
 	return errNone;
 }
 
@@ -49,16 +49,20 @@ void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *t
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
-    mdev_add_input(my_device, "/freq", 1, 'f', 0, &min0, &max1000, handler_freq, NULL);
+	PyrSlot *a = g->sp;
+	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+    mdev_add_input(mapperdata->m_dev, "/freq", 1, 'f', 0, &min0, &max1000, handler_freq, NULL);
 	return errNone;
 }
 
 int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
+	PyrSlot *a = g->sp;
+	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
 	int numhandled = 1;
 	while ( numhandled > 0 ) {
-		numhandled = mdev_poll(my_device, 0);
+		numhandled = mdev_poll(mapperdata->m_dev, 0);
 	}
 	return errNone;
 }
@@ -66,7 +70,10 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed);
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
-	mdev_free( my_device );
+	PyrSlot *a = g->sp;
+	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+	mdev_free( mapperdata->m_dev );
+	mapperdata->m_dev = NULL;
 	return errNone;
 }
 
