@@ -11,14 +11,6 @@ Mapper {
 		this.prMapperInit( port )
 	}
 
-	// libmapper
-	// FIXME *this* is the call that should be getting the port number
-	// FIXME decide if you're going to accept the port here or at instantiation
-	mapperDevNew {
-		_MapperDevNew
-		^this.primitiveFailed
-	}
-
 	mapperAddInput {
 		_MapperAddInput
 		^this.primitiveFailed

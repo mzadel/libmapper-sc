@@ -80,23 +80,6 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
-int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
-{
-	PyrSlot *a = g->sp - 1;
-	PyrSlot *b = g->sp;
-
-	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-
-	int err, portrequested;
-	err = slotIntVal(b, &portrequested);
-	if (err) return errWrongType;
-
-	mdev->devnew( portrequested );
-
-	return errNone;
-}
-
 float currentvalue = 0.0;
 
 void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *timetag, void *pfreq)
@@ -162,7 +145,6 @@ void initMapperPrimitives()
 
 	// libmapper
 	definePrimitive(base, index++, "_MapperInit", mapperInit, 2, 0);
-	definePrimitive(base, index++, "_MapperDevNew", mapperDevNew, 1, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
