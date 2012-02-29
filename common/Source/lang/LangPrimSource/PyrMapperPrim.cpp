@@ -65,8 +65,8 @@ int mapperDevNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mapperdata->devnew();
+	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+	mdev->devnew();
 	return errNone;
 }
 
@@ -82,8 +82,8 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mapperdata->add_input();
+	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+	mdev->add_input();
 	return errNone;
 }
 
@@ -91,8 +91,8 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mapperdata->poll();
+	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+	mdev->poll();
 	return errNone;
 }
 
@@ -100,8 +100,8 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed);
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mapperdata->free();
+	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
+	mdev->free();
 	return errNone;
 }
 
