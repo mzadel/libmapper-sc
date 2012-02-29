@@ -8,7 +8,7 @@ Mapper {
 	}
 
 	init {
-		this.prMapperNew;
+		this.prMapperInit;
 	}
 
 	// libmapper
@@ -37,7 +37,7 @@ Mapper {
 		^this.primitiveFailed
 	}
 
-	prMapperNew {
+	prMapperInit {
 		_MapperInit
 		^this.primitiveFailed
 	}
