@@ -3,15 +3,17 @@ Mapper {
 
 	var <dataptr;
 
-	*new {
-		^super.new.init
+	*new { arg port = 9444;
+		^super.new.init( port )
 	}
 
-	init {
-		this.prMapperInit;
+	init { arg port;
+		this.prMapperInit( port )
 	}
 
 	// libmapper
+	// FIXME *this* is the call that should be getting the port number
+	// FIXME decide if you're going to accept the port here or at instantiation
 	mapperDevNew {
 		_MapperDevNew
 		^this.primitiveFailed
