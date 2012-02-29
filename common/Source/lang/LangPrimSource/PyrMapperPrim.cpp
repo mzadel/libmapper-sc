@@ -6,17 +6,52 @@
 #include <mapper/mapper.h>
 #include <lo/lo.h>
 
+void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *timetag, void *pfreq);
+
 class Mapper
 {
 
 public:
-	//Mapper() {}
+	Mapper();
 	//~Mapper() {}
 
-//private:
+	void devnew( void );
+	void add_input( void );
+	void poll( void );
+	void free( void );
+
+private:
 	mapper_device m_dev;
+	float min0;
+	float max1000;
 
 };
+
+Mapper::Mapper( void ) {
+	m_dev = NULL;
+	min0 = 0;
+	max1000 = 1000;
+}
+
+void Mapper::devnew( void ) {
+	m_dev = mdev_new("supercollider", 9444, 0);
+}
+
+void Mapper::add_input( void ) {
+    mdev_add_input(m_dev, "/freq", 1, 'f', 0, &min0, &max1000, handler_freq, NULL);
+}
+
+void Mapper::poll( void ) {
+	int numhandled = 1;
+	while ( numhandled > 0 ) {
+		numhandled = mdev_poll(m_dev, 0);
+	}
+}
+
+void Mapper::free( void ) {
+	mdev_free( m_dev );
+	m_dev = NULL;
+}
 
 int mapperNew(struct VMGlobals *g, int numArgsPushed);
 int mapperNew(struct VMGlobals *g, int numArgsPushed)
@@ -31,12 +66,9 @@ int mapperDevNew(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mapperdata->m_dev = mdev_new("supercollider", 9444, 0);
+	mapperdata->devnew();
 	return errNone;
 }
-
-float min0 = 0;
-float max1000 = 1000;
 
 float currentvalue = 0.0;
 
@@ -51,7 +83,7 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-    mdev_add_input(mapperdata->m_dev, "/freq", 1, 'f', 0, &min0, &max1000, handler_freq, NULL);
+	mapperdata->add_input();
 	return errNone;
 }
 
@@ -60,10 +92,7 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	int numhandled = 1;
-	while ( numhandled > 0 ) {
-		numhandled = mdev_poll(mapperdata->m_dev, 0);
-	}
+	mapperdata->poll();
 	return errNone;
 }
 
@@ -72,8 +101,7 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	Mapper *mapperdata = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mdev_free( mapperdata->m_dev );
-	mapperdata->m_dev = NULL;
+	mapperdata->free();
 	return errNone;
 }
 
