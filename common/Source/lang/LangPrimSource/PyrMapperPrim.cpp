@@ -5,8 +5,6 @@
 
 #include <mapper/mapper.h>
 
-void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *timetag, void *pfreq);
-
 class Mapper
 {
 
@@ -19,6 +17,8 @@ public:
 	void poll( void );
 	void free( void );
 	unsigned int port( void );
+
+	static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
 private:
 	mapper_device m_dev;
@@ -38,7 +38,7 @@ void Mapper::devnew( int portrequested ) {
 }
 
 void Mapper::add_input( void ) {
-    mdev_add_input(m_dev, "/freq", 1, 'f', 0, &min0, &max1000, handler_freq, NULL);
+    mdev_add_input(m_dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::input_handler, NULL);
 }
 
 void Mapper::poll( void ) {
@@ -56,6 +56,10 @@ void Mapper::free( void ) {
 unsigned int Mapper::port( void ) {
 	// return the port number that the device was able to get
 	return mdev_port( m_dev );
+}
+
+void Mapper::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value ) {
+	printf("Mapper::input_handler() called\n");
 }
 
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
@@ -80,12 +84,6 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 }
 
 float currentvalue = 0.0;
-
-void handler_freq(mapper_signal sig, mapper_db_signal props, mapper_timetag_t *timetag, void *pfreq)
-{
-	// store the value in a local variable to poll later
-	currentvalue = *(float*)pfreq;
-}
 
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
