@@ -20,15 +20,7 @@ public:
 		// first slot, which is a pointer to the internal C++ data structure
 		return (Mapper*) slotRawPtr( &slotRawObject(slot)->slots[0] );
 	}
-#if 0
-	static inline mapper_device getDev( PyrSlot* slot )
-	{
-		// Get the PyrObject pointer from the argument, then get that object's
-		// first slot (which is a pointer to the internal C++ data structure),
-		// then return the mapper_device field from that
-		return ( (Mapper*) slotRawPtr( &slotRawObject(slot)->slots[0] ) )->m_dev;
-	}
-#endif
+
 	mapper_device m_dev;
 
 };
