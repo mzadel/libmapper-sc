@@ -5,32 +5,32 @@
 
 #include <mapper/mapper.h>
 
-class Mapper
+class Device
 {
 
 public:
-	Mapper();
-	//~Mapper() {}
+	Device();
+	//~Device() {}
 
 	static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
-	static inline Mapper* getMapperStruct( PyrSlot* slot )
+	static inline Device* getDeviceStruct( PyrSlot* slot )
 	{
 		// Get the PyrObject pointer from the argument, then get that object's
 		// first slot, which is a pointer to the internal C++ data structure
-		return (Mapper*) slotRawPtr( &slotRawObject(slot)->slots[0] );
+		return (Device*) slotRawPtr( &slotRawObject(slot)->slots[0] );
 	}
 
 	mapper_device m_dev;
 
 };
 
-Mapper::Mapper( void ) {
+Device::Device( void ) {
 	m_dev = NULL;
 }
 
-void Mapper::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value ) {
-	printf("Mapper::input_handler() called\n");
+void Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value ) {
+	printf("Device::input_handler() called\n");
 }
 
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
@@ -39,14 +39,14 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp - 1;
 	PyrSlot *b = g->sp;
 
-	// allocate a new Mapper class instance
-	Mapper *mdev = new Mapper;
+	// allocate a new Device class instance
+	Device *mdev = new Device;
 
 	int err, portrequested;
 	err = slotIntVal(b, &portrequested);
 	if (err) return errWrongType;
 
-	// poplate the device field in the Mapper instance
+	// poplate the device field in the Device instance
 	mdev->m_dev = mdev_new("supercollider", portrequested, 0);
 
 	SetPtr(slotRawObject(a)->slots+0, mdev);
@@ -62,8 +62,8 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getMapperStruct( a )->m_dev;
-    mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::input_handler, NULL);
+	mapper_device dev = Device::getDeviceStruct( a )->m_dev;
+    mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Device::input_handler, NULL);
 	return errNone;
 }
 
@@ -71,7 +71,7 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getMapperStruct( a )->m_dev;
+	mapper_device dev = Device::getDeviceStruct( a )->m_dev;
 	int numhandled = 1;
 	while ( numhandled > 0 ) {
 		numhandled = mdev_poll(dev, 0);
@@ -84,7 +84,7 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
-	Mapper *mapperdatastructure = Mapper::getMapperStruct( a );
+	Device *mapperdatastructure = Device::getDeviceStruct( a );
 	mapper_device dev = mapperdatastructure->m_dev;
 
 	mdev_free( dev );
@@ -110,7 +110,7 @@ int mapperPort(struct VMGlobals *g, int numArgsPushed);
 int mapperPort(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getMapperStruct( a )->m_dev;
+	mapper_device dev = Device::getDeviceStruct( a )->m_dev;
 	SetInt( a, mdev_port( dev ) );
 	return errNone;
 }
