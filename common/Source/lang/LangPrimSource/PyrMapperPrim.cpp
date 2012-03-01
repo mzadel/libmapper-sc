@@ -12,12 +12,6 @@ public:
 	Mapper();
 	//~Mapper() {}
 
-	void devnew( int portrequested );
-	void add_input( void );
-	void poll( void );
-	void free( void );
-	unsigned int port( void );
-
 	static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
 	static inline mapper_device getDev( PyrSlot* slot )
@@ -29,41 +23,11 @@ public:
 	}
 
 	mapper_device m_dev;
-private:
-	float min0;
-	float max1000;
 
 };
 
 Mapper::Mapper( void ) {
 	m_dev = NULL;
-	min0 = 0;
-	max1000 = 1000;
-}
-
-void Mapper::devnew( int portrequested ) {
-	m_dev = mdev_new("supercollider", portrequested, 0);
-}
-
-void Mapper::add_input( void ) {
-    mdev_add_input(m_dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::input_handler, NULL);
-}
-
-void Mapper::poll( void ) {
-	int numhandled = 1;
-	while ( numhandled > 0 ) {
-		numhandled = mdev_poll(m_dev, 0);
-	}
-}
-
-void Mapper::free( void ) {
-	mdev_free( m_dev );
-	m_dev = NULL;
-}
-
-unsigned int Mapper::port( void ) {
-	// return the port number that the device was able to get
-	return mdev_port( m_dev );
 }
 
 void Mapper::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value ) {
@@ -84,7 +48,7 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 	if (err) return errWrongType;
 
 	// poplate the device field in the Mapper instance
-	mdev->devnew( portrequested );
+	mdev->m_dev = mdev_new("supercollider", portrequested, 0);
 
 	SetPtr(slotRawObject(a)->slots+0, mdev);
 
@@ -92,13 +56,15 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 }
 
 float currentvalue = 0.0;
+float min0;
+float max1000;
 
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mdev->add_input();
+	mapper_device dev = Mapper::getDev( a );
+    mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::input_handler, NULL);
 	return errNone;
 }
 
@@ -106,8 +72,11 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mdev->poll();
+	mapper_device dev = Mapper::getDev( a );
+	int numhandled = 1;
+	while ( numhandled > 0 ) {
+		numhandled = mdev_poll(dev, 0);
+	}
 	return errNone;
 }
 
@@ -115,8 +84,13 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed);
 int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	mdev->free();
+
+	Mapper *mapperdatastructure = (Mapper*) slotRawPtr( &slotRawObject(a)->slots[0] );
+	mapper_device dev = mapperdatastructure->m_dev;
+
+	mdev_free( dev );
+	mapperdatastructure->m_dev = NULL;
+
 	return errNone;
 }
 
@@ -137,8 +111,8 @@ int mapperPort(struct VMGlobals *g, int numArgsPushed);
 int mapperPort(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	Mapper *mdev = (Mapper*)slotRawPtr(&slotRawObject(a)->slots[0]);
-	SetInt( a, mdev->port() );
+	mapper_device dev = Mapper::getDev( a );
+	SetInt( a, mdev_port( dev ) );
 	return errNone;
 }
 
