@@ -20,8 +20,16 @@ public:
 
 	static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
-private:
+	static inline mapper_device getDev( PyrSlot* slot )
+	{
+		// Get the PyrObject pointer from the argument, then get that object's
+		// first slot (which is a pointer to the internal C++ data structure),
+		// then return the mapper_device field from that
+		return ( (Mapper*) slotRawPtr( &slotRawObject(slot)->slots[0] ) )->m_dev;
+	}
+
 	mapper_device m_dev;
+private:
 	float min0;
 	float max1000;
 
