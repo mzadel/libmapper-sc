@@ -7,10 +7,9 @@
 
 namespace Mapper {
 
-	class Device
+	struct Device
 	{
 
-	public:
 		Device() : m_dev( NULL ) {}
 
 		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
