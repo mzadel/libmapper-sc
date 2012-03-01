@@ -83,9 +83,8 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
-	mapper_device dev = devstruct->m_dev;
 
-	mdev_free( dev );
+	mdev_free( devstruct->m_dev );
 	devstruct->m_dev = NULL;
 
 	return errNone;
