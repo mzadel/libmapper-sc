@@ -60,8 +60,15 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
+
+	PyrObject *obj = slotRawObject(a);
 	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
-    mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::Device::input_handler, NULL);
+
+	// register the callback for the input.  store the object pointer in the
+	// user data for the callback, which will be passed to invocations of the
+	// callback.
+	mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::Device::input_handler, obj);
+
 	return errNone;
 }
 
