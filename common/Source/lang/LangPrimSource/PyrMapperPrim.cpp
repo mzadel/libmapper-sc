@@ -5,6 +5,8 @@
 
 #include <mapper/mapper.h>
 
+PyrSymbol *s_dispatchInputAction;
+
 namespace Mapper {
 
 	struct Device
@@ -27,8 +29,15 @@ namespace Mapper {
 
 }
 
-void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value ) {
-	printf("Mapper::Device::input_handler() called\n");
+void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
+{
+	VMGlobals* g = gMainVMGlobals;
+
+	PyrObject *obj = (PyrObject*) props->user_data;
+
+	++g->sp; SetObject(g->sp, obj);
+
+	runInterpreter(g, s_dispatchInputAction, 1);
 }
 
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
@@ -125,7 +134,6 @@ void initMapperPrimitives()
 
 	base = nextPrimitiveIndex();
 
-	// libmapper
 	definePrimitive(base, index++, "_MapperInit", mapperInit, 2, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
@@ -133,7 +141,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);
 	definePrimitive(base, index++, "_MapperPort", mapperPort, 1, 0);
 
-	// add getsym()s you need here
+	s_dispatchInputAction = getsym("prDispatchInputAction");
 
 }
 

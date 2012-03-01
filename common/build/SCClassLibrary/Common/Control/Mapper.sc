@@ -41,5 +41,9 @@ Mapper {
 		^this.primitiveFailed
 	}
 
+	prDispatchInputAction {
+		"prDispatchInputAction() called".postln;
+	}
+
 }
 
