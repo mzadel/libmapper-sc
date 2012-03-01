@@ -2,10 +2,13 @@
 #include "PyrObject.h"
 #include "PyrPrimitive.h"
 #include "VMGlobals.h"
+#include "PyrSched.h"
 
 #include <mapper/mapper.h>
 
 PyrSymbol *s_dispatchInputAction;
+
+extern bool compiledOK;
 
 namespace Mapper {
 
@@ -31,13 +34,24 @@ namespace Mapper {
 
 void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
 {
-	VMGlobals* g = gMainVMGlobals;
 
-	PyrObject *obj = (PyrObject*) props->user_data;
+	// FIXME this hangs...  probably in the mutex already when this is called so I get a deadlock
 
-	++g->sp; SetObject(g->sp, obj);
+	pthread_mutex_lock (&gLangMutex);
 
-	runInterpreter(g, s_dispatchInputAction, 1);
+	if (compiledOK) {
+
+		VMGlobals* g = gMainVMGlobals;
+
+		PyrObject *obj = (PyrObject*) props->user_data;
+
+		++g->sp; SetObject(g->sp, obj);
+
+		runInterpreter(g, s_dispatchInputAction, 1);
+
+	}
+
+	pthread_mutex_unlock (&gLangMutex);
 }
 
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
