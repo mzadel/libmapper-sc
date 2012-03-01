@@ -15,16 +15,16 @@ namespace Mapper {
 
 		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
-		static inline Device* getDeviceStruct( PyrSlot* slot )
-		{
-			// Get the PyrObject pointer from the argument, then get that object's
-			// first slot, which is a pointer to the internal C++ data structure
-			return (Device*) slotRawPtr( &slotRawObject(slot)->slots[0] );
-		}
-
 		mapper_device m_dev;
 
 	};
+
+	static inline Device* getDeviceStruct( PyrSlot* slot )
+	{
+		// Get the PyrObject pointer from the argument, then get that object's
+		// first slot, which is a pointer to the internal C++ data structure
+		return (Device*) slotRawPtr( &slotRawObject(slot)->slots[0] );
+	}
 
 }
 
@@ -61,7 +61,7 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::Device::getDeviceStruct( a )->m_dev;
+	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
     mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::Device::input_handler, NULL);
 	return errNone;
 }
@@ -70,7 +70,7 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::Device::getDeviceStruct( a )->m_dev;
+	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
 	int numhandled = 1;
 	while ( numhandled > 0 ) {
 		numhandled = mdev_poll(dev, 0);
@@ -83,7 +83,7 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
-	Mapper::Device *mapperdatastructure = Mapper::Device::getDeviceStruct( a );
+	Mapper::Device *mapperdatastructure = Mapper::getDeviceStruct( a );
 	mapper_device dev = mapperdatastructure->m_dev;
 
 	mdev_free( dev );
@@ -109,7 +109,7 @@ int mapperPort(struct VMGlobals *g, int numArgsPushed);
 int mapperPort(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::Device::getDeviceStruct( a )->m_dev;
+	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
 	SetInt( a, mdev_port( dev ) );
 	return errNone;
 }
