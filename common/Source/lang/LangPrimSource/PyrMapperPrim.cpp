@@ -14,6 +14,13 @@ public:
 
 	static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
+	static inline Mapper* getMapperStruct( PyrSlot* slot )
+	{
+		// Get the PyrObject pointer from the argument, then get that object's
+		// first slot, which is a pointer to the internal C++ data structure
+		return (Mapper*) slotRawPtr( &slotRawObject(slot)->slots[0] );
+	}
+#if 0
 	static inline mapper_device getDev( PyrSlot* slot )
 	{
 		// Get the PyrObject pointer from the argument, then get that object's
@@ -21,7 +28,7 @@ public:
 		// then return the mapper_device field from that
 		return ( (Mapper*) slotRawPtr( &slotRawObject(slot)->slots[0] ) )->m_dev;
 	}
-
+#endif
 	mapper_device m_dev;
 
 };
@@ -63,7 +70,7 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getDev( a );
+	mapper_device dev = Mapper::getMapperStruct( a )->m_dev;
     mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::input_handler, NULL);
 	return errNone;
 }
@@ -72,7 +79,7 @@ int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getDev( a );
+	mapper_device dev = Mapper::getMapperStruct( a )->m_dev;
 	int numhandled = 1;
 	while ( numhandled > 0 ) {
 		numhandled = mdev_poll(dev, 0);
@@ -85,7 +92,7 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
-	Mapper *mapperdatastructure = (Mapper*) slotRawPtr( &slotRawObject(a)->slots[0] );
+	Mapper *mapperdatastructure = Mapper::getMapperStruct( a );
 	mapper_device dev = mapperdatastructure->m_dev;
 
 	mdev_free( dev );
@@ -111,7 +118,7 @@ int mapperPort(struct VMGlobals *g, int numArgsPushed);
 int mapperPort(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getDev( a );
+	mapper_device dev = Mapper::getMapperStruct( a )->m_dev;
 	SetInt( a, mdev_port( dev ) );
 	return errNone;
 }
