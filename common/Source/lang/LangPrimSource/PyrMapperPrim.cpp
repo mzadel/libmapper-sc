@@ -9,8 +9,7 @@ class Device
 {
 
 public:
-	Device();
-	//~Device() {}
+	Device() : m_dev( NULL ) {}
 
 	static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
@@ -24,10 +23,6 @@ public:
 	mapper_device m_dev;
 
 };
-
-Device::Device( void ) {
-	m_dev = NULL;
-}
 
 void Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value ) {
 	printf("Device::input_handler() called\n");
