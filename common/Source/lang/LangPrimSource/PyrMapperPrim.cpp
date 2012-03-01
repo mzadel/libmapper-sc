@@ -38,16 +38,16 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *b = g->sp;
 
 	// allocate a new Device class instance
-	Mapper::Device *mdev = new Mapper::Device;
+	Mapper::Device *devstruct = new Mapper::Device;
 
 	int err, portrequested;
 	err = slotIntVal(b, &portrequested);
 	if (err) return errWrongType;
 
 	// poplate the device field in the Device instance
-	mdev->m_dev = mdev_new("supercollider", portrequested, 0);
+	devstruct->m_dev = mdev_new("supercollider", portrequested, 0);
 
-	SetPtr(slotRawObject(a)->slots+0, mdev);
+	SetPtr(slotRawObject(a)->slots+0, devstruct);
 
 	return errNone;
 }
@@ -82,11 +82,11 @@ int mapperDevFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
-	Mapper::Device *mapperdatastructure = Mapper::getDeviceStruct( a );
-	mapper_device dev = mapperdatastructure->m_dev;
+	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
+	mapper_device dev = devstruct->m_dev;
 
 	mdev_free( dev );
-	mapperdatastructure->m_dev = NULL;
+	devstruct->m_dev = NULL;
 
 	return errNone;
 }
