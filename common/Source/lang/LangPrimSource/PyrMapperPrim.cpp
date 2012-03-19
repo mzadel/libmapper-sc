@@ -21,6 +21,7 @@ namespace Mapper {
 
 		mapper_device m_dev;
 		pthread_t m_thread;
+		bool m_running;
 
 	};
 
@@ -98,7 +99,12 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 
 void* pollmapper( void* arg ) {
 	printf("pollmapper() called\n");
-	while (true) {
+
+	Mapper::Device *devstruct = (Mapper::Device*) arg;
+
+	devstruct->m_running = true;
+
+	while (devstruct->m_running) {
 		printf("pollmapper(): in while loop\n");
 		sleep(1);
 	}
@@ -115,7 +121,7 @@ int mapperStart(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
 
-	pthread_create( &devstruct->m_thread, NULL, pollmapper, (void*)0 );
+	pthread_create( &devstruct->m_thread, NULL, pollmapper, (void*)devstruct );
 	return errNone;
 }
 
@@ -128,6 +134,7 @@ int mapperStop(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
+	devstruct->m_running = false;
 
 	pthread_join(devstruct->m_thread, 0);
 
