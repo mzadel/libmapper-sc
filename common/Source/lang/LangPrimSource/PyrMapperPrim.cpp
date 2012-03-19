@@ -105,8 +105,12 @@ void* pollmapper( void* arg ) {
 	devstruct->m_running = true;
 
 	while (devstruct->m_running) {
-		printf("pollmapper(): in while loop\n");
-		sleep(1);
+		//printf("pollmapper(): in while loop\n");
+		int numhandled = 1;
+		while ( numhandled > 0 ) {
+			numhandled = mdev_poll(devstruct->m_dev, 0);
+		}
+		usleep(200);
 	}
 	printf("pollmapper() finished\n");
 }
