@@ -15,7 +15,7 @@ namespace Mapper {
 	struct Device
 	{
 
-		Device() : m_dev( NULL ) {}
+		Device() : m_dev( NULL ), m_running( false ) {}
 
 		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
