@@ -121,6 +121,9 @@ int mapperStart(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
 
+	// FIXME the way this works now, there's one thread per Mapper instance
+	// there should only be one thread of all of them; make a manager class or
+	// something?
 	pthread_create( &devstruct->m_thread, NULL, pollmapper, (void*)devstruct );
 	return errNone;
 }
