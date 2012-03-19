@@ -145,6 +145,7 @@ int mapperStop(struct VMGlobals *g, int numArgsPushed)
 	devstruct->m_running = false;
 
 	pthread_join(devstruct->m_thread, 0);
+	printf("mapperStop(): after pthread_join()\n");
 
 	return errNone;
 }
