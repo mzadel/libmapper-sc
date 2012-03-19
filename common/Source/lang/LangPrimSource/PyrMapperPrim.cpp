@@ -20,6 +20,7 @@ namespace Mapper {
 		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
 		mapper_device m_dev;
+		pthread_t m_thread;
 
 	};
 
@@ -95,10 +96,26 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+void* pollmapper( void* arg ) {
+	printf("pollmapper() called\n");
+	while (true) {
+		printf("pollmapper(): in while loop\n");
+		sleep(1);
+	}
+	printf("pollmapper() finished\n");
+}
+
 int mapperStart(struct VMGlobals *g, int numArgsPushed);
 int mapperStart(struct VMGlobals *g, int numArgsPushed)
 {
 	// fork a thread that polls the libmapper queue
+	printf("mapperStart()\n");
+
+	PyrSlot *a = g->sp;
+
+	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
+
+	pthread_create( &devstruct->m_thread, NULL, pollmapper, (void*)0 );
 	return errNone;
 }
 
@@ -106,6 +123,14 @@ int mapperStop(struct VMGlobals *g, int numArgsPushed);
 int mapperStop(struct VMGlobals *g, int numArgsPushed)
 {
 	// stop the libmapper polling thread
+	printf("mapperStop()\n");
+
+	PyrSlot *a = g->sp;
+
+	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
+
+	pthread_join(devstruct->m_thread, 0);
+
 	return errNone;
 }
 
