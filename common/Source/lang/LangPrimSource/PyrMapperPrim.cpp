@@ -95,6 +95,20 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperStart(struct VMGlobals *g, int numArgsPushed);
+int mapperStart(struct VMGlobals *g, int numArgsPushed)
+{
+	// fork a thread that polls the libmapper queue
+	return errNone;
+}
+
+int mapperStop(struct VMGlobals *g, int numArgsPushed);
+int mapperStop(struct VMGlobals *g, int numArgsPushed)
+{
+	// stop the libmapper polling thread
+	return errNone;
+}
+
 int mapperPoll(struct VMGlobals *g, int numArgsPushed);
 int mapperPoll(struct VMGlobals *g, int numArgsPushed)
 {
@@ -150,6 +164,8 @@ void initMapperPrimitives()
 
 	definePrimitive(base, index++, "_MapperInit", mapperInit, 2, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
+	definePrimitive(base, index++, "_MapperStart", mapperStart, 1, 0);
+	definePrimitive(base, index++, "_MapperStop", mapperStop, 1, 0);
 	definePrimitive(base, index++, "_MapperPoll", mapperPoll, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);

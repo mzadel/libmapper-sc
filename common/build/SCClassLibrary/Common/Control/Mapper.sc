@@ -16,6 +16,16 @@ Mapper {
 		^this.primitiveFailed
 	}
 
+	mapperStart {
+		_MapperStart;
+		^this.primitiveFailed
+	}
+
+	mapperStop {
+		_MapperStop;
+		^this.primitiveFailed
+	}
+
 	mapperPoll {
 		_MapperPoll
 		^this.primitiveFailed
