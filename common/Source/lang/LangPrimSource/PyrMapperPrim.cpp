@@ -37,8 +37,6 @@ namespace Mapper {
 void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
 {
 
-	// FIXME this hangs...  probably in the mutex already when this is called so I get a deadlock
-
 	pthread_mutex_lock (&gLangMutex);
 
 	if (compiledOK) {
