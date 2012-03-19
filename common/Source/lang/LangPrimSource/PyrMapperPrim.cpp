@@ -97,6 +97,7 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+// FIXME make this cleaner; should go as a static in the Device class above I think
 void* pollmapper( void* arg ) {
 	printf("pollmapper() called\n");
 
