@@ -117,18 +117,28 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
-	PyrSlot *a = g->sp;
+	PyrSlot *a = g->sp - 4; // object
+	PyrSlot *b = g->sp - 3; // osc address (the signal name)
+	PyrSlot *c = g->sp - 2; // type char
+	PyrSlot *d = g->sp - 1; // min value
+	PyrSlot *e = g->sp;     // max value
 
 	PyrObject *obj = slotRawObject(a);
+	PyrSymbol *name = slotRawSymbol(b);
+	char typechar = slotRawChar(c);
+	float min = slotRawFloat(d);
+	float max = slotRawFloat(e);
+	// FIXME the min and max here won't necessarily be floats...
+
 	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
 
-	float min0 = 0.0;
-	float max1000 = 1000;
+	// extract the signal name (osc address) from the name symbol
+	char *signalname = name->name;
 
 	// register the callback for the input.  store the object pointer in the
 	// user data for the callback, which will be passed to invocations of the
 	// callback.
-	mdev_add_input(dev, "/freq", 1, 'f', 0, &min0, &max1000, Mapper::Device::input_handler, obj);
+	mdev_add_input(dev, signalname, 1, typechar, 0, &min, &max, Mapper::Device::input_handler, obj);
 
 	return errNone;
 }
