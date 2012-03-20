@@ -47,7 +47,6 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 		PyrObject *obj = (PyrObject*) props->user_data;
 
 		++g->sp; SetObject(g->sp, obj);
-
 		int numArgsPushed = 1;
 
 		if (value) {
@@ -64,7 +63,6 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 			else {
 				printf("Mapper::Device::input_handler(): ignoring message of unsupported type (%c)\n", type);
 			}
-
 		}
 
 		runInterpreter(g, s_dispatchInputAction, numArgsPushed);
