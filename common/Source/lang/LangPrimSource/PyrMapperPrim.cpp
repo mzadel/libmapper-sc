@@ -126,9 +126,30 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	PyrObject *obj = slotRawObject(a);
 	PyrSymbol *name = slotRawSymbol(b);
 	char typechar = slotRawChar(c);
-	float min = slotRawFloat(d);
-	float max = slotRawFloat(e);
-	// FIXME the min and max here won't necessarily be floats...
+
+	// extract the min and max using the appropriate type
+	void *min = NULL;
+	void *max = NULL;
+	float minfloat;
+	float maxfloat;
+	int minint;
+	int maxint;
+
+	if ( typechar == 'f' ) {
+		minfloat = slotRawFloat(d);
+		maxfloat = slotRawFloat(e);
+		min = &minfloat;
+		max = &maxfloat;
+	}
+	else if ( typechar == 'i' ) {
+		minint = slotRawInt(d);
+		maxint = slotRawInt(e);
+		min = &minint;
+		max = &maxint;
+	}
+	else {
+		printf("mapperAddInput(): ignoring min/max for signal of unsupported type (%c)\n", typechar);
+	}
 
 	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
 
