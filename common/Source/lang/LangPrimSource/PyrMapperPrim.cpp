@@ -96,30 +96,24 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 }
 
 // FIXME make this cleaner; should go as a static in the Device class above I think
-void* pollmapper( void* arg ) {
-	printf("pollmapper() called\n");
-
+void* pollmapper( void* arg )
+{
 	Mapper::Device *devstruct = (Mapper::Device*) arg;
 
 	devstruct->m_running = true;
 
 	while (devstruct->m_running) {
-		//printf("pollmapper(): in while loop\n");
 		int numhandled = 1;
 		while ( numhandled > 0 ) {
 			numhandled = mdev_poll(devstruct->m_dev, 0);
 		}
 		usleep(200);
 	}
-	printf("pollmapper() finished\n");
 }
 
 int mapperStart(struct VMGlobals *g, int numArgsPushed);
 int mapperStart(struct VMGlobals *g, int numArgsPushed)
 {
-	// fork a thread that polls the libmapper queue
-	printf("mapperStart()\n");
-
 	PyrSlot *a = g->sp;
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
@@ -128,22 +122,19 @@ int mapperStart(struct VMGlobals *g, int numArgsPushed)
 	// there should only be one thread of all of them; make a manager class or
 	// something?
 	pthread_create( &devstruct->m_thread, NULL, pollmapper, (void*)devstruct );
+
 	return errNone;
 }
 
 int mapperStop(struct VMGlobals *g, int numArgsPushed);
 int mapperStop(struct VMGlobals *g, int numArgsPushed)
 {
-	// stop the libmapper polling thread
-	printf("mapperStop()\n");
-
 	PyrSlot *a = g->sp;
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
 	devstruct->m_running = false;
 
 	pthread_join(devstruct->m_thread, 0);
-	printf("mapperStop(): after pthread_join()\n");
 
 	return errNone;
 }
