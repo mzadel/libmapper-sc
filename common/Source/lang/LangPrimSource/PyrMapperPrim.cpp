@@ -19,6 +19,8 @@ namespace Mapper {
 
 		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
+		static void* polling_loop( void* arg );
+
 		mapper_device m_dev;
 		pthread_t m_thread;
 		bool m_running;
@@ -52,6 +54,21 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 	}
 
 	pthread_mutex_unlock (&gLangMutex);
+}
+
+void* Mapper::Device::polling_loop( void* arg )
+{
+	Mapper::Device *devstruct = (Mapper::Device*) arg;
+
+	devstruct->m_running = true;
+
+	while (devstruct->m_running) {
+		int numhandled = 1;
+		while ( numhandled > 0 ) {
+			numhandled = mdev_poll(devstruct->m_dev, 0);
+		}
+		usleep(200);
+	}
 }
 
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
@@ -95,22 +112,6 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-// FIXME make this cleaner; should go as a static in the Device class above I think
-void* polling_loop( void* arg )
-{
-	Mapper::Device *devstruct = (Mapper::Device*) arg;
-
-	devstruct->m_running = true;
-
-	while (devstruct->m_running) {
-		int numhandled = 1;
-		while ( numhandled > 0 ) {
-			numhandled = mdev_poll(devstruct->m_dev, 0);
-		}
-		usleep(200);
-	}
-}
-
 int mapperStart(struct VMGlobals *g, int numArgsPushed);
 int mapperStart(struct VMGlobals *g, int numArgsPushed)
 {
@@ -121,7 +122,7 @@ int mapperStart(struct VMGlobals *g, int numArgsPushed)
 	// FIXME the way this works now, there's one thread per Mapper instance
 	// there should only be one thread of all of them; make a manager class or
 	// something?
-	pthread_create( &devstruct->m_thread, NULL, polling_loop, (void*)devstruct );
+	pthread_create( &devstruct->m_thread, NULL, Mapper::Device::polling_loop, (void*)devstruct );
 
 	return errNone;
 }
