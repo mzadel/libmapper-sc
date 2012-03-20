@@ -67,7 +67,7 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 				numArgsPushed++;
 			}
 			else {
-				printf("Mapper::Device::input_handler(): ignoring value of unsupported type (%c)\n", type);
+				post("Mapper::Device::input_handler(): ignoring value of unsupported type (%c)\n", type);
 			}
 		}
 
@@ -153,7 +153,7 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 		max = &maxint;
 	}
 	else {
-		printf("mapperAddInput(): ignoring min/max for signal of unsupported type (%c)\n", typechar);
+		post("mapperAddInput(): ignoring min/max for signal of unsupported type (%c)\n", typechar);
 	}
 
 	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
