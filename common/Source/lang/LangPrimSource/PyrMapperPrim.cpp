@@ -106,8 +106,6 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-float currentvalue = 0.0;
-
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 {
@@ -176,7 +174,9 @@ int mapperGetCurrentValue(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *receiver = g->sp;
 
 	// set the receiver slot to return the value
-	SetFloat(receiver, currentvalue);
+	//SetFloat(receiver, currentvalue);
+	// FIXME change this to use the built-in libmapper function for querying
+	// the current value
 
 	return errNone;
 }
