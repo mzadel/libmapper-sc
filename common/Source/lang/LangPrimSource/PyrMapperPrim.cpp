@@ -48,7 +48,22 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 
 		++g->sp; SetObject(g->sp, obj);
 
-		runInterpreter(g, s_dispatchInputAction, 1);
+		int numArgsPushed = 1;
+
+		if (value) {
+			char type = props->type;
+
+			if ( type == 'f' ) {
+				++g->sp; SetFloat(g->sp, *(float*)value );
+				numArgsPushed++;
+			}
+			else {
+				printf("Mapper::Device::input_handler(): ignoring message of unsupported type\n");
+			}
+
+		}
+
+		runInterpreter(g, s_dispatchInputAction, numArgsPushed);
 
 	}
 
