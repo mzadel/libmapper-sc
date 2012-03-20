@@ -96,7 +96,7 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 }
 
 // FIXME make this cleaner; should go as a static in the Device class above I think
-void* pollmapper( void* arg )
+void* polling_loop( void* arg )
 {
 	Mapper::Device *devstruct = (Mapper::Device*) arg;
 
@@ -121,7 +121,7 @@ int mapperStart(struct VMGlobals *g, int numArgsPushed)
 	// FIXME the way this works now, there's one thread per Mapper instance
 	// there should only be one thread of all of them; make a manager class or
 	// something?
-	pthread_create( &devstruct->m_thread, NULL, pollmapper, (void*)devstruct );
+	pthread_create( &devstruct->m_thread, NULL, polling_loop, (void*)devstruct );
 
 	return errNone;
 }
