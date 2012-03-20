@@ -123,6 +123,11 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *d = g->sp - 1; // min value
 	PyrSlot *e = g->sp;     // max value
 
+	// FIXME need error checking on the types here since it'll abort sc if it
+	// doesn't get what it's expecting
+	// FIXME also need to support default arguments (float type, min 0.0, max
+	// 1.0)
+
 	PyrObject *obj = slotRawObject(a);
 	PyrSymbol *name = slotRawSymbol(b);
 	char typechar = slotRawChar(c);
