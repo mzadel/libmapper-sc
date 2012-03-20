@@ -46,12 +46,15 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 
 		PyrObject *obj = (PyrObject*) props->user_data;
 
+		// Mapper object we are dispatching to
 		++g->sp; SetObject(g->sp, obj);
 		int numArgsPushed = 1;
 
+		// the received osc address string
 		++g->sp; SetSymbol(g->sp, getsym(props->name));
 		numArgsPushed++;
 
+		// the value
 		if (value) {
 			char type = props->type;
 
