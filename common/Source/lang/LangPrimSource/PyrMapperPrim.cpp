@@ -38,7 +38,6 @@ namespace Mapper {
 
 void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
 {
-
 	pthread_mutex_lock (&gLangMutex);
 
 	if (compiledOK) {
@@ -133,8 +132,8 @@ int mapperStop(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
-	devstruct->m_running = false;
 
+	devstruct->m_running = false;
 	pthread_join(devstruct->m_thread, 0);
 
 	return errNone;
