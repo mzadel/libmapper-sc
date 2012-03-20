@@ -236,7 +236,7 @@ void initMapperPrimitives()
 	base = nextPrimitiveIndex();
 
 	definePrimitive(base, index++, "_MapperInit", mapperInit, 2, 0);
-	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 1, 0);
+	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 5, 0);
 	definePrimitive(base, index++, "_MapperStart", mapperStart, 1, 0);
 	definePrimitive(base, index++, "_MapperStop", mapperStop, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
