@@ -62,7 +62,7 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 				numArgsPushed++;
 			}
 			else {
-				printf("Mapper::Device::input_handler(): ignoring message of unsupported type\n");
+				printf("Mapper::Device::input_handler(): ignoring message of unsupported type (%c)\n", type);
 			}
 
 		}
