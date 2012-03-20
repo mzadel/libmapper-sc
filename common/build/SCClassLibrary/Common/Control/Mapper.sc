@@ -11,7 +11,7 @@ Mapper {
 		this.prMapperInit( port )
 	}
 
-	mapperAddInput {
+	mapperAddInput { arg name, type, min, max;
 		_MapperAddInput
 		^this.primitiveFailed
 	}
