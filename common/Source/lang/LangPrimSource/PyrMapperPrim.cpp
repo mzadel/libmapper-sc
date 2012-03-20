@@ -81,7 +81,7 @@ void* Mapper::Device::polling_loop( void* arg )
 		while ( numhandled > 0 ) {
 			numhandled = mdev_poll(devstruct->m_dev, 0);
 		}
-		usleep(200);
+		usleep(200000);
 	}
 }
 
