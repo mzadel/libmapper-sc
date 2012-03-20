@@ -49,8 +49,6 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 		++g->sp; SetObject(g->sp, obj);
 		int numArgsPushed = 1;
 
-		// how to pass in a string?  want to pass back the address tag
-		// I guess it has to be a symbol?
 		++g->sp; SetSymbol(g->sp, getsym(props->name));
 		numArgsPushed++;
 
