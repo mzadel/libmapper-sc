@@ -57,6 +57,10 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 				++g->sp; SetFloat(g->sp, *(float*)value );
 				numArgsPushed++;
 			}
+			else if ( type == 'i' ) {
+				++g->sp; SetInt(g->sp, *(int*)value );
+				numArgsPushed++;
+			}
 			else {
 				printf("Mapper::Device::input_handler(): ignoring message of unsupported type\n");
 			}
