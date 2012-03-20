@@ -46,8 +46,9 @@ Mapper {
 		^this.primitiveFailed
 	}
 
-	prDispatchInputAction { arg value;
+	prDispatchInputAction { arg name, value;
 		"prDispatchInputAction() called".postln;
+		name.postln;
 		value.postln;
 	}
 
