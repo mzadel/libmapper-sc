@@ -107,8 +107,6 @@ int mapperInit(struct VMGlobals *g, int numArgsPushed)
 }
 
 float currentvalue = 0.0;
-float min0;
-float max1000;
 
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
@@ -117,6 +115,9 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 
 	PyrObject *obj = slotRawObject(a);
 	mapper_device dev = Mapper::getDeviceStruct( a )->m_dev;
+
+	float min0 = 0.0;
+	float max1000 = 1000;
 
 	// register the callback for the input.  store the object pointer in the
 	// user data for the callback, which will be passed to invocations of the
