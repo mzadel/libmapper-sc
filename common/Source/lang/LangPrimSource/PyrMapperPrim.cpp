@@ -164,7 +164,7 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	// register the callback for the input.  store the object pointer in the
 	// user data for the callback, which will be passed to invocations of the
 	// callback.
-	mdev_add_input(dev, signalname, 1, typechar, 0, &min, &max, Mapper::Device::input_handler, obj);
+	mdev_add_input(dev, signalname, 1, typechar, 0, min, max, Mapper::Device::input_handler, obj);
 
 	return errNone;
 }
