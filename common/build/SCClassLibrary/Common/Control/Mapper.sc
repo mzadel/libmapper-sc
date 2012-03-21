@@ -1,20 +1,20 @@
 
 Mapper {
 
-	var <dataptr;
+	var <dataptr, <actions;
 
 	*new { arg port = 9444;
 		^super.new.init( port )
 	}
 
 	init { arg port;
+		actions = IdentityDictionary.new;
 		this.prMapperInit( port )
 	}
 
-	// FIXME change this to accept an action function
-	mapperAddInput { arg name, type, min, max;
-		_MapperAddInput
-		^this.primitiveFailed
+	mapperAddInput { arg name, type, min, max, action;
+		actions[name] = action;
+		this.prMapperAddInput( name, type, min, max );
 	}
 
 	mapperStart {
@@ -47,10 +47,13 @@ Mapper {
 		^this.primitiveFailed
 	}
 
+	prMapperAddInput { arg name, type, min, max;
+		_MapperAddInput
+		^this.primitiveFailed
+	}
+
 	prDispatchInputAction { arg name, value;
-		"prDispatchInputAction() called".postln;
-		name.postln;
-		value.postln;
+		actions[name].value( value );
 	}
 
 }
