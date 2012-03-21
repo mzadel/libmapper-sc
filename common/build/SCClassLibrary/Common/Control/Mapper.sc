@@ -52,6 +52,7 @@ Mapper {
 		^this.primitiveFailed
 	}
 
+	// this is called when a libmapper signal message is received
 	prDispatchInputAction { arg name, value;
 		actions[name].value( value );
 	}
