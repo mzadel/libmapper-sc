@@ -11,6 +11,7 @@ Mapper {
 		this.prMapperInit( port )
 	}
 
+	// FIXME change this to accept an action function
 	mapperAddInput { arg name, type, min, max;
 		_MapperAddInput
 		^this.primitiveFailed
