@@ -96,18 +96,24 @@ void* Mapper::Device::polling_loop( void* arg )
 int mapperInit(struct VMGlobals *g, int numArgsPushed);
 int mapperInit(struct VMGlobals *g, int numArgsPushed)
 {
-	PyrSlot *a = g->sp - 1;
-	PyrSlot *b = g->sp;
+	PyrSlot *a = g->sp - 2;
+	PyrSlot *b = g->sp - 1;
+	PyrSlot *c = g->sp;
 
 	// allocate a new Device class instance
 	Mapper::Device *devstruct = new Mapper::Device;
 
 	int err, portrequested;
+	PyrSymbol *devicename;
+
 	err = slotIntVal(b, &portrequested);
 	if (err) return errWrongType;
 
+	err = slotSymbolVal(c, &devicename);
+	if (err) return errWrongType;
+
 	// poplate the device field in the Device instance
-	devstruct->m_dev = mdev_new("supercollider", portrequested, 0);
+	devstruct->m_dev = mdev_new(devicename->name, portrequested, 0);
 
 	SetPtr(slotRawObject(a)->slots+0, devstruct);
 
@@ -240,7 +246,7 @@ void initMapperPrimitives()
 
 	base = nextPrimitiveIndex();
 
-	definePrimitive(base, index++, "_MapperInit", mapperInit, 2, 0);
+	definePrimitive(base, index++, "_MapperInit", mapperInit, 3, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 5, 0);
 	definePrimitive(base, index++, "_MapperStart", mapperStart, 1, 0);
 	definePrimitive(base, index++, "_MapperStop", mapperStop, 1, 0);

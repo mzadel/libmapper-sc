@@ -3,13 +3,13 @@ Mapper {
 
 	var <dataptr, <actions;
 
-	*new { arg port = 9444;
-		^super.new.init( port )
+	*new { arg port = 9444, devicename='supercollider';
+		^super.new.init( port, devicename )
 	}
 
-	init { arg port;
+	init { arg port, devicename;
 		actions = IdentityDictionary.new;
-		this.prMapperInit( port )
+		this.prMapperInit( port, devicename )
 	}
 
 	mapperAddInput { arg name, type, min, max, action;
@@ -42,7 +42,7 @@ Mapper {
 		^this.primitiveFailed
 	}
 
-	prMapperInit {
+	prMapperInit { arg port, devicename;
 		_MapperInit
 		^this.primitiveFailed
 	}
