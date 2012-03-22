@@ -36,6 +36,11 @@ namespace Mapper {
 
 }
 
+// This is the callback that gets registered with libmapper.  It is called
+// whenever there is an incoming signal change.  It propagates the signal name
+// and value to Mapper:prDispatchInputAction() on the supercollider language
+// side, which calls the appropriate user-defined action function.
+//
 void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
 {
 	pthread_mutex_lock (&gLangMutex);
@@ -78,6 +83,10 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 	pthread_mutex_unlock (&gLangMutex);
 }
 
+// This is the function that is run by the polling thread, created in
+// mapperStart().  It polls the libmapper device for changes on a regular
+// interval.
+//
 void* Mapper::Device::polling_loop( void* arg )
 {
 	Mapper::Device *devstruct = (Mapper::Device*) arg;
