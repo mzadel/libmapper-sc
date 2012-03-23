@@ -42,6 +42,11 @@ Mapper {
 		^this.primitiveFailed
 	}
 
+	isRunning {
+		_MapperIsRunning
+		^this.primitiveFailed
+	}
+
 	prMapperInit { arg port, devicename;
 		_MapperInit
 		^this.primitiveFailed

@@ -249,6 +249,15 @@ int mapperPort(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperIsRunning(struct VMGlobals *g, int numArgsPushed);
+int mapperIsRunning(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
+	SetBool( a, devstruct->m_running );
+	return errNone;
+}
+
 void initMapperPrimitives()
 {
 	int base, index = 0;
@@ -262,6 +271,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);
 	definePrimitive(base, index++, "_MapperPort", mapperPort, 1, 0);
+	definePrimitive(base, index++, "_MapperIsRunning", mapperIsRunning, 1, 0);
 
 	s_dispatchInputAction = getsym("prDispatchInputAction");
 
