@@ -42,8 +42,8 @@ Mapper {
 		^this.primitiveFailed
 	}
 
-	isRunning {
-		_MapperIsRunning
+	isPolling {
+		_MapperIsPolling
 		^this.primitiveFailed
 	}
 

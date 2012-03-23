@@ -15,7 +15,7 @@ namespace Mapper {
 	struct Device
 	{
 
-		Device() : m_dev( NULL ), m_running( false ) {}
+		Device() : m_dev( NULL ), m_polling( false ) {}
 
 		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
@@ -23,7 +23,7 @@ namespace Mapper {
 
 		mapper_device m_dev;
 		pthread_t m_thread;
-		bool m_running;
+		bool m_polling;
 
 	};
 
@@ -91,9 +91,9 @@ void* Mapper::Device::polling_loop( void* arg )
 {
 	Mapper::Device *devstruct = (Mapper::Device*) arg;
 
-	devstruct->m_running = true;
+	devstruct->m_polling = true;
 
-	while (devstruct->m_running) {
+	while (devstruct->m_polling) {
 		int numhandled = 1;
 		while ( numhandled > 0 ) {
 			numhandled = mdev_poll(devstruct->m_dev, 0);
@@ -206,7 +206,7 @@ int mapperStop(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
 
-	devstruct->m_running = false;
+	devstruct->m_polling = false;
 	pthread_join(devstruct->m_thread, 0);
 
 	return errNone;
@@ -249,12 +249,12 @@ int mapperPort(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-int mapperIsRunning(struct VMGlobals *g, int numArgsPushed);
-int mapperIsRunning(struct VMGlobals *g, int numArgsPushed)
+int mapperIsPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperIsPolling(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	Mapper::Device *devstruct = Mapper::getDeviceStruct( a );
-	SetBool( a, devstruct->m_running );
+	SetBool( a, devstruct->m_polling );
 	return errNone;
 }
 
@@ -271,7 +271,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);
 	definePrimitive(base, index++, "_MapperPort", mapperPort, 1, 0);
-	definePrimitive(base, index++, "_MapperIsRunning", mapperIsRunning, 1, 0);
+	definePrimitive(base, index++, "_MapperIsPolling", mapperIsPolling, 1, 0);
 
 	s_dispatchInputAction = getsym("prDispatchInputAction");
 
