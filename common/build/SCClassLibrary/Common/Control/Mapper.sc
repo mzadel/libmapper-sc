@@ -9,35 +9,35 @@ Mapper {
 
 	init { arg port, devicename;
 		actions = IdentityDictionary.new;
-		this.prMapperInit( port, devicename )
+		this.prInit( port, devicename )
 	}
 
-	mapperAddInput { arg name, type, min, max, action;
+	addInput { arg name, type, min, max, action;
 		actions[name] = action;
-		this.prMapperAddInput( name, type, min, max );
+		this.prAddInput( name, type, min, max );
 	}
 
-	mapperStart {
+	start {
 		_MapperStart;
 		^this.primitiveFailed
 	}
 
-	mapperStop {
+	stop {
 		_MapperStop;
 		^this.primitiveFailed
 	}
 
-	mapperDevFree {
+	devFree {
 		_MapperDevFree
 		^this.primitiveFailed
 	}
 
-	mapperGetCurrentValue {
+	getCurrentValue {
 		_MapperGetCurrentValue
 		^this.primitiveFailed
 	}
 
-	mapperPort {
+	port {
 		_MapperPort
 		^this.primitiveFailed
 	}
@@ -47,12 +47,12 @@ Mapper {
 		^this.primitiveFailed
 	}
 
-	prMapperInit { arg port, devicename;
+	prInit { arg port, devicename;
 		_MapperInit
 		^this.primitiveFailed
 	}
 
-	prMapperAddInput { arg name, type, min, max;
+	prAddInput { arg name, type, min, max;
 		_MapperAddInput
 		^this.primitiveFailed
 	}
