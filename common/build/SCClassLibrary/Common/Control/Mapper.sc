@@ -17,13 +17,13 @@ Mapper {
 		this.prAddInput( name, type, min, max );
 	}
 
-	start {
-		_MapperStart;
+	startPolling {
+		_MapperStartPolling;
 		^this.primitiveFailed
 	}
 
-	stop {
-		_MapperStop;
+	stopPolling {
+		_MapperStopPolling;
 		^this.primitiveFailed
 	}
 

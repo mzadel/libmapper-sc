@@ -84,8 +84,8 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 }
 
 // This is the function that is run by the polling thread, created in
-// mapperStart().  It polls the libmapper device for changes on a regular
-// interval.
+// mapperStartPolling().  It polls the libmapper device for changes on a
+// regular interval.
 //
 void* Mapper::Device::polling_loop( void* arg )
 {
@@ -184,8 +184,8 @@ int mapperAddInput(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-int mapperStart(struct VMGlobals *g, int numArgsPushed);
-int mapperStart(struct VMGlobals *g, int numArgsPushed)
+int mapperStartPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperStartPolling(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
@@ -199,8 +199,8 @@ int mapperStart(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-int mapperStop(struct VMGlobals *g, int numArgsPushed);
-int mapperStop(struct VMGlobals *g, int numArgsPushed)
+int mapperStopPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperStopPolling(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
@@ -266,8 +266,8 @@ void initMapperPrimitives()
 
 	definePrimitive(base, index++, "_MapperInit", mapperInit, 3, 0);
 	definePrimitive(base, index++, "_MapperAddInput", mapperAddInput, 5, 0);
-	definePrimitive(base, index++, "_MapperStart", mapperStart, 1, 0);
-	definePrimitive(base, index++, "_MapperStop", mapperStop, 1, 0);
+	definePrimitive(base, index++, "_MapperStartPolling", mapperStartPolling, 1, 0);
+	definePrimitive(base, index++, "_MapperStopPolling", mapperStopPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDevFree", mapperDevFree, 1, 0);
 	definePrimitive(base, index++, "_MapperGetCurrentValue", mapperGetCurrentValue, 1, 0);
 	definePrimitive(base, index++, "_MapperPort", mapperPort, 1, 0);
