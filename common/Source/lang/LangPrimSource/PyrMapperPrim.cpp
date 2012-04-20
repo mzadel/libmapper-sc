@@ -64,11 +64,11 @@ void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, 
 			char type = props->type;
 
 			if ( type == 'f' ) {
-				++g->sp; SetFloat(g->sp, *(float*)value );
+				++g->sp; SetFloat(g->sp, *(float*)value);
 				numArgsPushed++;
 			}
 			else if ( type == 'i' ) {
-				++g->sp; SetInt(g->sp, *(int*)value );
+				++g->sp; SetInt(g->sp, *(int*)value);
 				numArgsPushed++;
 			}
 			else {
