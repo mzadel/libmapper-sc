@@ -17,7 +17,7 @@ namespace Mapper {
 
 		Device() : m_dev( NULL ), m_polling( false ) {}
 
-		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
+		static void input_handler( mapper_signal msig, int instance_id, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 
 		static void* polling_loop( void* arg );
 
@@ -41,7 +41,7 @@ namespace Mapper {
 // and value to Mapper:prDispatchInputAction() on the supercollider language
 // side, which calls the appropriate user-defined action function.
 //
-void Mapper::Device::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
+void Mapper::Device::input_handler( mapper_signal msig, int instance_id, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
 {
 	pthread_mutex_lock (&gLangMutex);
 
