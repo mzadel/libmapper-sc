@@ -41,6 +41,11 @@ namespace Mapper {
 // and value to Mapper:prDispatchInputAction() on the supercollider language
 // side, which calls the appropriate user-defined action function.
 //
+// The arguments passed to the sc function are
+//  signal_address, instance_id, value
+// Receiving a nil for the signal value means that that instance is being
+// released.
+//
 void Mapper::Device::input_handler( mapper_signal msig, int instance_id, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
 {
 	pthread_mutex_lock (&gLangMutex);
