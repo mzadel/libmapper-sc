@@ -59,6 +59,10 @@ void Mapper::Device::input_handler( mapper_signal msig, int instance_id, mapper_
 		++g->sp; SetSymbol(g->sp, getsym(props->name));
 		numArgsPushed++;
 
+		// the instance id
+		++g->sp; SetInt(g->sp, instance_id );
+		numArgsPushed++;
+
 		// the value
 		if (value) {
 			char type = props->type;
@@ -75,6 +79,12 @@ void Mapper::Device::input_handler( mapper_signal msig, int instance_id, mapper_
 				post("Mapper::Device::input_handler(): ignoring value of unsupported type (%c)\n", type);
 			}
 		}
+        else {
+            // the instance is being released, so indicate this by setting the
+            // value argument to nil
+            ++g->sp; SetNil(g->sp );
+            numArgsPushed++;
+        }
 
 		runInterpreter(g, s_dispatchInputAction, numArgsPushed);
 
