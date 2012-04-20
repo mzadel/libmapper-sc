@@ -58,8 +58,8 @@ Mapper {
 	}
 
 	// this is called when a libmapper signal message is received
-	prDispatchInputAction { arg name, value;
-		actions[name].value( value );
+	prDispatchInputAction { arg name, instanceid, value;
+		actions[name].value( instanceid, value );
 	}
 
 }
