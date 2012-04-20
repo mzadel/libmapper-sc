@@ -65,7 +65,7 @@ void Mapper::Device::input_handler( mapper_signal msig, int instance_id, mapper_
 		numArgsPushed++;
 
 		// the instance id
-		++g->sp; SetInt(g->sp, instance_id );
+		++g->sp; SetInt(g->sp, instance_id);
 		numArgsPushed++;
 
 		// the value
@@ -87,7 +87,7 @@ void Mapper::Device::input_handler( mapper_signal msig, int instance_id, mapper_
         else {
             // the instance is being released, so indicate this by setting the
             // value argument to nil
-            ++g->sp; SetNil(g->sp );
+            ++g->sp; SetNil(g->sp);
             numArgsPushed++;
         }
 
