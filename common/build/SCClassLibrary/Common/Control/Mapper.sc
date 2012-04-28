@@ -1,7 +1,9 @@
 
 MapperDevice {
 
-	prNew {
+	var <dataptr;
+
+	prNew { arg devicename, port;
 		_MapperDeviceNew
 		^this.primitiveFailed
 	}
