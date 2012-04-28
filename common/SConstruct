@@ -1121,6 +1121,7 @@ Source/lang/LangPrimSource/PyrStringPrim.cpp
 Source/lang/LangPrimSource/PyrUStringPrim.cpp
 Source/lang/LangPrimSource/PyrSymbolPrim.cpp
 Source/lang/LangPrimSource/PyrUnixPrim.cpp
+Source/lang/LangPrimSource/PyrMapperPrim.cpp
 Source/common/fftlib.c
 ''')
 
