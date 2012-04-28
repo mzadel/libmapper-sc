@@ -1,7 +1,7 @@
 
 MapperDevice {
 
-	var <dataptr;
+	var dataptr;
 
 	prNew { arg devicename, port;
 		_MapperDeviceNew
