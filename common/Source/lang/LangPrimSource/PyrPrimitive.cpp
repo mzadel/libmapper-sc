@@ -4020,6 +4020,9 @@ void initOpenGLPrimitives();
 	initOpenGLPrimitives();
 #endif
 
+void initMapperPrimitives();
+	initMapperPrimitives();
+
 	s_recvmsg = getsym("receiveMsg");
 	post("\tNumPrimitives = %d\n", nextPrimitiveIndex());
 
