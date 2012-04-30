@@ -3,6 +3,14 @@ MapperDevice {
 
 	var dataptr;
 
+	*new { arg devicename = 'supercollider', port = 9444;
+		^super.new.init( devicename, port )
+	}
+
+	init { arg port, devicename;
+		this.prNew( devicename, port );
+	}
+
 	prNew { arg devicename, port;
 		_MapperDeviceNew
 		^this.primitiveFailed
