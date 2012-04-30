@@ -45,6 +45,7 @@ int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 
 	dev = mdev_new(devicename->name, portrequested, 0);
 	devstruct = new Mapper::Device(dev);
+	// FIXME where will this get freed?
 
 	SetPtr(slotRawObject(a)->slots+0, devstruct);
 
