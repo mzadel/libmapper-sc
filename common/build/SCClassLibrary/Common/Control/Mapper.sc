@@ -24,6 +24,7 @@ MapperDevice {
 		sig = this.prAddInput( name, length, type, unit, min, maximum, MapperSignal.new );
 		sig.action = action;
 		signals = signals.add(sig);
+		^sig;
 	}
 
 	prNew { arg devicename, port;
