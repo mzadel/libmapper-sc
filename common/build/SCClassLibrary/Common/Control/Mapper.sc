@@ -20,3 +20,9 @@ MapperDevice {
 
 }
 
+MapperSignal {
+
+	var dataptr, <>action;
+
+}
+
