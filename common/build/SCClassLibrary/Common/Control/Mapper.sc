@@ -63,6 +63,11 @@ MapperSignal {
 
 	var dataptr, <>action;
 
+	getLength {
+		_MapperSignalGetLength
+		^this.primitiveFailed
+	}
+
 	getName {
 		_MapperSignalGetName
 		^this.primitiveFailed

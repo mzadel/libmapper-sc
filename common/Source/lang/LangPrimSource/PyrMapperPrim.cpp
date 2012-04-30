@@ -259,6 +259,15 @@ int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperSignalGetLength(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalGetLength(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	SetInt( a, msig_properties(sig)->length );
+	return errNone;
+}
+
 int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed)
 {
@@ -320,6 +329,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceStopPolling", mapperDeviceStopPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceIsPolling", mapperDeviceIsPolling, 1, 0);
 
+	definePrimitive(base, index++, "_MapperSignalGetLength", mapperSignalGetLength, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetName", mapperSignalGetName, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetDeviceName", mapperSignalGetDeviceName, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetUnit", mapperSignalGetUnit, 1, 0);
