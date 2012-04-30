@@ -10,11 +10,11 @@ MapperDevice {
 	init { arg devicename, port;
 		signals = Array.new;
 		this.prNew( devicename, port );
-		this.startPolling;
+		this.prStartPolling;
 	}
 
 	free {
-		this.stopPolling;
+		this.prStopPolling;
 		this.prFree;
 	}
 
@@ -40,17 +40,17 @@ MapperDevice {
 		^this.primitiveFailed
 	}
 
-	startPolling {
+	prStartPolling {
 		_MapperStartPolling;
 		^this.primitiveFailed
 	}
 
-	stopPolling {
+	prStopPolling {
 		_MapperStopPolling;
 		^this.primitiveFailed
 	}
 
-	isPolling {
+	prIsPolling {
 		_MapperIsPolling
 		^this.primitiveFailed
 	}
