@@ -18,6 +18,16 @@ MapperDevice {
 		^this.primitiveFailed
 	}
 
+	startPolling {
+		_MapperStartPolling;
+		^this.primitiveFailed
+	}
+
+	stopPolling {
+		_MapperStopPolling;
+		^this.primitiveFailed
+	}
+
 }
 
 MapperSignal {
