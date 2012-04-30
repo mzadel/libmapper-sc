@@ -56,7 +56,6 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 
 	int err;
 
-	PyrObject *deviceobj;
 	PyrSymbol *signalnamesymbol;
 	PyrSymbol *unitsymbol;
 
@@ -72,7 +71,7 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 
 	// parse the arguments
 
-	deviceobj = slotRawObject(pa);
+	dev = slotRawPtr(slotRawObject(pa)->slots+0);
 
 	err = slotSymbolVal(pb, &signalnamesymbol);
 	if (err) return errWrongType;
