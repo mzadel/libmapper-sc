@@ -39,5 +39,9 @@ MapperSignal {
 
 	var dataptr, <>action;
 
+	prCallAction { arg name, value;
+		action.value( value );
+	}
+
 }
 
