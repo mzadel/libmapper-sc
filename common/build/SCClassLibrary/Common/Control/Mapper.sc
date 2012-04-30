@@ -10,6 +10,12 @@ MapperDevice {
 	init { arg devicename, port;
 		signals = Array.new;
 		this.prNew( devicename, port );
+		this.startPolling;
+	}
+
+	free {
+		this.stopPolling;
+		this.prFree;
 	}
 
 	addInput { arg name, length, type, unit, min, maximum, action;
