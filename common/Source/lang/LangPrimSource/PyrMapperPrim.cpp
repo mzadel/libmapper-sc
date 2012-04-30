@@ -180,6 +180,15 @@ int mapperStopPolling(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperIsPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperIsPolling(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+	SetBool( a, devstruct->m_polling );
+	return errNone;
+}
+
 void initMapperPrimitives()
 {
 
@@ -192,6 +201,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceAddInput", mapperDeviceAddInput, 8, 0);
 	definePrimitive(base, index++, "_MapperStartPolling", mapperStartPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperStopPolling", mapperStopPolling, 1, 0);
+	definePrimitive(base, index++, "_MapperIsPolling", mapperIsPolling, 1, 0);
 
 }
 

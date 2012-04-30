@@ -28,6 +28,11 @@ MapperDevice {
 		^this.primitiveFailed
 	}
 
+	isPolling {
+		_MapperIsPolling
+		^this.primitiveFailed
+	}
+
 }
 
 MapperSignal {
