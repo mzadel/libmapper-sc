@@ -73,6 +73,11 @@ MapperSignal {
 		^this.primitiveFailed
 	}
 
+	getUnit {
+		_MapperSignalGetUnit
+		^this.primitiveFailed
+	}
+
 	getMinimum {
 		_MapperSignalGetMinimum
 		^this.primitiveFailed
