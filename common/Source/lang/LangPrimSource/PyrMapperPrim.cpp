@@ -262,12 +262,18 @@ int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed)
 int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed)
 {
+	PyrSlot *a = g->sp;
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	SetSymbol( a, getsym(msig_properties(sig)->name) );
 	return errNone;
 }
 
 int mapperSignalGetDeviceName(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalGetDeviceName(struct VMGlobals *g, int numArgsPushed)
 {
+	PyrSlot *a = g->sp;
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	SetSymbol( a, getsym(msig_properties(sig)->device_name) );
 	return errNone;
 }
 
