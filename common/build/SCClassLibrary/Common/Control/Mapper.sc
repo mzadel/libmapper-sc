@@ -1,14 +1,22 @@
 
 MapperDevice {
 
-	var dataptr;
+	var dataptr, signals;
 
 	*new { arg devicename = 'supercollider', port = 9444;
 		^super.new.init( devicename, port )
 	}
 
 	init { arg port, devicename;
+		signals = Array.new;
 		this.prNew( devicename, port );
+	}
+
+	addInput { arg name, length, type, unit, min, maximum, action;
+		var sig;
+		sig = this.prAddInput( name, length, type, unit, min, maximum, MapperSignal.new );
+		sig.action = action;
+		signals = signals.add(sig);
 	}
 
 	prNew { arg devicename, port;
