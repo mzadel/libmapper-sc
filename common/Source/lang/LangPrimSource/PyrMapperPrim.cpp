@@ -204,7 +204,8 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	// set the dataptr field in signalobj to hold the mapper_signal pointer
 	SetPtr(signalobj->slots+0, sig);
 
-	// FIXME return the signalobj on the stack -- need to figure out how to do this
+	// return the MapperSignal object
+	SetObject(pa, signalobj);
 
 	return errNone;
 }
