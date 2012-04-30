@@ -49,6 +49,7 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 
 void initMapperPrimitives()
 {
+
 	int base, index = 0;
 
 	base = nextPrimitiveIndex();
