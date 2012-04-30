@@ -8,13 +8,14 @@ MapperDevice {
 	}
 
 	init { arg devicename, port;
-		signals = Array.new;
+		signals = [];
 		this.prNew( devicename, port );
 		this.prStartPolling;
 	}
 
 	free {
 		this.prStopPolling;
+		signals = [];
 		this.prFree;
 	}
 
