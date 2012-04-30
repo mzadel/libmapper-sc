@@ -61,7 +61,7 @@ MapperDevice {
 
 MapperSignal {
 
-	var <>action;
+	var dataptr, <>action;
 
 	getName {
 		_MapperSignalGetName
