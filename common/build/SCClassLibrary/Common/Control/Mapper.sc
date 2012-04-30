@@ -13,7 +13,7 @@ MapperDevice {
 		^this.primitiveFailed
 	}
 
-	prAddInput {
+	prAddInput { arg name, length, type, unit, min, maximum, signalobj;
 		_MapperDeviceAddInput
 		^this.primitiveFailed
 	}

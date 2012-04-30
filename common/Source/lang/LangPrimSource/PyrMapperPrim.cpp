@@ -44,6 +44,66 @@ int mapperDeviceFree(struct VMGlobals *g, int numArgsPushed)
 int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 {
+
+	PyrSlot *pa = g->sp - 7; // object pointer
+	PyrSlot *pb = g->sp - 6; // name
+	PyrSlot *pc = g->sp - 5; // length
+	PyrSlot *pd = g->sp - 4; // type
+	PyrSlot *pe = g->sp - 3; // unit
+	PyrSlot *pf = g->sp - 2; // min
+	PyrSlot *pg = g->sp - 1; // max
+	PyrSlot *ph = g->sp;     // sclang signal object
+
+	int err;
+
+	PyrObject *deviceobj;
+	PyrSymbol *signalnamesymbol;
+	PyrSymbol *unitsymbol;
+
+	// parameters for mdev_add_input()
+	mapper_device dev;
+	char *signalname;
+	int length;
+	char type;
+	char *unit;
+	float min;
+	float max;
+	PyrObject *signalobj;
+
+	// parse the arguments
+
+	deviceobj = slotRawObject(pa);
+
+	err = slotSymbolVal(pb, &signalnamesymbol);
+	if (err) return errWrongType;
+	signalname = signalnamesymbol->name;
+
+	err = slotIntVal(pc, &length);
+	if (err) return errWrongType;
+
+	type = slotRawChar(pd);
+	// assume for now that it's 'f'
+
+	err = slotSymbolVal(pe, &unitsymbol);
+	if (err) return errWrongType;
+	unit = unitsymbol->name;
+
+	err = slotFloatVal(pf, &min);
+	if (err) return errWrongType;
+
+	err = slotFloatVal(pg, &max);
+	if (err) return errWrongType;
+
+	signalobj = slotRawObject(ph);
+
+	// add the signal
+	mapper_signal sig = mdev_add_input( dev, signalname, length, type, unit, &min, &max, NULL, signalobj );
+
+	// set the dataptr field in signalobj to hold the mapper_signal pointer
+	SetPtr(signalobj->slots+0, sig);
+
+	// FIXME return the signalobj on the stack -- need to figure out how to do this
+
 	return errNone;
 }
 
@@ -56,7 +116,7 @@ void initMapperPrimitives()
 
 	definePrimitive(base, index++, "_MapperDeviceNew", mapperDeviceNew, 3, 0);
 	definePrimitive(base, index++, "_MapperDeviceFree", mapperDeviceFree, 1, 0);
-	definePrimitive(base, index++, "_MapperDeviceAddInput", mapperDeviceAddInput, 1, 0);
+	definePrimitive(base, index++, "_MapperDeviceAddInput", mapperDeviceAddInput, 8, 0);
 
 }
 
