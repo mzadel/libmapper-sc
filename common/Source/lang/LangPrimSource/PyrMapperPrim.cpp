@@ -2,8 +2,13 @@
 #include "PyrObject.h"
 #include "PyrPrimitive.h"
 #include "VMGlobals.h"
+#include "PyrSched.h"
 
 #include <mapper/mapper.h>
+
+PyrSymbol *s_callAction;
+
+extern bool compiledOK;
 
 namespace Mapper {
 
@@ -27,6 +32,11 @@ namespace Mapper {
 		return (Device*) slotRawPtr( slotRawObject(slot)->slots+0 );
 	}
 
+	namespace Signal
+	{
+		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
+	}
+
 }
 
 // This is the function that is run by the polling thread, created in
@@ -46,6 +56,53 @@ void* Mapper::Device::polling_loop( void* arg )
 		}
 		usleep(5000);
 	}
+}
+
+// This is the callback that gets registered with libmapper.  It is called
+// whenever there is an incoming signal change.  It propagates the signal name
+// and value to MapperSignal:prCallAction() on the supercollider language
+// side, which calls the appropriate user-defined action function.
+//
+void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
+{
+	pthread_mutex_lock (&gLangMutex);
+
+	if (compiledOK) {
+
+		VMGlobals* g = gMainVMGlobals;
+
+		PyrObject *obj = (PyrObject*) props->user_data;
+
+		// MapperSignal object we are dispatching to
+		++g->sp; SetObject(g->sp, obj);
+		int numArgsPushed = 1;
+
+		// the received osc address string
+		++g->sp; SetSymbol(g->sp, getsym(props->name));
+		numArgsPushed++;
+
+		// the value
+		if (value) {
+			char type = props->type;
+
+			if ( type == 'f' ) {
+				++g->sp; SetFloat(g->sp, *(float*)value);
+				numArgsPushed++;
+			}
+			else if ( type == 'i' ) {
+				++g->sp; SetInt(g->sp, *(int*)value);
+				numArgsPushed++;
+			}
+			else {
+				post("Mapper::Signal::input_handler(): ignoring value of unsupported type (%c)\n", type);
+			}
+		}
+
+		runInterpreter(g, s_callAction, numArgsPushed);
+
+	}
+
+	pthread_mutex_unlock (&gLangMutex);
 }
 
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed);
@@ -142,7 +199,7 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	signalobj = slotRawObject(ph);
 
 	// add the signal
-	mapper_signal sig = mdev_add_input( dev, signalname, length, type, unit, &min, &max, NULL, signalobj );
+	mapper_signal sig = mdev_add_input( dev, signalname, length, type, unit, &min, &max, Mapper::Signal::input_handler, signalobj );
 
 	// set the dataptr field in signalobj to hold the mapper_signal pointer
 	SetPtr(signalobj->slots+0, sig);
@@ -202,6 +259,8 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperStartPolling", mapperStartPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperStopPolling", mapperStopPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperIsPolling", mapperIsPolling, 1, 0);
+
+	s_callAction = getsym("prCallAction");
 
 }
 
