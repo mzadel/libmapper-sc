@@ -274,12 +274,20 @@ int mapperSignalGetDeviceName(struct VMGlobals *g, int numArgsPushed)
 int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed)
 {
+	PyrSlot *a = g->sp;
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	SetFloat( a, msig_properties(sig)->minimum->f );
+	// FIXME handle int case as well
 	return errNone;
 }
 
 int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed)
 {
+	PyrSlot *a = g->sp;
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	SetFloat( a, msig_properties(sig)->maximum->f );
+	// FIXME handle int case as well
 	return errNone;
 }
 
