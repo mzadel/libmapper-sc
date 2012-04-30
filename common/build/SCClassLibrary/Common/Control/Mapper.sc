@@ -63,6 +63,26 @@ MapperSignal {
 
 	var <>action;
 
+	getName {
+		_MapperSignalGetName
+		^this.primitiveFailed
+	}
+
+	getDeviceName {
+		_MapperSignalGetDeviceName
+		^this.primitiveFailed
+	}
+
+	getMinimum {
+		_MapperSignalGetMinimum
+		^this.primitiveFailed
+	}
+
+	getMaximum {
+		_MapperSignalGetMaximum
+		^this.primitiveFailed
+	}
+
 	prCallAction { arg name, value;
 		action.value( name, value );
 	}

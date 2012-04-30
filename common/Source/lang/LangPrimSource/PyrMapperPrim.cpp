@@ -259,6 +259,30 @@ int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed)
+{
+	return errNone;
+}
+
+int mapperSignalGetDeviceName(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalGetDeviceName(struct VMGlobals *g, int numArgsPushed)
+{
+	return errNone;
+}
+
+int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed)
+{
+	return errNone;
+}
+
+int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed)
+{
+	return errNone;
+}
+
 void initMapperPrimitives()
 {
 
@@ -272,6 +296,11 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceStartPolling", mapperDeviceStartPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceStopPolling", mapperDeviceStopPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceIsPolling", mapperDeviceIsPolling, 1, 0);
+
+	definePrimitive(base, index++, "_MapperSignalGetName", mapperSignalGetName, 1, 0);
+	definePrimitive(base, index++, "_MapperSignalGetDeviceName", mapperSignalGetDeviceName, 1, 0);
+	definePrimitive(base, index++, "_MapperSignalGetMinimum", mapperSignalGetMinimum, 1, 0);
+	definePrimitive(base, index++, "_MapperSignalGetMaximum", mapperSignalGetMaximum, 1, 0);
 
 	s_callAction = getsym("prCallAction");
 
