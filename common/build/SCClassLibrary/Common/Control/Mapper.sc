@@ -1,7 +1,7 @@
 
 MapperDevice {
 
-	var dataptr, signals;
+	var dataptr, <signals;
 
 	*new { arg devicename = 'supercollider', port = 9444;
 		^super.new.init( devicename, port )
