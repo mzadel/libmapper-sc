@@ -142,6 +142,10 @@ int mapperDeviceFree(struct VMGlobals *g, int numArgsPushed)
 	devstruct = Mapper::getDeviceStruct(a);
 	dev = devstruct->m_dev;
 
+	if ( devstruct->m_polling ) {
+		post("mapperDeviceFree(): still polling!  this shouldn't happen!\n");
+	}
+
 	// free the device in libmapper
 	mdev_free( dev );
 
