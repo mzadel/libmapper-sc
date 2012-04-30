@@ -10,9 +10,13 @@ namespace Mapper {
 	struct Device
 	{
 
-		Device( mapper_device dev ) : m_dev( dev ) {}
+		Device( mapper_device dev ) : m_dev( dev ), m_polling( false ) {}
+
+		static void* polling_loop( void* arg );
 
 		mapper_device m_dev;
+		pthread_t m_thread;
+		bool m_polling;
 
 	};
 
@@ -23,6 +27,25 @@ namespace Mapper {
 		return (Device*) slotRawPtr( slotRawObject(slot)->slots+0 );
 	}
 
+}
+
+// This is the function that is run by the polling thread, created in
+// mapperStartPolling().  It polls the libmapper device for changes on a
+// regular interval.
+//
+void* Mapper::Device::polling_loop( void* arg )
+{
+	Mapper::Device *devstruct = (Mapper::Device*) arg;
+
+	devstruct->m_polling = true;
+
+	while (devstruct->m_polling) {
+		int numhandled = 1;
+		while ( numhandled > 0 ) {
+			numhandled = mdev_poll(devstruct->m_dev, 0);
+		}
+		usleep(5000);
+	}
 }
 
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed);
@@ -129,6 +152,34 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperStartPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperStartPolling(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+
+	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+
+	// FIXME the way this works now, there's one thread per Mapper instance
+	// there should only be one thread of all of them; make a manager class or
+	// something?
+	pthread_create( &devstruct->m_thread, NULL, Mapper::Device::polling_loop, (void*)devstruct );
+
+	return errNone;
+}
+
+int mapperStopPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperStopPolling(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+
+	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+
+	devstruct->m_polling = false;
+	pthread_join(devstruct->m_thread, 0);
+
+	return errNone;
+}
+
 void initMapperPrimitives()
 {
 
@@ -139,6 +190,8 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceNew", mapperDeviceNew, 3, 0);
 	definePrimitive(base, index++, "_MapperDeviceFree", mapperDeviceFree, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceAddInput", mapperDeviceAddInput, 8, 0);
+	definePrimitive(base, index++, "_MapperStartPolling", mapperStartPolling, 1, 0);
+	definePrimitive(base, index++, "_MapperStopPolling", mapperStopPolling, 1, 0);
 
 }
 
