@@ -7,7 +7,7 @@ MapperDevice {
 		^super.new.init( devicename, port )
 	}
 
-	init { arg port, devicename;
+	init { arg devicename, port;
 		signals = Array.new;
 		this.prNew( devicename, port );
 	}
