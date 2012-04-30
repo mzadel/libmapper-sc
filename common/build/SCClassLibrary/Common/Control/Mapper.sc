@@ -68,6 +68,11 @@ MapperSignal {
 		^this.primitiveFailed
 	}
 
+	getType {
+		_MapperSignalGetType
+		^this.primitiveFailed
+	}
+
 	getLength {
 		_MapperSignalGetLength
 		^this.primitiveFailed
