@@ -222,8 +222,8 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-int mapperStartPolling(struct VMGlobals *g, int numArgsPushed);
-int mapperStartPolling(struct VMGlobals *g, int numArgsPushed)
+int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
@@ -237,8 +237,8 @@ int mapperStartPolling(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-int mapperStopPolling(struct VMGlobals *g, int numArgsPushed);
-int mapperStopPolling(struct VMGlobals *g, int numArgsPushed)
+int mapperDeviceStopPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperDeviceStopPolling(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
@@ -250,8 +250,8 @@ int mapperStopPolling(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
-int mapperIsPolling(struct VMGlobals *g, int numArgsPushed);
-int mapperIsPolling(struct VMGlobals *g, int numArgsPushed)
+int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed);
+int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
@@ -269,9 +269,9 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceNew", mapperDeviceNew, 3, 0);
 	definePrimitive(base, index++, "_MapperDeviceFree", mapperDeviceFree, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceAddInput", mapperDeviceAddInput, 8, 0);
-	definePrimitive(base, index++, "_MapperStartPolling", mapperStartPolling, 1, 0);
-	definePrimitive(base, index++, "_MapperStopPolling", mapperStopPolling, 1, 0);
-	definePrimitive(base, index++, "_MapperIsPolling", mapperIsPolling, 1, 0);
+	definePrimitive(base, index++, "_MapperDeviceStartPolling", mapperDeviceStartPolling, 1, 0);
+	definePrimitive(base, index++, "_MapperDeviceStopPolling", mapperDeviceStopPolling, 1, 0);
+	definePrimitive(base, index++, "_MapperDeviceIsPolling", mapperDeviceIsPolling, 1, 0);
 
 	s_callAction = getsym("prCallAction");
 

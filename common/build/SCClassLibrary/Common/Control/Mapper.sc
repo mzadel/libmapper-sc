@@ -43,17 +43,17 @@ MapperDevice {
 	}
 
 	prStartPolling {
-		_MapperStartPolling;
+		_MapperDeviceStartPolling;
 		^this.primitiveFailed
 	}
 
 	prStopPolling {
-		_MapperStopPolling;
+		_MapperDeviceStopPolling;
 		^this.primitiveFailed
 	}
 
 	prIsPolling {
-		_MapperIsPolling
+		_MapperDeviceIsPolling
 		^this.primitiveFailed
 	}
 
