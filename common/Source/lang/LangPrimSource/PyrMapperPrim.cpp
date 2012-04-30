@@ -125,7 +125,6 @@ int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 
 	dev = mdev_new(devicename->name, portrequested, 0);
 	devstruct = new Mapper::Device(dev);
-	// FIXME where will this get freed?
 
 	SetPtr(slotRawObject(a)->slots+0, devstruct);
 
@@ -137,9 +136,18 @@ int mapperDeviceFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
-	mapper_device dev = Mapper::getDeviceStruct(a)->m_dev;
+	Mapper::Device *devstruct;
+	mapper_device dev;
 
+	devstruct = Mapper::getDeviceStruct(a);
+	dev = devstruct->m_dev;
+
+	// free the device in libmapper
 	mdev_free( dev );
+
+	// free the local structure associated with the device
+	delete devstruct;
+	SetPtr(slotRawObject(a)->slots+0, NULL);
 
 	return errNone;
 }
