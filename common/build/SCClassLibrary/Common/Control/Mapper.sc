@@ -62,7 +62,7 @@ MapperSignal {
 	var <>action;
 
 	prCallAction { arg name, value;
-		action.value( value );
+		action.value( name, value );
 	}
 
 }
