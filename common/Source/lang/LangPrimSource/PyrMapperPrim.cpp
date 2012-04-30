@@ -5,6 +5,26 @@
 
 #include <mapper/mapper.h>
 
+namespace Mapper {
+
+	struct Device
+	{
+
+		Device( mapper_device dev ) : m_dev( dev ) {}
+
+		mapper_device m_dev;
+
+	};
+
+	static inline Device* getDeviceStruct( PyrSlot* slot )
+	{
+		// Get the PyrObject pointer from the argument, then get that object's
+		// first slot, which is a pointer to the internal C++ data structure
+		return (Device*) slotRawPtr( slotRawObject(slot)->slots+0 );
+	}
+
+}
+
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 {
@@ -15,6 +35,7 @@ int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 	int err, portrequested;
 	PyrSymbol *devicename;
 	mapper_device dev;
+	Mapper::Device *devstruct;
 
 	err = slotSymbolVal(b, &devicename);
 	if (err) return errWrongType;
@@ -23,8 +44,9 @@ int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 	if (err) return errWrongType;
 
 	dev = mdev_new(devicename->name, portrequested, 0);
+	devstruct = new Mapper::Device(dev);
 
-	SetPtr(slotRawObject(a)->slots+0, dev);
+	SetPtr(slotRawObject(a)->slots+0, devstruct);
 
 	return errNone;
 }
@@ -34,7 +56,7 @@ int mapperDeviceFree(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 
-	mapper_device dev = slotRawPtr(slotRawObject(a)->slots+0);
+	mapper_device dev = Mapper::getDeviceStruct(a)->m_dev;
 
 	mdev_free( dev );
 
@@ -71,7 +93,7 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 
 	// parse the arguments
 
-	dev = slotRawPtr(slotRawObject(pa)->slots+0);
+	dev = Mapper::getDeviceStruct(pa)->m_dev;
 
 	err = slotSymbolVal(pb, &signalnamesymbol);
 	if (err) return errWrongType;
