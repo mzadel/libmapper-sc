@@ -306,6 +306,19 @@ int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperDeviceGetName(struct VMGlobals *g, int numArgsPushed);
+int mapperDeviceGetName(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+	mapper_device dev = Mapper::getDeviceStruct(a)->m_dev;
+	const char *name = mdev_name(dev);
+	if( name )
+		SetSymbol( a, getsym(name) );
+	else
+		SetNil(a);
+	return errNone;
+}
+
 int mapperSignalIsOutput(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalIsOutput(struct VMGlobals *g, int numArgsPushed)
 {
@@ -431,6 +444,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceStartPolling", mapperDeviceStartPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceStopPolling", mapperDeviceStopPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceIsPolling", mapperDeviceIsPolling, 1, 0);
+	definePrimitive(base, index++, "_MapperDeviceGetName", mapperDeviceGetName, 1, 0);
 
 	definePrimitive(base, index++, "_MapperSignalIsOutput", mapperSignalIsOutput, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetType", mapperSignalGetType, 1, 0);

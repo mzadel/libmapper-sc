@@ -59,6 +59,11 @@ MapperDevice {
 		^this.primitiveFailed
 	}
 
+	getName {
+		_MapperDeviceGetName
+		^this.primitiveFailed
+	}
+
 }
 
 MapperSignal {
