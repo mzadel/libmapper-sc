@@ -105,6 +105,36 @@ void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, 
 	pthread_mutex_unlock (&gLangMutex);
 }
 
+inline int unpackNumericValue( PyrSlot *slot, char type, float *floatstorage, int *intstorage, void **storagepointer )
+{
+	// copies the value from the sclang slot to one of the storage variables
+	// fills storagepointer to point to the storage variable of the correct type
+	// if the slot is nil, sets the storagepointer to NULL
+
+	if ( IsNil(slot) ) {
+		*storagepointer = NULL;
+	}
+
+	else if ( type == 'f' ) {
+		int err = slotFloatVal(slot, floatstorage);
+		if (err) return err;
+		*storagepointer = floatstorage;
+	}
+
+	else if ( type == 'i' ) {
+		int err = slotIntVal(slot, intstorage);
+		if (err) return err;
+		*storagepointer = intstorage;
+	}
+
+	else {
+		post("unpackNumericValue(): unsupported type (%c)\n", type);
+		return errFailed;
+	}
+
+	return errNone;
+}
+
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 {
@@ -174,14 +204,19 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	PyrSymbol *signalnamesymbol;
 	PyrSymbol *unitsymbol;
 
+	float minfloat;
+	float maxfloat;
+	int minint;
+	int maxint;
+
 	// parameters for mdev_add_input()
 	mapper_device dev;
 	char *signalname;
 	int length;
 	char type;
 	char *unit;
-	float min;
-	float max;
+	void *min = NULL;
+	void *max = NULL;
 	PyrObject *signalobj;
 
 	// parse the arguments
@@ -205,16 +240,16 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	if (err) return errWrongType;
 	unit = unitsymbol->name;
 
-	err = slotFloatVal(pf, &min);
+	err = unpackNumericValue( pf, type, &minfloat, &minint, &min );
 	if (err) return errWrongType;
 
-	err = slotFloatVal(pg, &max);
+	err = unpackNumericValue( pg, type, &maxfloat, &maxint, &max );
 	if (err) return errWrongType;
 
 	signalobj = slotRawObject(ph);
 
 	// add the signal
-	mapper_signal sig = mdev_add_input( dev, signalname, length, type, unit, &min, &max, Mapper::Signal::input_handler, signalobj );
+	mapper_signal sig = mdev_add_input( dev, signalname, length, type, unit, min, max, Mapper::Signal::input_handler, signalobj );
 
 	// set the dataptr field in signalobj to hold the mapper_signal pointer
 	SetPtr(signalobj->slots+0, sig);
