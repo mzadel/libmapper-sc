@@ -251,13 +251,22 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	// add the signal
 	mapper_signal sig = mdev_add_input( dev, signalname, length, type, unit, min, max, Mapper::Signal::input_handler, signalobj );
 
-	// set the dataptr field in signalobj to hold the mapper_signal pointer
-	SetPtr(signalobj->slots+0, sig);
-
-	// return the MapperSignal object
-	SetObject(pa, signalobj);
+	// determine return value based on the result of mdev_add_input()
+	if ( sig != NULL ) {
+		// set the dataptr field in signalobj to hold the mapper_signal pointer
+		SetPtr(signalobj->slots+0, sig);
+		// return the MapperSignal object
+		SetObject(pa, signalobj);
+	}
+	else {
+		// NULL sig means the signal was not added (eg tried to add a duplicate signal name)
+		post("mapperDeviceAddInput(): mdev_add_input() failed\n");
+		// return nil
+		SetNil(pa);
+	}
 
 	return errNone;
+
 }
 
 int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed);

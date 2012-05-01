@@ -22,8 +22,10 @@ MapperDevice {
 	addInput { arg name, length, type, unit, min, maximum, action;
 		var sig;
 		sig = this.prAddInput( name, length, type, unit, min, maximum, MapperSignal.new );
-		sig.action = action;
-		signals = signals.add(sig);
+		if ( sig.notNil ) {
+			sig.action = action;
+			signals = signals.add(sig);
+		};
 		^sig;
 	}
 
