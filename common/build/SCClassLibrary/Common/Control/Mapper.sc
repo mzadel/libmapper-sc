@@ -29,6 +29,13 @@ MapperDevice {
 		^sig;
 	}
 
+	addOutput { arg name, length, type, unit, min, max;
+		var sig;
+		sig = this.prAddOutput( name, length, type, unit, min, max, MapperSignal.new );
+		if ( sig.notNil ) { signals = signals.add(sig) };
+		^sig;
+	}
+
 	prNew { arg devicename, port;
 		_MapperDeviceNew
 		^this.primitiveFailed
@@ -41,6 +48,11 @@ MapperDevice {
 
 	prAddInput { arg name, length, type, unit, min, max, signalobj;
 		_MapperDeviceAddInput
+		^this.primitiveFailed
+	}
+
+	prAddOutput { arg name, length, type, unit, min, max, signalobj;
+		_MapperDeviceAddOutput
 		^this.primitiveFailed
 	}
 

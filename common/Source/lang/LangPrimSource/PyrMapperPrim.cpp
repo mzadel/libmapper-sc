@@ -269,6 +269,89 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 
 }
 
+int mapperDeviceAddOutput(struct VMGlobals *g, int numArgsPushed);
+int mapperDeviceAddOutput(struct VMGlobals *g, int numArgsPushed)
+{
+
+	PyrSlot *pa = g->sp - 7; // object pointer
+	PyrSlot *pb = g->sp - 6; // name
+	PyrSlot *pc = g->sp - 5; // length
+	PyrSlot *pd = g->sp - 4; // type
+	PyrSlot *pe = g->sp - 3; // unit
+	PyrSlot *pf = g->sp - 2; // min
+	PyrSlot *pg = g->sp - 1; // max
+	PyrSlot *ph = g->sp;     // sclang signal object
+
+	int err;
+
+	PyrSymbol *signalnamesymbol;
+	PyrSymbol *unitsymbol;
+
+	float minfloat;
+	float maxfloat;
+	int minint;
+	int maxint;
+
+	// parameters for mdev_add_output()
+	mapper_device dev;
+	char *signalname;
+	int length;
+	char type;
+	char *unit;
+	void *min = NULL;
+	void *max = NULL;
+	PyrObject *signalobj;
+
+	// parse the arguments
+
+	dev = Mapper::getDeviceStruct(pa)->m_dev;
+
+	err = slotSymbolVal(pb, &signalnamesymbol);
+	if (err) return errWrongType;
+	signalname = signalnamesymbol->name;
+
+	err = slotIntVal(pc, &length);
+	if (err) return errWrongType;
+
+	type = slotRawChar(pd);
+	if ( type != 'f' && type != 'i' ) {
+		post("mapperDeviceAddOutput(): unsupported type (%c)\n", type);
+		return errFailed;
+	}
+
+	err = slotSymbolVal(pe, &unitsymbol);
+	if (err) return errWrongType;
+	unit = unitsymbol->name;
+
+	err = unpackNumericValue( pf, type, &minfloat, &minint, &min );
+	if (err) return errWrongType;
+
+	err = unpackNumericValue( pg, type, &maxfloat, &maxint, &max );
+	if (err) return errWrongType;
+
+	signalobj = slotRawObject(ph);
+
+	// add the signal
+	mapper_signal sig = mdev_add_output( dev, signalname, length, type, unit, min, max );
+
+	// determine return value based on the result of mdev_add_output()
+	if ( sig != NULL ) {
+		// set the dataptr field in signalobj to hold the mapper_signal pointer
+		SetPtr(signalobj->slots+0, sig);
+		// return the MapperSignal object
+		SetObject(pa, signalobj);
+	}
+	else {
+		// NULL sig means the signal was not added (eg tried to add a duplicate signal name)
+		post("mapperDeviceAddOutput(): mdev_add_output() failed\n");
+		// return nil
+		SetNil(pa);
+	}
+
+	return errNone;
+
+}
+
 int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed)
 {
@@ -450,6 +533,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceNew", mapperDeviceNew, 3, 0);
 	definePrimitive(base, index++, "_MapperDeviceFree", mapperDeviceFree, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceAddInput", mapperDeviceAddInput, 8, 0);
+	definePrimitive(base, index++, "_MapperDeviceAddOutput", mapperDeviceAddOutput, 8, 0);
 	definePrimitive(base, index++, "_MapperDeviceStartPolling", mapperDeviceStartPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceStopPolling", mapperDeviceStopPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceIsPolling", mapperDeviceIsPolling, 1, 0);
