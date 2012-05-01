@@ -196,7 +196,10 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	if (err) return errWrongType;
 
 	type = slotRawChar(pd);
-	// assume for now that it's 'f'
+	if ( type != 'f' && type != 'i' ) {
+		post("mapperDeviceAddInput(): unsupported type (%c)\n", type);
+		return errFailed;
+	}
 
 	err = slotSymbolVal(pe, &unitsymbol);
 	if (err) return errWrongType;
