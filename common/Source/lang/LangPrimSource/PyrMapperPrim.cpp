@@ -354,21 +354,59 @@ int mapperSignalGetUnit(struct VMGlobals *g, int numArgsPushed)
 int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed)
 {
+
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
-	SetFloat( a, msig_properties(sig)->minimum->f );
-	// FIXME handle int case as well
+	mapper_db_signal props = msig_properties(sig);
+
+	if( props->minimum == NULL ) {
+		SetNil( a );
+	}
+
+	else if( props->type == 'f' ) {
+		SetFloat( a, props->minimum->f );
+	}
+
+	else if( props->type == 'i' ) {
+		SetInt( a, props->minimum->i32 );
+	}
+
+	else {
+		post("mapperSignalGetMinimum(): unsupported type (%c)\n", props->type);
+		return errFailed;
+	}
+
 	return errNone;
+
 }
 
 int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed)
 {
+
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
-	SetFloat( a, msig_properties(sig)->maximum->f );
-	// FIXME handle int case as well
+	mapper_db_signal props = msig_properties(sig);
+
+	if( props->maximum == NULL ) {
+		SetNil( a );
+	}
+
+	else if( props->type == 'f' ) {
+		SetFloat( a, props->maximum->f );
+	}
+
+	else if( props->type == 'i' ) {
+		SetInt( a, props->maximum->i32 );
+	}
+
+	else {
+		post("mapperSignalGetMaximum(): unsupported type (%c)\n", props->type);
+		return errFailed;
+	}
+
 	return errNone;
+
 }
 
 void initMapperPrimitives()
