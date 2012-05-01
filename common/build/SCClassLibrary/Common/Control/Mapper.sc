@@ -19,9 +19,9 @@ MapperDevice {
 		this.prFree;
 	}
 
-	addInput { arg name, length, type, unit, min, maximum, action;
+	addInput { arg name, length, type, unit, min, max, action;
 		var sig;
-		sig = this.prAddInput( name, length, type, unit, min, maximum, MapperSignal.new );
+		sig = this.prAddInput( name, length, type, unit, min, max, MapperSignal.new );
 		if ( sig.notNil ) {
 			sig.action = action;
 			signals = signals.add(sig);
@@ -39,7 +39,7 @@ MapperDevice {
 		^this.primitiveFailed
 	}
 
-	prAddInput { arg name, length, type, unit, min, maximum, signalobj;
+	prAddInput { arg name, length, type, unit, min, max, signalobj;
 		_MapperDeviceAddInput
 		^this.primitiveFailed
 	}
