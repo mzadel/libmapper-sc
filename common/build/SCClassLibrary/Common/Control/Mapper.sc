@@ -64,6 +64,11 @@ MapperDevice {
 		^this.primitiveFailed
 	}
 
+	getPort {
+		_MapperDeviceGetPort
+		^this.primitiveFailed
+	}
+
 }
 
 MapperSignal {
