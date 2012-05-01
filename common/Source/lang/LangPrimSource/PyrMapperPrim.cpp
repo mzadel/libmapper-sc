@@ -523,6 +523,39 @@ int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed)
 
 }
 
+int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed)
+{
+
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	mapper_db_signal props = msig_properties(sig);
+
+	if( IsNil(b) ) {
+		msig_update( sig, NULL );
+		return errNone;
+	}
+
+	if( props->type == 'f' ) {
+		float value;
+		int err = slotFloatVal(b, &value);
+		if (err) return errWrongType;
+		msig_update( sig, &value );
+	}
+
+	else if( props->type == 'i' ) {
+		int value;
+		int err = slotIntVal(b, &value);
+		if (err) return errWrongType;
+		msig_update( sig, &value );
+	}
+
+	return errNone;
+
+}
+
 void initMapperPrimitives()
 {
 
@@ -548,6 +581,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperSignalGetUnit", mapperSignalGetUnit, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetMinimum", mapperSignalGetMinimum, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetMaximum", mapperSignalGetMaximum, 1, 0);
+	definePrimitive(base, index++, "_MapperSignalUpdate", mapperSignalUpdate, 2, 0);
 
 	s_callAction = getsym("prCallAction");
 

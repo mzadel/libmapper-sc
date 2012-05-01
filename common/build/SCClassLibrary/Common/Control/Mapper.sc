@@ -127,6 +127,11 @@ MapperSignal {
 		^this.primitiveFailed
 	}
 
+	update { arg value;
+		_MapperSignalUpdate
+		^this.primitiveFailed
+	}
+
 	prCallAction { arg name, value;
 		action.value( name, value );
 	}
