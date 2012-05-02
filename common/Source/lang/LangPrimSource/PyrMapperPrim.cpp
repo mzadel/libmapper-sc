@@ -573,26 +573,14 @@ int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed)
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	mapper_db_signal props = msig_properties(sig);
 
-	if( IsNil(b) ) {
-		msig_update( sig, NULL );
-		return errNone;
-	}
+	float floatstorage;
+	int intstorage;
+	void *storagepointer;
 
-	if( props->type == 'f' ) {
-		float value;
-		int err = slotFloatVal(b, &value);
-		if (err) return errWrongType;
-		msig_update( sig, &value );
-	}
+	int err = numericSlotToPointer( b, props->type, &floatstorage, &intstorage, &storagepointer );
+	if ( err != errNone ) return err;
 
-	else if( props->type == 'i' ) {
-		int value;
-		int err = slotIntVal(b, &value);
-		if (err) return errWrongType;
-		msig_update( sig, &value );
-	}
-
-	return errNone;
+	msig_update( sig, storagepointer );
 
 }
 
