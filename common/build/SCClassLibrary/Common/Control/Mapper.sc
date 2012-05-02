@@ -38,6 +38,24 @@ MapperDevice {
 		^sig;
 	}
 
+	removeInput { arg name;
+		var sigtoremove;
+		sigtoremove = inputsignals.detect( { var sig; sig.getName == name } );
+		if ( sigtoremove.notNil ) {
+			inputsignals.remove(sigtoremove);
+			this.prRemoveInput(sigtoremove);
+		}
+	}
+
+	removeOutput { arg name;
+		var sigtoremove;
+		sigtoremove = outputsignals.detect( { var sig; sig.getName == name } );
+		if ( sigtoremove.notNil ) {
+			outputsignals.remove(sigtoremove);
+			this.prRemoveOutput(sigtoremove);
+		}
+	}
+
 	prNew { arg devicename, port;
 		_MapperDeviceNew
 		^this.primitiveFailed
@@ -55,6 +73,16 @@ MapperDevice {
 
 	prAddOutput { arg name, length, type, unit, min, max, signalobj;
 		_MapperDeviceAddOutput
+		^this.primitiveFailed
+	}
+
+	prRemoveInput { arg signalobj;
+		_MapperDeviceRemoveInput
+		^this.primitiveFailed
+	}
+
+	prRemoveOutput { arg signalobj;
+		_MapperDeviceRemoveOutput
 		^this.primitiveFailed
 	}
 
