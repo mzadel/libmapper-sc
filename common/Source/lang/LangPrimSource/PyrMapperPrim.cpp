@@ -34,7 +34,7 @@ namespace Mapper {
 
 	namespace Signal
 	{
-		static void input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
+		static void input_handler( mapper_signal msig, int instance_id, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
 	}
 
 }
@@ -67,7 +67,7 @@ void* Mapper::Device::polling_loop( void* arg )
 // and value to MapperSignal:prCallAction() on the supercollider language
 // side, which calls the appropriate user-defined action function.
 //
-void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
+void Mapper::Signal::input_handler( mapper_signal msig, int instance_id, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
 {
 	pthread_mutex_lock (&gLangMutex);
 
@@ -83,6 +83,10 @@ void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, 
 
 		// the received osc address string
 		++g->sp; SetSymbol(g->sp, getsym(props->name));
+		numArgsPushed++;
+
+		// the instance id
+		++g->sp; SetInt(g->sp, instance_id);
 		numArgsPushed++;
 
 		// the value
