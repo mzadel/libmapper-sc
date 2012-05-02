@@ -1,21 +1,23 @@
 
 MapperDevice {
 
-	var dataptr, <signals;
+	var dataptr, <inputsignals, <outputsignals;
 
 	*new { arg devicename = 'supercollider', port = 9444;
 		^super.new.init( devicename, port )
 	}
 
 	init { arg devicename, port;
-		signals = [];
+		inputsignals = [];
+		outputsignals = [];
 		this.prNew( devicename, port );
 		this.prStartPolling;
 	}
 
 	free {
 		this.prStopPolling;
-		signals = [];
+		inputsignals = [];
+		outputsignals = [];
 		this.prFree;
 	}
 
@@ -24,7 +26,7 @@ MapperDevice {
 		sig = this.prAddInput( name, length, type, unit, min, max, MapperSignal.new );
 		if ( sig.notNil ) {
 			sig.action = action;
-			signals = signals.add(sig);
+			inputsignals = inputsignals.add(sig);
 		};
 		^sig;
 	}
@@ -32,7 +34,7 @@ MapperDevice {
 	addOutput { arg name, length, type, unit, min, max;
 		var sig;
 		sig = this.prAddOutput( name, length, type, unit, min, max, MapperSignal.new );
-		if ( sig.notNil ) { signals = signals.add(sig) };
+		if ( sig.notNil ) { outputsignals = outputsignals.add(sig) };
 		^sig;
 	}
 
