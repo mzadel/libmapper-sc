@@ -372,6 +372,68 @@ int mapperDeviceAddOutput(struct VMGlobals *g, int numArgsPushed)
 
 }
 
+int mapperDeviceRemoveInput(struct VMGlobals *g, int numArgsPushed);
+int mapperDeviceRemoveInput(struct VMGlobals *g, int numArgsPushed)
+{
+
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	mapper_device dev;
+	mapper_signal sig;
+	PyrObject *signalobj;
+
+	signalobj = slotRawObject(b);
+
+	dev = Mapper::getDeviceStruct(a)->m_dev;
+	sig = (mapper_signal) slotRawPtr( signalobj->slots+0 );
+
+	if ( msig_properties(sig)->is_output ) {
+		post("mapperDeviceRemoveInput() failed: signal is not an input\n");
+		return errFailed;
+	}
+
+	mdev_remove_input( dev, sig );
+
+	// set the dataptr in the MapperSignal object to NULL to indicate that it's
+	// been freed
+	SetPtr(signalobj->slots+0, NULL);
+
+	return errNone;
+
+}
+
+int mapperDeviceRemoveOutput(struct VMGlobals *g, int numArgsPushed);
+int mapperDeviceRemoveOutput(struct VMGlobals *g, int numArgsPushed)
+{
+
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	mapper_device dev;
+	mapper_signal sig;
+	PyrObject *signalobj;
+
+	signalobj = slotRawObject(b);
+
+	dev = Mapper::getDeviceStruct(a)->m_dev;
+	sig = (mapper_signal) slotRawPtr( signalobj->slots+0 );
+
+	if ( ! msig_properties(sig)->is_output ) {
+		post("mapperDeviceRemoveOutput() failed: signal is not an output\n");
+		return errFailed;
+	}
+
+	mdev_remove_output( dev, sig );
+
+	// set the dataptr in the MapperSignal object to NULL to indicate that it's
+	// been freed
+	SetPtr(signalobj->slots+0, NULL);
+
+	return errNone;
+
+}
+
 int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed)
 {
@@ -605,6 +667,8 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceFree", mapperDeviceFree, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceAddInput", mapperDeviceAddInput, 8, 0);
 	definePrimitive(base, index++, "_MapperDeviceAddOutput", mapperDeviceAddOutput, 8, 0);
+	definePrimitive(base, index++, "_MapperDeviceRemoveInput", mapperDeviceRemoveInput, 2, 0);
+	definePrimitive(base, index++, "_MapperDeviceRemoveOutput", mapperDeviceRemoveOutput, 2, 0);
 	definePrimitive(base, index++, "_MapperDeviceStartPolling", mapperDeviceStartPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceStopPolling", mapperDeviceStopPolling, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceIsPolling", mapperDeviceIsPolling, 1, 0);
