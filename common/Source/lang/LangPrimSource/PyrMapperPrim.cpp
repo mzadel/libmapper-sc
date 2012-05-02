@@ -90,7 +90,7 @@ void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, 
 		int err = pointerToNumericSlot( props->type, value, g->sp );
 		if ( err != errNone ) {
 			SetNil(g->sp);
-			post("Mapper::Signal::input_handler(): value of unsupported type (%c)\n", props->type);
+			post("Mapper::Signal::input_handler(): pointerToNumericSlot() failed, setting incoming value to nil\n");
 		}
 		numArgsPushed++;
 
