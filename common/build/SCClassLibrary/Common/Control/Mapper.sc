@@ -87,6 +87,16 @@ MapperSignal {
 
 	var dataptr, <>action;
 
+	setMinimum { arg value;
+		_MapperSignalSetMinimum
+		^this.primitiveFailed
+	}
+
+	setMaximum { arg value;
+		_MapperSignalSetMaximum
+		^this.primitiveFailed
+	}
+
 	isOutput {
 		_MapperSignalIsOutput
 		^this.primitiveFailed
