@@ -572,6 +572,28 @@ int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed)
 
 }
 
+int mapperSignalGetFullName(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalGetFullName(struct VMGlobals *g, int numArgsPushed)
+{
+
+	PyrSlot *a = g->sp;
+	char name[1024];
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	int length;
+
+	length = msig_full_name(sig, name, 1024);
+
+	if ( length > 0 ) {
+		SetSymbol( a, getsym(name) );
+	}
+	else {
+		SetNil(a);
+	}
+
+	return errNone;
+
+}
+
 void initMapperPrimitives()
 {
 
@@ -600,6 +622,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperSignalGetMinimum", mapperSignalGetMinimum, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetMaximum", mapperSignalGetMaximum, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalUpdate", mapperSignalUpdate, 2, 0);
+	definePrimitive(base, index++, "_MapperSignalGetFullName", mapperSignalGetFullName, 1, 0);
 
 	s_callAction = getsym("prCallAction");
 
