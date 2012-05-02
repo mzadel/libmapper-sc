@@ -142,6 +142,11 @@ MapperSignal {
 		^this.primitiveFailed
 	}
 
+	getFullName {
+		_MapperSignalGetFullName
+		^this.primitiveFailed
+	}
+
 	prCallAction { arg name, value;
 		action.value( name, value );
 	}
