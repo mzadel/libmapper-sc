@@ -568,6 +568,8 @@ int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed)
 
 	msig_update( sig, storagepointer );
 
+	return errNone;
+
 }
 
 void initMapperPrimitives()
