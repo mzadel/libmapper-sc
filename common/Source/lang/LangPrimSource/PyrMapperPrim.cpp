@@ -135,6 +135,30 @@ inline int numericSlotToPointer( PyrSlot *slot, char type, float *floatstorage, 
 	return errNone;
 }
 
+inline int pointerToNumericSlot( char type, void *value, PyrSlot *slot )
+{
+
+	if( value == NULL ) {
+		SetNil( slot );
+	}
+
+	else if( type == 'f' ) {
+		SetFloat( slot, *((float*) value) );
+	}
+
+	else if( type == 'i' ) {
+		SetInt( slot, *((int*) value) );
+	}
+
+	else {
+		post("pointerToNumericSlot(): unsupported type (%c)\n", type);
+		return errFailed;
+	}
+
+	return errNone;
+
+}
+
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 {
