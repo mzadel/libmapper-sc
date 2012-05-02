@@ -39,6 +39,10 @@ namespace Mapper {
 
 }
 
+inline int numericSlotToPointer( PyrSlot *slot, char type, float *floatstorage, int *intstorage, void **storagepointer );
+inline int pointerToNumericSlot( char type, void *value, PyrSlot *slot );
+
+
 // This is the function that is run by the polling thread, created in
 // mapperStartPolling().  It polls the libmapper device for changes on a
 // regular interval.
@@ -82,21 +86,13 @@ void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, 
 		numArgsPushed++;
 
 		// the value
-		if (value) {
-			char type = props->type;
-
-			if ( type == 'f' ) {
-				++g->sp; SetFloat(g->sp, *(float*)value);
-				numArgsPushed++;
-			}
-			else if ( type == 'i' ) {
-				++g->sp; SetInt(g->sp, *(int*)value);
-				numArgsPushed++;
-			}
-			else {
-				post("Mapper::Signal::input_handler(): ignoring value of unsupported type (%c)\n", type);
-			}
+		++g->sp;
+		int err = pointerToNumericSlot( props->type, value, g->sp );
+		if ( err != errNone ) {
+			SetNil(g->sp);
+			post("Mapper::Signal::input_handler(): value of unsupported type (%c)\n", props->type);
 		}
+		numArgsPushed++;
 
 		runInterpreter(g, s_callAction, numArgsPushed);
 
@@ -537,24 +533,7 @@ int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed)
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	mapper_db_signal props = msig_properties(sig);
 
-	if( props->minimum == NULL ) {
-		SetNil( a );
-	}
-
-	else if( props->type == 'f' ) {
-		SetFloat( a, props->minimum->f );
-	}
-
-	else if( props->type == 'i' ) {
-		SetInt( a, props->minimum->i32 );
-	}
-
-	else {
-		post("mapperSignalGetMinimum(): unsupported type (%c)\n", props->type);
-		return errFailed;
-	}
-
-	return errNone;
+	return pointerToNumericSlot( props->type, props->minimum, a );
 
 }
 
@@ -566,24 +545,7 @@ int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed)
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	mapper_db_signal props = msig_properties(sig);
 
-	if( props->maximum == NULL ) {
-		SetNil( a );
-	}
-
-	else if( props->type == 'f' ) {
-		SetFloat( a, props->maximum->f );
-	}
-
-	else if( props->type == 'i' ) {
-		SetInt( a, props->maximum->i32 );
-	}
-
-	else {
-		post("mapperSignalGetMaximum(): unsupported type (%c)\n", props->type);
-		return errFailed;
-	}
-
-	return errNone;
+	return pointerToNumericSlot( props->type, props->maximum, a );
 
 }
 
