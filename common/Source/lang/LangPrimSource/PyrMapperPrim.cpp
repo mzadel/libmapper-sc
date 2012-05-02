@@ -105,7 +105,7 @@ void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, 
 	pthread_mutex_unlock (&gLangMutex);
 }
 
-inline int unpackNumericValue( PyrSlot *slot, char type, float *floatstorage, int *intstorage, void **storagepointer )
+inline int numericSlotToPointer( PyrSlot *slot, char type, float *floatstorage, int *intstorage, void **storagepointer )
 {
 	// copies the value from the sclang slot to one of the storage variables
 	// fills storagepointer to point to the storage variable of the correct type
@@ -128,7 +128,7 @@ inline int unpackNumericValue( PyrSlot *slot, char type, float *floatstorage, in
 	}
 
 	else {
-		post("unpackNumericValue(): unsupported type (%c)\n", type);
+		post("numericSlotToPointer(): unsupported type (%c)\n", type);
 		return errFailed;
 	}
 
@@ -240,10 +240,10 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	if (err) return errWrongType;
 	unit = unitsymbol->name;
 
-	err = unpackNumericValue( pf, type, &minfloat, &minint, &min );
+	err = numericSlotToPointer( pf, type, &minfloat, &minint, &min );
 	if (err) return errWrongType;
 
-	err = unpackNumericValue( pg, type, &maxfloat, &maxint, &max );
+	err = numericSlotToPointer( pg, type, &maxfloat, &maxint, &max );
 	if (err) return errWrongType;
 
 	signalobj = slotRawObject(ph);
@@ -323,10 +323,10 @@ int mapperDeviceAddOutput(struct VMGlobals *g, int numArgsPushed)
 	if (err) return errWrongType;
 	unit = unitsymbol->name;
 
-	err = unpackNumericValue( pf, type, &minfloat, &minint, &min );
+	err = numericSlotToPointer( pf, type, &minfloat, &minint, &min );
 	if (err) return errWrongType;
 
-	err = unpackNumericValue( pg, type, &maxfloat, &maxint, &max );
+	err = numericSlotToPointer( pg, type, &maxfloat, &maxint, &max );
 	if (err) return errWrongType;
 
 	signalobj = slotRawObject(ph);
