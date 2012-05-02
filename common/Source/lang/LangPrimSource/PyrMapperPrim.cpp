@@ -411,6 +411,46 @@ int mapperDeviceGetPort(struct VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+int mapperSignalSetMinimum(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalSetMinimum(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	float minfloat;
+	int minint;
+	void *min = NULL;
+
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+
+	int err = numericSlotToPointer( b, msig_properties(sig)->type, &minfloat, &minint, &min );
+	if (err) return errWrongType;
+
+	msig_set_minimum( sig, min );
+
+	return errNone;
+}
+
+int mapperSignalSetMaximum(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalSetMaximum(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	float maxfloat;
+	int maxint;
+	void *max = NULL;
+
+	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+
+	int err = numericSlotToPointer( b, msig_properties(sig)->type, &maxfloat, &maxint, &max );
+	if (err) return errWrongType;
+
+	msig_set_maximum( sig, max );
+
+	return errNone;
+}
+
 int mapperSignalIsOutput(struct VMGlobals *g, int numArgsPushed);
 int mapperSignalIsOutput(struct VMGlobals *g, int numArgsPushed)
 {
@@ -573,6 +613,8 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperDeviceGetName", mapperDeviceGetName, 1, 0);
 	definePrimitive(base, index++, "_MapperDeviceGetPort", mapperDeviceGetPort, 1, 0);
 
+	definePrimitive(base, index++, "_MapperSignalSetMinimum", mapperSignalSetMinimum, 2, 0);
+	definePrimitive(base, index++, "_MapperSignalSetMaximum", mapperSignalSetMaximum, 2, 0);
 	definePrimitive(base, index++, "_MapperSignalIsOutput", mapperSignalIsOutput, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetType", mapperSignalGetType, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalGetLength", mapperSignalGetLength, 1, 0);
