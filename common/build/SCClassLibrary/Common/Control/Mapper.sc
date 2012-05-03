@@ -209,6 +209,8 @@ MapperSignal {
 MapperInstance {
 
 	var index; // this is the index that's used into the list of local physical instances
+	// maybe this isn't used; maybe just write this MapperInstance object
+	// pointer into the user data for this instance.
 
 	// local var that gets passed into the handlers that contains the data
 	// for this voice (eg a Synth instance)
