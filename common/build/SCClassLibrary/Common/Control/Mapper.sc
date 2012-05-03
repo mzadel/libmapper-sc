@@ -115,7 +115,11 @@ MapperDevice {
 
 MapperSignal {
 
-	var dataptr, <>action;
+	var dataptr, <>action, <instances;
+
+	// these are the generic action functions that get copied to the
+	// MapperInstance instances when they're created
+	var newinstanceaction, updateinstanceaction, killinstanceaction;
 
 	setMinimum { arg value;
 		_MapperSignalSetMinimum
@@ -180,6 +184,15 @@ MapperSignal {
 	prCallAction { arg name, value;
 		action.value( name, value );
 	}
+
+}
+
+MapperInstance {
+
+	var index; // this is the index that's used into the list of local physical instances
+
+	// these are local copies of the handlers that get invoked on the various events
+	var newinstanceaction, updateinstanceaction, killinstanceaction;
 
 }
 
