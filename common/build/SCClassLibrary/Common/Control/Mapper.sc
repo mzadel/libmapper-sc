@@ -210,6 +210,10 @@ MapperInstance {
 
 	var index; // this is the index that's used into the list of local physical instances
 
+	// local var that gets passed into the handlers that contains the data
+	// for this voice (eg a Synth instance)
+	var data;
+
 	// these are local copies of the handlers that get invoked on the various events
 	var newinstanceaction, updateinstanceaction, killinstanceaction;
 
