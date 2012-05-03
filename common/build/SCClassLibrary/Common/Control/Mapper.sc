@@ -187,6 +187,25 @@ MapperSignal {
 
 }
 
+// mimic the interface
+// bundle any info that lives with an instance in to the MapperInstance instance
+
+// mapper_signal_instance_overflow_handler
+// msig_instance_value
+// msig_active_instance_id
+// msig_reserve_instances
+// msig_release_instance
+// msig_set_instance_allocation_mode
+// msig_set_instance_overflow_handler
+// msig_update_instance
+// msig_instance_set_data
+// msig_instance_get_data
+// msig_num_active_instances
+// msig_num_reserved_instances
+
+
+
+
 MapperInstance {
 
 	var index; // this is the index that's used into the list of local physical instances
