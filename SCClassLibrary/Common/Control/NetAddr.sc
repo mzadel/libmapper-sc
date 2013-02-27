@@ -1,4 +1,3 @@
-
 NetAddr {
 	var <addr=0, <>port=0, <hostname, <socket;
 	classvar connections;
@@ -105,13 +104,13 @@ NetAddr {
 			var id = UniqueID.next;
 			var resp;
 
-			resp = OSCresponderNode(this, "/synced", {|time, resp, msg|
+			resp = OSCFunc({|msg|
 				if (msg[1] == id) {
-					resp.remove;
+					resp.free;
 					condition.test = true;
 					condition.signal;
 				};
-			}).add;
+			}, '/synced', this);
 			condition.test = false;
 			^id
 	}

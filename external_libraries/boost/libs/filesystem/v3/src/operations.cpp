@@ -10,6 +10,25 @@
 
 //--------------------------------------------------------------------------------------// 
 
+//  define 64-bit offset macros BEFORE including boost/config.hpp (see ticket #5355) 
+#if !(defined(__HP_aCC) && defined(_ILP32) && !defined(_STATVFS_ACPP_PROBLEMS_FIXED))
+#define _FILE_OFFSET_BITS 64 // at worst, these defines may have no effect,
+#endif
+#if !defined(__PGI)
+#define __USE_FILE_OFFSET64 // but that is harmless on Windows and on POSIX
+      // 64-bit systems or on 32-bit systems which don't have files larger 
+      // than can be represented by a traditional POSIX/UNIX off_t type. 
+      // OTOH, defining them should kick in 64-bit off_t's (and thus 
+      // st_size)on 32-bit systems that provide the Large File
+      // Support (LFS)interface, such as Linux, Solaris, and IRIX.
+      // The defines are given before any headers are included to
+      // ensure that they are available to all included headers.
+      // That is required at least on Solaris, and possibly on other
+      // systems as well.
+#else
+#define _FILE_OFFSET_BITS 64
+#endif
+
 #include <boost/config.hpp>
 #if !defined( BOOST_NO_STD_WSTRING )
 // Boost.Filesystem V3 and later requires std::wstring support.
@@ -30,26 +49,18 @@
 # define _POSIX_PTHREAD_SEMANTICS  // Sun readdir_r()needs this
 #endif
 
-#if !(defined(__HP_aCC) && defined(_ILP32) && \
-      !defined(_STATVFS_ACPP_PROBLEMS_FIXED))
-#define _FILE_OFFSET_BITS 64 // at worst, these defines may have no effect,
-#endif
-#define __USE_FILE_OFFSET64 // but that is harmless on Windows and on POSIX
-      // 64-bit systems or on 32-bit systems which don't have files larger 
-      // than can be represented by a traditional POSIX/UNIX off_t type. 
-      // OTOH, defining them should kick in 64-bit off_t's (and thus 
-      // st_size)on 32-bit systems that provide the Large File
-      // Support (LFS)interface, such as Linux, Solaris, and IRIX.
-      // The defines are given before any headers are included to
-      // ensure that they are available to all included headers.
-      // That is required at least on Solaris, and possibly on other
-      // systems as well.
-
 #include <boost/filesystem/v3/operations.hpp>
 #include <boost/scoped_array.hpp>
 #include <boost/detail/workaround.hpp>
-#include <cstdlib>  // for malloc, free
-#include <vector>
+#include <vector> 
+#include <cstdlib>     // for malloc, free
+#include <sys/stat.h>  // even on Windows some functions use stat()
+#include <cstring>
+#include <cstdio>      // for remove, rename
+#if defined(__QNXNTO__)  // see ticket #5355 
+# include <stdio.h>
+#endif
+#include <cerrno>
 
 #ifdef BOOST_FILEYSTEM_INCLUDE_IOSTREAM
 # include <iostream>
@@ -66,6 +77,8 @@ using std::wstring;
 
 # ifdef BOOST_POSIX_API
 
+    const fs::path dot_path(".");
+    const fs::path dot_dot_path("..");
 #   include <sys/types.h>
 #   if !defined(__APPLE__) && !defined(__OpenBSD__)
 #     include <sys/statvfs.h>
@@ -87,6 +100,8 @@ using std::wstring;
 
 # else // BOOST_WINDOW_API
 
+    const fs::path dot_path(L".");
+    const fs::path dot_dot_path(L"..");
 #   if (defined(__MINGW32__) || defined(__CYGWIN__)) && !defined(WINVER)
       // Versions of MinGW or Cygwin that support Filesystem V3 support at least WINVER 0x501.
       // See MinGW's windef.h
@@ -173,14 +188,6 @@ typedef struct _REPARSE_DATA_BUFFER {
   || defined(_DIRENT_HAVE_D_TYPE)// defined by GNU C library if d_type present
 #   define BOOST_FILESYSTEM_STATUS_CACHE
 # endif
-
-#include <sys/stat.h>  // even on Windows some functions use stat()
-#include <string>
-#include <cstring>
-#include <cstdio>      // for remove, rename
-#include <cerrno>
-#include <cassert>
-// #include <iostream>    // for debugging only; comment out when not in use
 
 //  POSIX/Windows macros  ----------------------------------------------------//
 
@@ -428,7 +435,10 @@ namespace
 
     struct stat from_stat;
     if (::stat(from_p.c_str(), &from_stat)!= 0)
-      { return false; }
+    { 
+      ::close(infile);
+      return false;
+    }
 
     int oflag = O_CREAT | O_WRONLY | O_TRUNC;
     if (fail_if_exists)
@@ -743,6 +753,86 @@ namespace detail
 #   else
     return true;
 #   endif
+  }
+
+  BOOST_FILESYSTEM_DECL
+  path canonical(const path& p, const path& base, system::error_code* ec)
+  {
+    path source (p.is_absolute() ? p : absolute(p, base));
+    path result;
+
+    system::error_code local_ec;
+    file_status stat (status(source, local_ec));
+
+    if (stat.type() == fs::file_not_found)
+    {
+      if (ec == 0)
+        BOOST_FILESYSTEM_THROW(filesystem_error(
+          "boost::filesystem::canonical", source,
+          error_code(system::errc::no_such_file_or_directory, system::generic_category())));
+      ec->assign(system::errc::no_such_file_or_directory, system::generic_category());
+      return result;
+    }
+    else if (local_ec)
+    {
+      if (ec == 0)
+        BOOST_FILESYSTEM_THROW(filesystem_error(
+          "boost::filesystem::canonical", source, local_ec));
+      *ec = local_ec;
+      return result;
+    }
+
+    bool scan (true);
+    while (scan)
+    {
+      scan = false;
+      result.clear();
+      for (path::iterator itr = source.begin(); itr != source.end(); ++itr)
+      {
+        if (*itr == dot_path)
+          continue;
+        if (*itr == dot_dot_path)
+        {
+          result.remove_filename();
+          continue;
+        }
+
+        result /= *itr;
+
+        bool is_sym (is_symlink(detail::symlink_status(result, ec)));
+        if (ec && *ec)
+          return path();
+
+        if (is_sym)
+        {
+          path link(detail::read_symlink(result, ec));
+          if (ec && *ec)
+            return path();
+          result.remove_filename();
+
+          if (link.is_absolute())
+          {
+            for (++itr; itr != source.end(); ++itr)
+              link /= *itr;
+            source = link;
+          }
+          else // link is relative
+          {
+            path new_source(result);
+            new_source /= link;
+            for (++itr; itr != source.end(); ++itr)
+              new_source /= *itr;
+            source = new_source;
+          }
+          scan = true;  // symlink causes scan to be restarted
+          break;
+        }
+      }
+    }
+    if (ec != 0)
+      ec->clear();
+    BOOST_ASSERT_MSG(result.is_absolute(), "canonical() implementation error; please report");
+    return result;
   }
 
   BOOST_FILESYSTEM_DECL
@@ -1694,6 +1784,10 @@ namespace
     return ok;
   }
 
+#if defined(__PGI) && defined(__USE_FILE_OFFSET64)
+#define dirent dirent64
+#endif
+
   error_code dir_itr_first(void *& handle, void *& buffer,
     const char* dir, string& target,
     fs::file_status &, fs::file_status &)
@@ -1915,8 +2009,8 @@ namespace detail
   void directory_iterator_increment(directory_iterator& it,
     system::error_code* ec)
   {
-    BOOST_ASSERT(it.m_imp.get() && "attempt to increment end iterator");
-    BOOST_ASSERT(it.m_imp->handle != 0 && "internal program error");
+    BOOST_ASSERT_MSG(it.m_imp.get(), "attempt to increment end iterator");
+    BOOST_ASSERT_MSG(it.m_imp->handle != 0, "internal program error");
     
     path::string_type filename;
     file_status file_stat, symlink_file_stat;

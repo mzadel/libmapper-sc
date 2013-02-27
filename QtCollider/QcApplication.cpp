@@ -20,23 +20,59 @@
 ************************************************************************/
 
 #include "QcApplication.h"
+#include "widgets/QcTreeWidget.h"
 
 #include <PyrLexer.h>
 #include <VMGlobals.h>
+#include <PyrKernel.h>
+#include <PyrSlot.h>
+#include <GC.h>
 
 #include <QThread>
 #include <QFileOpenEvent>
+#include <QIcon>
+
+extern bool compiledOK;
 
 QcApplication * QcApplication::_instance = 0;
 QMutex QcApplication::_mutex;
 
+#ifdef Q_WS_X11
+#include <X11/Xlib.h>
+#endif
+
+
+/* on x11, we need to check, if we can actually connect to the X server */
+static bool QtColliderUseGui(void)
+{
+#ifdef Q_WS_X11
+  Display *dpy = XOpenDisplay(NULL);
+  if (!dpy)
+    return false;
+  XCloseDisplay(dpy);
+  return true;
+#else
+  return true;
+#endif
+}
+
 QcApplication::QcApplication( int & argc, char ** argv )
-: QApplication( argc, argv )
+: QApplication( argc, argv, QtColliderUseGui() )
 {
   _mutex.lock();
   _instance = this;
   _mutex.unlock();
   qRegisterMetaType<VariantList>();
+  qRegisterMetaType<QcTreeWidget::ItemPtr>();
+
+  if (QtColliderUseGui()) { // avoid a crash on linux, if x is not available
+    QIcon icon;
+    icon.addFile(":icons/sc-cube-128");
+    icon.addFile(":icons/sc-cube-48");
+    icon.addFile(":icons/sc-cube-32");
+    icon.addFile(":icons/sc-cube-16");
+    setWindowIcon(icon);
+  }
 }
 
 QcApplication::~QcApplication()
@@ -46,93 +82,47 @@ QcApplication::~QcApplication()
   _mutex.unlock();
 }
 
-void QcApplication::postSyncEvent( QcSyncEvent *e, QObject *rcv )
+bool QcApplication::compareThread()
 {
+  bool same;
+
   _mutex.lock();
-  if( !_instance ) {
-    _mutex.unlock();
-    return;
-  }
 
-  if( QThread::currentThread() == rcv->thread() ) {
-    sendEvent( rcv, e );
-    delete e;
-  }
-  else {
-    QMutex mutex;
-    QWaitCondition cond;
-
-    e->_cond = &cond;
-    e->_mutex = &mutex;
-
-    mutex.lock();
-    postEvent( rcv, e );
-    cond.wait( &mutex );
-    mutex.unlock();
-  }
+  if( _instance )
+    same = QThread::currentThread() == _instance->thread();
+  else
+    same = false;
 
   _mutex.unlock();
+
+  return same;
 }
 
-void QcApplication::postSyncEvent( QcSyncEvent *e, EventHandlerFn handler )
+void QcApplication::interpret( const QString &str, bool print )
 {
-  _mutex.lock();
-  if( !_instance ) {
-    _mutex.unlock();
-    return;
+  QtCollider::lockLang();
+  if( compiledOK ) {
+      VMGlobals *g = gMainVMGlobals;
+
+      PyrString *strObj = newPyrString( g->gc, str.toStdString().c_str(), 0, true );
+
+      SetObject(&slotRawInterpreter(&g->process->interpreter)->cmdLine, strObj);
+      g->gc->GCWrite(slotRawObject(&g->process->interpreter), strObj);
+
+      runLibrary( print ? QtCollider::s_interpretPrintCmdLine : QtCollider::s_interpretCmdLine );
   }
-
-  if( QThread::currentThread() == _instance->thread() ) {
-    (*handler)(e);
-    delete(e);
-  }
-  else {
-    QMutex mutex;
-    QWaitCondition cond;
-
-    e->_handler = handler;
-    e->_cond = &cond;
-    e->_mutex = &mutex;
-
-    mutex.lock();
-    postEvent( _instance, e );
-    cond.wait( &mutex );
-    mutex.unlock();
-  }
-
-  _mutex.unlock();
+  QtCollider::unlockLang();
 }
 
 bool QcApplication::event( QEvent *e )
 {
   if( e->type() == QEvent::FileOpen ) {
-
     // open the file dragged onto the application icon on Mac
-
     QFileOpenEvent *fe = static_cast<QFileOpenEvent*>(e);
-
-    QtCollider::lockLang();
-    gMainVMGlobals->canCallOS = true;
-
-    QString cmdLine = QString("Document.open(\"%1\")").arg(fe->file());
-    char *method = strdup( "interpretPrintCmdLine" );
-    interpretCmdLine( cmdLine.toStdString().c_str(), cmdLine.size(), method );
-    free(method);
-
-    gMainVMGlobals->canCallOS = false;
-    QtCollider::unlockLang();
+    interpret( QString("Document.open(\"%1\")").arg(fe->file()), false );
 
     return true;
   }
 
   return QApplication::event( e );
-}
-
-void QcApplication::customEvent( QEvent *e )
-{
-  // FIXME properly check event type
-  QcSyncEvent *qce = static_cast<QcSyncEvent*>(e);
-  if( qce->_handler ) {
-    (*qce->_handler) ( qce );
-  }
 }

@@ -11,6 +11,6 @@
 
 // TODO: reference additional headers your program requires here
 
-#include "pycxx/cxx/Objects.hxx"
-#include "pycxx/cxx/Extensions.hxx"
+#include "CXX/Objects.hxx"
+#include "CXX/Extensions.hxx"
 #include <winsock2.h>

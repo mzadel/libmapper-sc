@@ -21,9 +21,6 @@ Copyright (c) 2007 Dan Stowell. All rights reserved.
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 
 */
-#ifdef _WIN32
-#define hypotf _hypotf
-#endif
 
 #include "SC_PlugIn.h"
 #include "SCComplex.h"
@@ -50,8 +47,6 @@ struct PackFFT : Unit {
 
 extern "C"
 {
-	void load(InterfaceTable *inTable);
-
 	void Unpack1FFT_Ctor(Unpack1FFT *unit);
 	void Unpack1FFT_next_dc(Unpack1FFT *unit, int inNumSamples);
 	void Unpack1FFT_next_nyq(Unpack1FFT *unit, int inNumSamples);

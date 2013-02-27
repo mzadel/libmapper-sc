@@ -41,10 +41,6 @@
 #include "PyrSched.h"
 #include "GC.h"
 
-#ifdef HAVE_CONFIG_H
-# include "config.h"
-#endif
-
 #if HAVE_LID
 #include <errno.h>
 #include <fcntl.h>
@@ -248,13 +244,11 @@ int SC_LID::getInfo(struct input_id *info, char *bufPhys, size_t sizePhys, char 
 	if (ioctl(m_fd, EVIOCGPHYS(sizePhys), bufPhys) == -1) {
 // 		strcpy( sizePhys, strerror(errno));
  		post("LID could not retrieve physical location (error: %s)\n", strerror(errno));
-		sprintf(bufPhys, "");
 // 		return errFailed;
 	}
 	if (ioctl(m_fd, EVIOCGUNIQ(sizeUniq), bufUniq) == -1) {
 // 		strcpy( strerror(errno), sizeof( strerror(errno)), sizeUniq );
  		post("LID could not get unique identifier (error: %s)\n", strerror(errno));
-		sprintf(bufUniq, "");
 // 		return errFailed;
 	}
 
@@ -367,11 +361,13 @@ int SC_LIDManager::start()
 
 int SC_LIDManager::stop()
 {
+	if (m_running == false)
+		return errNone;
+
 	Command cmd;
-	int err;
 
 	cmd.id = kStop;
-	err = sendCommand(cmd);
+	int err = sendCommand(cmd);
 	if (err) return err;
 
 	err = pthread_join(m_thread, 0);
@@ -458,6 +454,7 @@ void* SC_LIDManager::threadFunc(void* arg)
 
 void SC_LIDManager::loop()
 {
+	m_running = true;
 	post("LID: event loop started\n");
 
 	while (true) {
@@ -465,6 +462,7 @@ void SC_LIDManager::loop()
 		memcpy(&fds, &m_fds, sizeof(fd_set));
 		int n = select(m_nfds, &fds, 0, 0, 0);
 		if (n == -1) {
+			if( errno == EINTR ) continue;
 			post("LID: error in input handler: %s\n", strerror(errno));
 			goto quit;
 		} else if (n > 0) {
@@ -473,28 +471,32 @@ void SC_LIDManager::loop()
 				--n;
 				int err = read(m_cmdFifo[0], &cmd, sizeof(cmd));
 				if (err == -1) {
-					post("LID: error in input handler: %s\n", strerror(errno));
-					goto quit;
-				}
-				switch (cmd.id) {
-					case kStop:
+					if( errno != EINTR ) {
+						post("LID: error in input handler: %s\n", strerror(errno));
 						goto quit;
-					case kAdd:
-						if (asyncAddDevice(cmd.arg.dev)) {
-							post("LID: added device %p\n", cmd.arg);
-						} else {
-							post("LID: cannot add device\n");
-						}
-						break;
-					case kRemove:
-						if (asyncRemoveDevice(cmd.arg.dev)) {
-							post("LID: removed device %p\n", cmd.arg);
-						} else {
-							post("LID: couldn't remove device\n");
-						}
-						break;
-					default:
-						post("LID: unknown command in input handler\n");
+					}
+				}
+				else {
+					switch (cmd.id) {
+						case kStop:
+							goto quit;
+						case kAdd:
+							if (asyncAddDevice(cmd.arg.dev)) {
+								post("LID: added device %p\n", cmd.arg);
+							} else {
+								post("LID: cannot add device\n");
+							}
+							break;
+						case kRemove:
+							if (asyncRemoveDevice(cmd.arg.dev)) {
+								post("LID: removed device %p\n", cmd.arg);
+							} else {
+								post("LID: couldn't remove device\n");
+							}
+							break;
+						default:
+							post("LID: unknown command in input handler\n");
+					}
 				}
 			}
 			if (n > 0) {
@@ -517,6 +519,7 @@ void SC_LIDManager::loop()
 	}
 
  quit:
+	m_running = false;
 	post("LID: event loop stopped\n");
 }
 

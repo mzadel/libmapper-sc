@@ -37,8 +37,9 @@ extern "C"
 #include "nova-tt/dummy_mutex.hpp"
 #include "nova-tt/mlock.hpp"
 
-namespace nova
-{
+#include "function_attributes.h"
+
+namespace nova {
 
 /**
  * simple memory pool class, based on tlsf.
@@ -105,12 +106,12 @@ public:
     {}
 
 #ifdef NOVA_MEMORY_DEBUGGING
-    void * malloc(std::size_t size)
+    void * MALLOC malloc(std::size_t size)
     {
         return ::malloc(size);
     }
 
-    void * realloc(void * p, std::size_t size)
+    void * MALLOC realloc(void * p, std::size_t size)
     {
         return ::realloc(p, size);
     }
@@ -125,13 +126,13 @@ public:
         return std::numeric_limits<std::size_t>::max();
     }
 #else
-    void * malloc(std::size_t size)
+    void * MALLOC malloc(std::size_t size)
     {
         scoped_lock lock(data_);
         return malloc_ex(size, data_.pool);
     }
 
-    void * realloc(void * p, std::size_t size)
+    void * MALLOC realloc(void * p, std::size_t size)
     {
         scoped_lock lock(data_);
         return realloc_ex(p, size, data_.pool);

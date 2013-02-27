@@ -63,12 +63,12 @@ Stethoscope : ViewRedirect {
 		^this.implClass.new(server, numChannels, index, bufsize, zoom, rate, view, bufnum)
 	}
 	*key { ^\stethoscope }
-	
+
 }
 ScopeView : ViewRedirect { *key { ^\scopeView }}
-FreqScopeView : ViewRedirect { *key { ^\freqScopeView }} // redirects to SCFreqScope
+FreqScopeView : ViewRedirect { *key { ^\freqScopeView }} // redirects to FreqScope
 
-FreqScope : ViewRedirect { // redirects to SCFreqScopeWindow
+FreqScope : ViewRedirect { // redirects to FreqScopeWindow
 	*new { arg width=512, height=300, busNum=0, scopeColor, bgColor;
 		busNum = busNum.asControlInput;
 		^this.implClass.new(width, height, busNum, scopeColor)
@@ -109,13 +109,13 @@ Font : ViewRedirect  {
 	*key { ^\font }
 	*findFirstAvailable { |fontNames, action|
 		Routine {
-			fontNames.do { |name| 
-				if(this.availableFonts.any(_.contains(name))) { 
+			fontNames.do { |name|
+				if(this.availableFonts.any(_.contains(name))) {
 					action.value(name);
 					nil.alwaysYield;
 				}
 			}
-		}.play(AppClock)		
+		}.play(AppClock)
 }
 }
 
@@ -124,3 +124,9 @@ Knob : ViewRedirect  {	*key { ^\knob }}
 LevelIndicator : ViewRedirect  {	*key { ^\levelIndicator }}
 
 Image : ViewRedirect { *key { ^\image }}
+
+WebView : ViewRedirect { *key { ^\webView }}
+
+CheckBox : ViewRedirect { *key { ^\checkBox }}
+
+TreeView : ViewRedirect { *key { ^\treeView }}

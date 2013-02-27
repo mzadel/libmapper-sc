@@ -82,30 +82,33 @@ class QcWaveform : public QWidget, public QcHelper {
   Q_OBJECT
 
   Q_PROPERTY( float readProgress READ loadProgress );
+  Q_PROPERTY( int startFrame READ startFrame );
   Q_PROPERTY( int frames READ frames );
-  Q_PROPERTY( int viewFrames READ viewFrames );
-  Q_PROPERTY( int scrollPos READ scrollPos WRITE scrollTo );
+  Q_PROPERTY( double viewFrames READ viewFrames );
+  Q_PROPERTY( double viewStartFrame READ viewStartFrame WRITE scrollTo );
+  Q_PROPERTY( float scrollPos READ scrollPos WRITE setScrollPos );
   Q_PROPERTY( int currentSelection READ currentSelection WRITE setCurrentSelection );
+  Q_PROPERTY( VariantList selections READ selections );
   Q_PROPERTY( QColor peakColor READ dummyColor WRITE setPeakColor );
   Q_PROPERTY( QColor rmsColor READ dummyColor WRITE setRmsColor );
   Q_PROPERTY( float yZoom READ yZoom WRITE setYZoom );
   Q_PROPERTY( float xZoom READ xZoom WRITE setXZoom );
   Q_PROPERTY( bool cursorVisible READ cursorVisible WRITE setCursorVisible );
-  Q_PROPERTY( bool cursorEditable READ dummyBool WRITE setCursorEditable );
+  Q_PROPERTY( bool cursorEditable READ cursorEditable WRITE setCursorEditable );
   Q_PROPERTY( int cursorPosition READ cursorPosition WRITE setCursorPosition );
-  Q_PROPERTY( QColor cursorColor READ dummyColor WRITE setCursorColor );
-  Q_PROPERTY( bool gridVisible READ dummyFloat WRITE setGridVisible );
-  Q_PROPERTY( float gridOffset READ dummyFloat WRITE setGridOffset );
-  Q_PROPERTY( float gridResolution READ dummyFloat WRITE setGridResolution );
-  Q_PROPERTY( QColor gridColor READ dummyColor WRITE setGridColor );
+  Q_PROPERTY( QColor cursorColor READ cursorColor WRITE setCursorColor );
+  Q_PROPERTY( bool gridVisible READ gridVisible WRITE setGridVisible );
+  Q_PROPERTY( float gridOffset READ gridOffset WRITE setGridOffset );
+  Q_PROPERTY( float gridResolution READ gridResolution WRITE setGridResolution );
+  Q_PROPERTY( QColor gridColor READ gridColor WRITE setGridColor );
   Q_PROPERTY( bool drawsWaveform READ drawsWaveform WRITE setDrawsWaveform );
 
 public:
 
   struct Selection {
     Selection() : start(0), size(0), editable(true), color(QColor(0,0,150)) {}
-    quint64 start;
-    quint64 size;
+    sf_count_t start;
+    sf_count_t size;
     bool editable;
     QColor color;
   };
@@ -114,57 +117,76 @@ public:
   ~QcWaveform();
 
   Q_INVOKABLE void load( const QString& filename );
+  // NOTE: Using int instead of sf_count_t for accessibility from SC language.
+  Q_INVOKABLE void load( const QString& filename, int beginning, int duration );
   float loadProgress();
-  quint64 frames() { return sfInfo.frames; }
-  quint64 viewFrames() { return _dur; }
-  quint64 scrollPos() { return _beg; }
+  sf_count_t startFrame() { return _rangeBeg; }
+  sf_count_t frames() { return _rangeDur; }
+
+  double viewStartFrame() { return _beg; }
+  double viewFrames() { return _dur; }
+  float scrollPos(); // as fraction of scrolling range
   float zoom(); //visible fraction
   float xZoom(); //visible seconds
   float yZoom(); //factor
 
+  VariantList selections() const;
   int currentSelection() const { return _curSel; }
   void setCurrentSelection( int i );
-  Q_INVOKABLE VariantList selection( int index );
-  void setSelection( int i, quint64 a, quint64 b );
+  // for SC: selection start relative to first loaded frame
+  Q_INVOKABLE VariantList selection( int index ) const;
+  // for SC: selection start relative to first loaded frame
   Q_INVOKABLE void setSelection( int index, VariantList data );
-  Q_INVOKABLE void setSelectionStart( int i, quint64 frame );
-  Q_INVOKABLE void setSelectionEnd( int i, quint64 frame );
+  void setSelection( int i, sf_count_t a, sf_count_t b );
+  Q_INVOKABLE void setSelectionStart( int i, sf_count_t frame );
+  Q_INVOKABLE void setSelectionEnd( int i, sf_count_t frame );
   Q_INVOKABLE void setSelectionEditable( int index, bool editable );
   Q_INVOKABLE void setSelectionColor( int index, const QColor &clr );
+  Q_PROPERTY( VariantList waveColors READ waveColors WRITE setWaveColors );
 
-  bool cursorVisible() { return _showCursor; }
+  bool cursorVisible() const { return _showCursor; }
   void setCursorVisible( bool b ) { _showCursor = b; update(); }
-  int cursorPosition() { return _cursorPos; }
+  int cursorPosition() const { return _cursorPos; }
   void setCursorPosition( int pos ) { _cursorPos = pos; update(); }
+  QColor cursorColor() const { return _cursorColor; }
   void setCursorColor( const QColor &c ) { _cursorColor = c; update(); }
+  bool cursorEditable() const { return _cursorEditable; }
   void setCursorEditable( bool b ) { _cursorEditable = b; }
 
+  bool gridVisible() const { return _showGrid; }
   void setGridVisible( bool b ) { _showGrid = b; update(); }
+  float gridOffset() const { return _gridOffset; }
   void setGridOffset( float f ) { _gridOffset = f; update(); }
+  float gridResolution() const { return _gridResolution; }
   void setGridResolution( float f ) { _gridResolution = f; update(); }
+  QColor gridColor() const { return _gridColor; }
   void setGridColor( const QColor &c ) { _gridColor = c; update(); }
 
   void setPeakColor( const QColor &clr ) { _peakColor = clr; redraw(); }
   void setRmsColor( const QColor &clr ) { _rmsColor = clr; redraw(); }
 
   bool drawsWaveform() const { return _drawWaveform; }
-  bool setDrawsWaveform( bool b ) { _drawWaveform = b; update(); }
+  void setDrawsWaveform( bool b ) { _drawWaveform = b; update(); }
+  VariantList waveColors() const;
+  void setWaveColors( const VariantList & );
 
   QSize sizeHint() const { return QSize( 400, 200 ); }
   QSize minimumSizeHint() const { return QSize( 100, 20 ); }
 
 public Q_SLOTS:
-  void zoomTo( float fraction );
+  void zoomTo( double fraction );
   //void zoomTo( float fraction, quint64 frame );
-  void zoomBy( float factor );
+  void zoomBy( double factor );
   void zoomAllOut();
-  void scrollTo( quint64 frame );
-  void scrollBy( qint64 frames );
+  void zoomSelection( int selectionIndex );
+  void scrollTo( double frame );
+  void scrollBy( double frames );
+  void setScrollPos( double fraction ); // as fraction of scrolling range
   void scrollToStart();
   void scrollToEnd();
-  void setYZoom( float factor );
-  void setXZoom( float seconds );
-  void zoomSelection( int selectionIndex );
+  void setYZoom( double factor );
+  void setXZoom( double seconds );
+
 
 Q_SIGNALS:
 
@@ -172,6 +194,7 @@ Q_SIGNALS:
   void loadingDone();
 
   void action();
+  void metaAction();
 
 public Q_SLOTS:
 
@@ -190,6 +213,7 @@ protected:
 
 private:
 
+  void doLoad( SNDFILE *new_sf, const SF_INFO &new_info, sf_count_t beginning, sf_count_t duration );
   inline void updateFPP() { _fpp = width() ? (double) _dur / width() : 0.0; }
   void rebuildCache ( int maxFramesPerCache, int maxRawFrames );
   void draw ( QPixmap *, int x, int width, double beginning, double duration );
@@ -197,6 +221,9 @@ private:
   // data
   SNDFILE *sf;
   SF_INFO sfInfo;
+  sf_count_t _rangeBeg;
+  sf_count_t _rangeDur;
+  sf_count_t _rangeEnd;
 
   SoundCacheStream *_cache;
 
@@ -206,7 +233,7 @@ private:
 
   // cursor
   bool _showCursor;
-  quint64 _cursorPos;
+  sf_count_t _cursorPos;
   QColor _cursorColor;
   bool _cursorEditable;
 
@@ -217,8 +244,8 @@ private:
   QColor _gridColor;
 
   // view
-  quint64 _beg;
-  quint64 _dur;
+  double _beg;
+  double _dur;
   double _fpp;
   float _yZoom;
 
@@ -228,6 +255,7 @@ private:
   QColor _rmsColor;
   bool dirty;
   bool _drawWaveform;
+  QList<QColor> _waveColors;
 
   // interaction
   enum DragAction {
@@ -240,17 +268,18 @@ private:
   };
   DragAction _dragAction;
   QPointF _dragPoint;
-  quint64 _dragFrame;
+  sf_count_t _dragFrame;
   double _dragData;
+  double _dragData2;
 };
 
 class SoundStream {
 public:
-  inline int channels() { return ch; }
+  inline int channels() { return _ch; }
 
-  inline double beginning() { return beg; }
+  inline sf_count_t beginning() { return _beg; }
 
-  inline double duration() { return dur; }
+  inline sf_count_t duration() { return _dur; }
 
   virtual bool displayData( int channel, double offset, double duration,
                             short *minBuffer,
@@ -259,25 +288,27 @@ public:
                             short *maxRMS,
                             int bufferSize ) = 0;
 
-  virtual short *rawFrames( int channel, quint64 beginning, quint64 duration, bool *interleaved ) = 0;
+  virtual short *rawFrames( int channel, sf_count_t beginning, sf_count_t duration, bool *interleaved ) = 0;
 
 protected:
   SoundStream()
-  : ch( 0 ), beg( 0.0 ), dur( 0.0 ) {}
-  SoundStream( int channels, double beginning, double duration ) :
-    ch( channels ), beg( beginning ), dur( duration ) {}
-  int ch;
-  double beg;
-  double dur;
+  : _ch( 0 ), _beg( 0 ), _dur( 0 ) {}
+
+  SoundStream( int channels, sf_count_t beginning, sf_count_t duration ) :
+    _ch( channels ), _beg( beginning ), _dur( duration ) {}
+
+  int _ch;
+  sf_count_t _beg;
+  sf_count_t _dur;
 };
 
 class SoundFileStream : public SoundStream
 {
 public:
   SoundFileStream();
-  SoundFileStream( SNDFILE *sf, const SF_INFO &sf_info, double beginning, double duration );
+  SoundFileStream( SNDFILE *sf, const SF_INFO &sf_info, sf_count_t beginning, sf_count_t duration );
   ~SoundFileStream();
-  void load( SNDFILE *sf, const SF_INFO &sf_info, double beginning, double duration );
+  void load( SNDFILE *sf, const SF_INFO &sf_info, sf_count_t beginning, sf_count_t duration );
   bool integrate( int channel, double offset, double duration,
                   short *minBuffer,
                   short *maxBuffer,
@@ -290,11 +321,11 @@ public:
                     short *minRMS,
                     short *maxRMS,
                     int bufferSize );
-  short *rawFrames( int channel, quint64 beginning, quint64 duration, bool *interleaved );
+  short *rawFrames( int channel, sf_count_t beginning, sf_count_t duration, bool *interleaved );
 private:
   short *_data;
-  int _dataSize;
-  quint64 _dataOffset;
+  sf_count_t _dataSize;
+  sf_count_t _dataOffset;
 };
 
 class SoundCacheLoader;
@@ -308,9 +339,9 @@ class SoundCacheStream : public QObject, public SoundStream
 public:
   SoundCacheStream();
   ~SoundCacheStream();
-  void load( SNDFILE *sf, const SF_INFO &info, int maxFramesPerUnit, int maxRawFrames );
+  void load( SNDFILE *sf, const SF_INFO &info, sf_count_t beg, sf_count_t dur,
+             int maxFramesPerUnit, int maxRawFrames );
   inline double fpu() { return _fpu; }
-  inline int size() { return _cacheSize; }
   inline bool ready() { return _ready; }
   inline bool loading() { return _loading; }
   inline int loadProgress() { return _loadProgress; }
@@ -320,7 +351,7 @@ public:
                     short *minRMS,
                     short *maxRMS,
                     int bufferSize );
-  short *rawFrames( int channel, quint64 beginning, quint64 duration, bool *interleaved );
+  short *rawFrames( int channel, sf_count_t beginning, sf_count_t duration, bool *interleaved );
 
 Q_SIGNALS:
   void loadProgress( int );
@@ -332,8 +363,9 @@ private Q_SLOTS:
 
 private:
   SoundCache *_caches;
-  double _fpu; // soundfile frames per cache frame
-  int _cacheSize;
+  double _fpu; // soundfile frames per cache unit
+  sf_count_t _dataOffset; // offset into soundfile of first frame cached (in frames)
+  sf_count_t _dataSize; // amount of cache units
   bool _ready;
   bool _loading;
   SoundCacheLoader *_loader;

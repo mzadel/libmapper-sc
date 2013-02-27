@@ -22,10 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef __APPLE__
-double log2(double x);
-#endif
-
 #include "Opcodes.h"
 #include "PyrInterpreter.h"
 #include "PyrPrimitive.h"
@@ -85,7 +81,7 @@ int doSpecialUnaryArithMsg(VMGlobals *g, int numArgsPushed)
 				case opOctCPS : SetFloat(a, sc_octcps((double)slotRawInt(a))); break;
 				case opCPSOct : SetFloat(a, sc_cpsoct((double)slotRawInt(a))); break;
 				case opLog : SetFloat(a, log((double)slotRawInt(a))); break;
-				case opLog2 : SetFloat(a, log2((double)slotRawInt(a))); break;
+				case opLog2 : SetFloat(a, sc_log2((double)slotRawInt(a))); break;
 				case opLog10 : SetFloat(a, log10((double)slotRawInt(a))); break;
 				case opSin : SetFloat(a, sin((double)slotRawInt(a))); break;
 				case opCos : SetFloat(a, cos((double)slotRawInt(a))); break;
@@ -245,7 +241,7 @@ int doSpecialUnaryArithMsg(VMGlobals *g, int numArgsPushed)
 				case opOctCPS : SetRaw(a, sc_octcps(slotRawFloat(a))); break;
 				case opCPSOct : SetRaw(a, sc_cpsoct(slotRawFloat(a))); break;
 				case opLog : SetRaw(a, log(slotRawFloat(a))); break;
-				case opLog2 : SetRaw(a, log2(slotRawFloat(a))); break;
+				case opLog2 : SetRaw(a, sc_log2(slotRawFloat(a))); break;
 				case opLog10 : SetRaw(a, log10(slotRawFloat(a))); break;
 				case opSin : SetRaw(a, sin(slotRawFloat(a))); break;
 				case opCos : SetRaw(a, cos(slotRawFloat(a))); break;
@@ -378,7 +374,7 @@ int doSpecialBinaryArithMsg(VMGlobals *g, int numArgsPushed, bool isPrimitive)
 						case opThresh :	    SetRaw(a, sc_thresh(slotRawInt(a), slotRawInt(b))); break;
 						case opAMClip :		SetRaw(a, sc_amclip(slotRawInt(a), slotRawInt(b))); break;
 						case opScaleNeg :	SetRaw(a, sc_scaleneg(slotRawInt(a), slotRawInt(b))); break;
-						case opClip2 :		SetRaw(a, sc_clip2(slotRawInt(a), -slotRawInt(b))); break;
+						case opClip2 :		SetRaw(a, sc_clip2(slotRawInt(a), slotRawInt(b))); break;
 						case opFold2 :		SetRaw(a, sc_fold2(slotRawInt(a), slotRawInt(b))); break;
 						case opWrap2 :		SetRaw(a, sc_wrap2(slotRawInt(a), slotRawInt(b))); break;
 						case opExcess :		SetRaw(a, sc_excess(slotRawInt(a), slotRawInt(b))); break;
@@ -476,7 +472,7 @@ int doSpecialBinaryArithMsg(VMGlobals *g, int numArgsPushed, bool isPrimitive)
 						case opThresh :		SetRaw(a, sc_thresh(slotRawInt(a), slotRawFloat(b))); break;
 						case opAMClip :		SetFloat(a, sc_amclip((double)slotRawInt(a), slotRawFloat(b))); break;
 						case opScaleNeg : 	SetFloat(a, sc_scaleneg((double)slotRawInt(a), slotRawFloat(b))); break;
-						case opClip2 :		SetFloat(a, sc_clip2((double)slotRawInt(a), -slotRawFloat(b))); break;
+						case opClip2 :		SetFloat(a, sc_clip2((double)slotRawInt(a), slotRawFloat(b))); break;
 						case opFold2 :		SetFloat(a, sc_fold2((double)slotRawInt(a), slotRawFloat(b))); break;
 						case opWrap2 :		SetFloat(a, sc_wrap2((double)slotRawInt(a), -slotRawFloat(b))); break;
 						case opExcess :		SetFloat(a, sc_excess((double)slotRawInt(a), slotRawFloat(b))); break;

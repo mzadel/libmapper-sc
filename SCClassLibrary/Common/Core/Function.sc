@@ -66,21 +66,21 @@ Function : AbstractFunction {
 		// slightly faster than valueEnvir and does not replace the currentEnvironment
 		^this.valueArray(prototypeFrame)
 	}
-	
+
 	performWithEnvir { |selector, envir|
 		if(selector === \value) { ^this.valueWithEnvir(envir) };
 		^super.performWithEnvir(selector, envir)
 	}
-	
+
 	performKeyValuePairs { |selector, pairs|
 		var envir;
-		if(selector !== \value) { 
-			^this.superPerform(\performKeyValuePairs, pairs) 
+		if(selector !== \value) {
+			^this.superPerform(\performKeyValuePairs, pairs)
 		};
-		
+
 		envir = this.def.makeEnvirFromArgs;
 		envir.putPairs(pairs);
-		
+
 		^this.valueWithEnvir(envir)
 	}
 
@@ -145,13 +145,15 @@ Function : AbstractFunction {
 	set { arg ... args; ^this.valueArray(args) }
 	get { arg prevVal; ^prevVal }
 
-	fork { arg clock, quant=0.0, stackSize=64;
+	fork { arg clock, quant, stackSize;
 		^Routine(this, stackSize).play(clock, quant);
 	}
 
-	forkIfNeeded {
-		if(thisThread.isKindOf(Routine), this, { Routine.run(this) })
+	forkIfNeeded { arg clock, quant, stackSize;
+		if(thisThread.isKindOf(Routine), this, { ^this.fork(clock, quant, stackSize) });
+		^thisThread;
 	}
+
 
 	awake { arg beats, seconds, clock;
 		var time = seconds; // prevent optimization
@@ -171,7 +173,8 @@ Function : AbstractFunction {
 	}
 
 	protect { arg handler;
-		var result = this.prTry;
+		var result;
+		result = this.prTry;
 		if (result.isException) {
 			handler.value(result);
 			result.throw;
@@ -188,12 +191,15 @@ Function : AbstractFunction {
 	}
 	prTry {
 		var result, thread = thisThread;
-		var next = thread.exceptionHandler;
+		var next = thread.exceptionHandler,
+			wasInProtectedFunc = Exception.inProtectedFunction;
 		thread.exceptionHandler = {|error|
 			thread.exceptionHandler = next; // pop
 			^error
 		};
+		Exception.inProtectedFunction = true;
 		result = this.value;
+		Exception.inProtectedFunction = wasInProtectedFunc;
 		thread.exceptionHandler = next; // pop
 		^result
 	}

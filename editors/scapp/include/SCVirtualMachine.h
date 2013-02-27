@@ -70,9 +70,14 @@
 - (void) receiveSleepNote: (NSNotification*) note;
 - (void) receiveWakeNote: (NSNotification*) note;
 
--(IBAction)showHelp:(id)sender;
+-(IBAction)showHelpFor:(id)sender;
 -(IBAction)showHelpBrowser:(id)sender;
 -(IBAction)showHelpSearch:(id)sender;
 -(IBAction)showClassBrowser:(id)sender;
+
+- (IBAction) executeSelection: (id)sender;
+- (IBAction) openCode: (id)sender;
+- (IBAction) methodTemplates: (id)sender;
+- (IBAction) methodReferences: (id)sender;
 
 @end

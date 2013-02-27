@@ -22,6 +22,9 @@
 #ifndef _PYRSLOTGENERIC_H_
 #define _PYRSLOTGENERIC_H_
 
+// generic pyrslot implementation
+#define PYR_SLOTS_GENERIC
+
 #include "SC_Endian.h"
 #include "SC_Types.h"
 #include "PyrErrors.h"
@@ -47,7 +50,7 @@ enum {
 };
 
 typedef struct pyrslot {
-	int tag;
+	long tag;
 
 	union {
 		int64 c; /* char */
@@ -264,6 +267,7 @@ inline double slotRawFloat(PyrSlot *slot)
 
 inline PyrObject* slotRawObject(PyrSlot *slot)
 {
+	assert(IsObj(slot));
 	return slot->u.o;
 }
 

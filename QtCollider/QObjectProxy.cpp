@@ -28,6 +28,7 @@
 #include <QApplication>
 #include <QWidget>
 #include <QVarLengthArray>
+#include <QThread>
 
 #include <PyrKernel.h>
 #include <VMGlobals.h>
@@ -39,7 +40,8 @@ void interpretKeyEvent( QEvent *e, QList<QVariant> &args );
 
 QObjectProxy::QObjectProxy( QObject *qObject_, PyrObject *scObject_ )
 : qObject( qObject_ ),
-  scObject( scObject_ )
+  _scObject( scObject_ ),
+  _scClassName( slotRawSymbol( &scObject_->classptr->name )->name )
 {
   ProxyToken *token = new ProxyToken( this, qObject );
   connect( qObject, SIGNAL( destroyed( QObject* ) ), this, SLOT( invalidate() ) );
@@ -51,14 +53,13 @@ QObjectProxy::~QObjectProxy()
   qcProxyDebugMsg( 1, QString("Proxy is being deleted.") );
 }
 
+bool QObjectProxy::compareThread() {
+  return QThread::currentThread() == this->thread();
+}
+
 void QObjectProxy::invalidate() {
   qcProxyDebugMsg( 1, QString("Object has been deleted. Invalidating proxy.") );
   mutex.lock(); qObject = 0; mutex.unlock();
-}
-
-const char *QObjectProxy::scClassName() const {
-  if( scObject ) return slotRawSymbol( &scObject->classptr->name )->name;
-  return 0;
 }
 
 bool QObjectProxy::invokeMethod( const char *method, PyrSlot *retSlot, PyrSlot *argSlot,
@@ -179,18 +180,8 @@ void QObjectProxy::invokeScMethod
     QtCollider::lockLang();
   }
 
-  if( scObject ) {
-    VMGlobals *g = gMainVMGlobals;
-    g->canCallOS = true;
-    ++g->sp;  SetObject(g->sp, scObject);
-    Q_FOREACH( QVariant var, args ) {
-      ++g->sp;
-      if( Slot::setVariant( g->sp, var ) )
-        SetNil( g->sp );
-    }
-    runInterpreter(g, method, args.size() + 1);
-    g->canCallOS = false;
-    if (result) slotCopy(result, &g->result);
+  if( _scObject ) {
+    QtCollider::runLang( _scObject, method, args, result );
   }
   else {
     SetNil( result );
@@ -204,260 +195,310 @@ void QObjectProxy::invokeScMethod
 
 void QObjectProxy::customEvent( QEvent *event )
 {
-  if( event->type() == (QEvent::Type) QtCollider::Event_ScMethodCall ) {
-    scMethodCallEvent( static_cast<ScMethodCallEvent*>( event ) );
-    return;
-  }
-
-  if( event->type() != (QEvent::Type) QtCollider::Event_Sync ) return;
-
-  QcSyncEvent *se = static_cast<QcSyncEvent*>( event );
-
-  if( se->syncEventType() == QcSyncEvent::ProxyRequest ) {
-    QtCollider::RequestEvent *re =  static_cast<QtCollider::RequestEvent*>( event );
-    re->perform( this );
-    return;
+  switch ( event->type() ) {
+    case (QEvent::Type) QtCollider::Event_ScMethodCall:
+      scMethodCallEvent( static_cast<ScMethodCallEvent*>(event) );
+      return;
+    case (QEvent::Type) QtCollider::Event_Proxy_SetProperty:
+      setPropertyEvent( static_cast<SetPropertyEvent*>(event) );
+      return;
+    case (QEvent::Type) QtCollider::Event_Proxy_Destroy:
+      destroyEvent( static_cast<DestroyEvent*>(event) );
+      return;
+    default: ;
   }
 }
 
-bool QObjectProxy::setParentEvent( SetParentEvent *e ) {
-  if( !qObject || !e->parent->object() ) return true;
-  qObject->setParent( e->parent->object() );
+bool QObjectProxy::setParent( QObjectProxy *parentProxy ) {
+  if( qObject && parentProxy->object() )
+    qObject->setParent( parentProxy->object() );
+
   return true;
+}
+
+bool QObjectProxy::setProperty( const char *property, const QVariant & val )
+{
+  if( !qObject ) return true;
+  if( !qObject->setProperty( property, val ) ) {
+    qcProxyDebugMsg(1, QString("WARNING: Property '%1' not found. Setting dynamic property.")
+                        .arg( property ) );
+  }
+  return false;
 }
 
 bool QObjectProxy::setPropertyEvent( SetPropertyEvent *e )
 {
-  if( !qObject ) return true;
-  if( !qObject->setProperty( e->property->name, e->value ) ) {
-    qcProxyDebugMsg(1, QString("WARNING: Property '%1' not found. Setting dynamic property.")
-                        .arg( e->property->name ) );
-  }
-  return true;
+  return setProperty( e->property->name, e->value );
 }
 
-bool QObjectProxy::getPropertyEvent( GetPropertyEvent *e )
+QVariant QObjectProxy::property( const char *property )
 {
-  if( !qObject ) return true;
-  e->value = qObject->property( e->property->name );
-  return true;
+  return qObject ? qObject->property( property ) : QVariant();
 }
 
-bool QObjectProxy::setEventHandlerEvent( SetEventHandlerEvent *e )
+bool QObjectProxy::setEventHandler( int type, PyrSymbol *method,
+                                    QtCollider::Synchronicity sync, bool enable )
 {
   EventHandlerData data;
-  data.type = e->type;
-  data.method = e->method;
-  data.sync = e->sync;
-  eventHandlers.insert( data.type, data );
+  data.type = type;
+  data.method = method;
+  data.sync = sync;
+
+  // if 'enable' is true, insert the new event handler enabled,
+  // otherwise copy current state, or set disabled if none.
+  if( enable ) {
+    data.enabled = true;
+  }
+  else {
+    EventHandlerData d = _eventHandlers.value( type );
+    if( d.type != QEvent::None ) data.enabled = d.enabled;
+    else data.enabled = false;
+  }
+
+  // NOTE: will replace if same key
+  _eventHandlers.insert( type, data );
+
   return true;
 }
 
-bool QObjectProxy::connectEvent( ConnectEvent *e )
+bool QObjectProxy::setEventHandlerEnabled( int type, bool enabled )
+{
+  EventHandlerData d = _eventHandlers.value( type );
+  if( d.type != type ) return false;
+
+  if( d.enabled != enabled ) {
+    d.enabled = enabled;
+    _eventHandlers.insert( type, d );
+  }
+
+  return true;
+}
+
+bool QObjectProxy::connectObject( const char *signal, PyrObject *object,
+                                    Qt::ConnectionType ctype )
 {
   if( !qObject ) return true;
 
-  Qt::ConnectionType ctype = e->sync == Synchronous ? Qt::DirectConnection : Qt::QueuedConnection;
+  QcFunctionSignalHandler *handler =
+    new QcFunctionSignalHandler( this, signal, object, ctype );
 
-  if( e->method ) {
-    QcMethodSignalHandler *handler =
-      new QcMethodSignalHandler( this, e->signal.toStdString().c_str(), e->method, ctype );
+  if( !handler->isValid() ) { delete handler; return false; }
 
-    if( !handler->isValid() ) { delete handler; return false; }
+  funcSigHandlers.append( handler );
 
+  return true;
+}
+
+bool QObjectProxy::connectMethod( const char *signal, PyrSymbol *method,
+                                  Qt::ConnectionType ctype )
+{
+  if( !qObject ) return true;
+
+  QcMethodSignalHandler *handler =
+    new QcMethodSignalHandler( this, signal, method, ctype );
+
+  if( handler->isValid() ) {
     methodSigHandlers.append( handler );
+    return true;
   }
-  else if ( e->function ) {
-    QcFunctionSignalHandler *handler =
-      new QcFunctionSignalHandler( this, e->signal.toStdString().c_str(), e->function, ctype );
-
-    if( !handler->isValid() ) { delete handler; return false; }
-
-    funcSigHandlers.append( handler );
+  else {
+    delete handler;
+    return false;
   }
-  else return false;
-
-  return true;
 }
 
-bool QObjectProxy::disconnectEvent( QtCollider::DisconnectEvent *e )
+bool QObjectProxy::disconnectObject( const char *sig, PyrObject *object )
 {
   if( !qObject ) return true;
+
   const QMetaObject *mo = qObject->metaObject();
-  QByteArray signal = QMetaObject::normalizedSignature( e->signal.toStdString().c_str() );
+  QByteArray signal = QMetaObject::normalizedSignature( sig );
   int sigId = mo->indexOfSignal( signal );
   if( sigId < 0 ) {
     qcDebugMsg( 1, QString("WARNING: No such signal: '%1'").arg(signal.constData()) );
     return false;
   }
 
-  if( e->method ) {
-    for( int i=0; i<methodSigHandlers.size(); ++i ) {
-      QcMethodSignalHandler *h = methodSigHandlers[i];
-      if( h->indexOfSignal() == sigId && h->method() == e->method ) {
-        methodSigHandlers.removeAt(i);
-        h->destroy();
-        break;
-      }
+  for( int i = 0; i < funcSigHandlers.size(); ++i ) {
+    QcFunctionSignalHandler *h = funcSigHandlers[i];
+    if( h->indexOfSignal() == sigId && h->function() == object ) {
+      funcSigHandlers.removeAt(i);
+      delete h;
+      return true;
     }
   }
-  else if( e->function ) {
-    for( int i=0; i<funcSigHandlers.size(); ++i ) {
-      QcFunctionSignalHandler *h = funcSigHandlers[i];
-      if( h->indexOfSignal() == sigId && h->function() == e->function ) {
-        funcSigHandlers.removeAt(i);
-        h->destroy();
-        break;
-      }
-    }
-  }
-  else return false;
 
-  return true;
+  return false;
 }
 
-bool QObjectProxy::invokeMethodEvent( InvokeMethodEvent *e )
+bool QObjectProxy::disconnectMethod( const char *sig, PyrSymbol *method)
 {
-  return invokeMethod( e->method->name, e->ret, e->arg, Qt::DirectConnection );
+  if( !qObject ) return true;
+
+  const QMetaObject *mo = qObject->metaObject();
+  QByteArray signal = QMetaObject::normalizedSignature( sig );
+  int sigId = mo->indexOfSignal( signal );
+  if( sigId < 0 ) {
+    qcDebugMsg( 1, QString("WARNING: No such signal: '%1'").arg(signal.constData()) );
+    return false;
+  }
+
+  for( int i = 0; i < methodSigHandlers.size(); ++i ) {
+    QcMethodSignalHandler *h = methodSigHandlers[i];
+    if( h->indexOfSignal() == sigId && h->method() == method ) {
+      methodSigHandlers.removeAt(i);
+      delete h;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void QObjectProxy::destroy( DestroyAction action )
+{
+  switch( action ) {
+    case DestroyObject:
+      delete qObject;
+      return;
+    case  DestroyProxy:
+      delete this;
+      return;
+    case DestroyProxyAndObject:
+      delete qObject;
+      delete this;
+      return;
+  }
 }
 
 bool QObjectProxy::destroyEvent( DestroyEvent *e )
 {
-  if( e->action() == DestroyObject ) {
-     if( qObject ) qObject->deleteLater();
-     else return true;
-  }
-  else if( e->action() == DestroyProxy ) {
-    scObject = 0;
-    deleteLater();
-  }
-  else if( e->action() == DestroyProxyAndObject ) {
-    scObject = 0;
-    if( qObject ) qObject->deleteLater();
-    deleteLater();
-  }
-
+  destroy( e->action() );
   return true;
 }
 
-bool QObjectProxy::getChildrenEvent( QtCollider::GetChildrenEvent *e )
+QList<PyrObject*> QObjectProxy::children( PyrSymbol *className )
 {
-  if( !qObject ) return true;
+  QList<PyrObject*> scChildren;
+
+  if( !qObject ) return scChildren;
 
   const QObjectList &children = qObject->children();
 
   Q_FOREACH( QObject *child, children ) {
 
-    ProxyToken * token = 0;
+    QObjectProxy *proxy = QObjectProxy::fromObject( child );
+    if( !proxy ) continue;
 
-    const QObjectList &grandChildren = child->children();
-    Q_FOREACH( QObject *grandChild, grandChildren ) {
-      token = qobject_cast<QtCollider::ProxyToken*>( grandChild );
-      if( token ) break;
-    }
-
-    if( !token ) continue;
-
-    PyrObject * obj = token->proxy->scObject;
+    PyrObject * obj = proxy->_scObject;
 
     if( obj ) {
-        if( e->className && !isKindOf( obj, e->className->u.classobj ) )
+        if( className && !isKindOf( obj, className->u.classobj ) )
             continue;
-        e->children.append( obj );
+        scChildren.append( obj );
     }
-
   }
 
-  return true;
+  return scChildren;
 }
 
-bool QObjectProxy::getParentEvent( QtCollider::GetParentEvent *e )
+PyrObject *QObjectProxy::parent( PyrSymbol *className )
 {
-  if( !qObject ) return true;
+  if( !qObject ) return 0;
 
   QObject *parent = qObject->parent();
-  if( !parent ) return true;
 
-  ProxyToken * token = 0;
+  while( parent ) {
+      // see if this parent has a corresponding proxy
+      QObjectProxy *proxy = QObjectProxy::fromObject( parent );
+      if( proxy ) {
+          // if parent does not have a corresponding SC object (it is just
+          // being deleted) return no parent;
+          PyrObject *scobj = proxy->_scObject;
+          if( !scobj ) return 0;
 
-  const QObjectList &siblings = parent->children();
-  Q_FOREACH( QObject *sibling, siblings ) {
-    token = qobject_cast<QtCollider::ProxyToken*>( sibling );
-    if( token ) break;
+          // if parent SC object is of desired class (or no class specified)
+          // return it, else continue
+          if( !className || isKindOf( scobj, className->u.classobj ) ) {
+              return scobj;
+          }
+      }
+
+      // if this parent was not appropriate continue to consider the parent's parent
+      parent = parent->parent();
   }
 
-  if( token ) *e->parent = token->proxy->scObject;
-
-  return true;
-}
-
-bool QObjectProxy::getValidityEvent( QtCollider::GetValidityEvent *e )
-{
-  return ( qObject != 0 );
+  return 0;
 }
 
 bool QObjectProxy::eventFilter( QObject * watched, QEvent * event )
 {
   int type = event->type();
 
-  if( type == QtCollider::Event_ScMethodCall ) {
-    ScMethodCallEvent* mce = static_cast<ScMethodCallEvent*>( event );
-    qcProxyDebugMsg(1, QString("ScMethodCallEvent -> ") + QString(mce->method->name ) );
-    scMethodCallEvent( mce );
-    return true;
-  }
-  else {
-    EventHandlerData eh = eventHandlers.value( type, EventHandlerData() );
-    if( eh.type == type ) {
-      PyrSymbol *symMethod = eh.method;
-      qcProxyDebugMsg(1,QString("Catched event: type %1 -> '%2'").arg(type).arg(symMethod->name) );
+  EventHandlerData eh;
+  QList<QVariant> args;
 
-      QList<QVariant> args;
-      if( !interpretEvent( watched, event, args ) ) return false;
-
-      if( eh.sync == Synchronous ) {
-        qcProxyDebugMsg(2,"direct!");
-        PyrSlot result;
-        invokeScMethod( symMethod, args, &result );
-        if( IsTrue( &result ) ) {
-          event->accept();
-          return true;
-        }
-        else if( IsFalse( &result ) ) {
-          event->ignore();
-          return true;
-        }
-      }
-      else {
-        qcProxyDebugMsg(2,"indirect");
-        ScMethodCallEvent *e = new ScMethodCallEvent( symMethod, args );
-        QApplication::postEvent( this, e );
-      }
-    }
+  if( !filterEvent( watched, event, eh, args ) ) {
+    qcProxyDebugMsg(3,QString("Event (%1, %2) not handled, forwarding to the widget")
+      .arg(type)
+      .arg(event->spontaneous() ? "spontaneous" : "inspontaneous") );
     return false;
   }
+
+  qcProxyDebugMsg(1,QString("Will handle event (%1, %2) -> (%3, %4)")
+    .arg(type)
+    .arg(event->spontaneous() ? "spontaneous" : "inspontaneous")
+    .arg(eh.method->name)
+    .arg(eh.sync == Synchronous ? "sync" : "async") );
+
+  return invokeEventHandler( event, eh, args );
 }
 
+bool QObjectProxy::invokeEventHandler( QEvent *event, EventHandlerData &eh, QList<QVariant> & args )
+{
+  PyrSymbol *method = eh.method;
 
-void QObjectProxy::scMethodCallEvent( ScMethodCallEvent *e )
+  if( eh.sync == Synchronous ) {
+    PyrSlot result;
+    invokeScMethod( method, args, &result );
+    if( IsTrue( &result ) ) {
+      qcProxyDebugMsg(2,"Event accepted");
+      event->accept();
+      return true;
+    }
+    else if( IsFalse( &result ) ) {
+      qcProxyDebugMsg(2,"Event ignored");
+      event->ignore();
+      return true;
+    }
+  }
+  else {
+    ScMethodCallEvent *e = new ScMethodCallEvent( method, args );
+    QApplication::postEvent( this, e );
+  }
+
+  qcProxyDebugMsg(2,"Forwarding event to the system");
+  return false;
+}
+
+bool QObjectProxy::filterEvent( QObject *, QEvent *e, EventHandlerData & eh, QList<QVariant> & args )
+{
+  int type = e->type();
+  eh = _eventHandlers.value( type, EventHandlerData() );
+  return ( eh.type == type ) && eh.enabled;
+}
+
+inline void QObjectProxy::scMethodCallEvent( ScMethodCallEvent *e )
 {
   invokeScMethod( e->method, e->args, 0, e->locked );
 }
 
-bool QtCollider::RequestEvent::send( QObjectProxy *proxy, Synchronicity sync )
+QObjectProxy * QObjectProxy::fromObject( QObject *object )
 {
-  if( sync == Synchronous ) {
-    bool done = false;
-    p_done = &done;
-    QcApplication::postSyncEvent( this, proxy );
-    return done;
+  const QObjectList &children = object->children();
+  Q_FOREACH( QObject *child, children ) {
+    ProxyToken *token = qobject_cast<QtCollider::ProxyToken*>( child );
+    if( token ) return token->proxy;
   }
-  else {
-    QApplication::postEvent( proxy, this );
-  }
-
-  // WARNING at this point, the event has been deleted, so "this" pointer and data members are
-  // not valid anymore!
-
-  return true;
+  return 0;
 }

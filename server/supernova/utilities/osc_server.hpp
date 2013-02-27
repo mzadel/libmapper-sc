@@ -32,6 +32,7 @@
 #include "static_allocator.hpp"
 #include "nova-tt/semaphore.hpp"
 #include "nova-tt/thread_priority.hpp"
+#include "nova-tt/name_thread.hpp"
 
 namespace nova
 {
@@ -44,14 +45,16 @@ using namespace boost::asio::ip;
 class network_thread
 {
 public:
-    network_thread(void):
-        thread_(network_thread::start, this)
+    void start_receive(void)
     {
+        thread_ = boost::thread(network_thread::start, this);
         sem.wait();
     }
 
     ~network_thread(void)
     {
+        if (!thread_.joinable())
+            return;
         io_service_.stop();
         thread_.join();
     }
@@ -74,6 +77,7 @@ private:
 #ifdef NOVA_TT_PRIORITY_RT
         thread_set_priority_rt(thread_priority_interval_rt().first);
 #endif
+        name_thread("Network Receive");
         self->run();
     }
 
@@ -101,6 +105,7 @@ public:
     osc_server(unsigned int port):
         socket_(network_thread::io_service_, udp::endpoint(udp::v4(), port))
     {
+        network_thread::start_receive();
         start_receive();
     }
 

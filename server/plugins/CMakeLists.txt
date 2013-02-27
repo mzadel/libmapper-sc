@@ -62,23 +62,21 @@ endif()
 
 if (${CMAKE_COMPILER_IS_GNUCXX})
 	add_definitions(-fno-finite-math-only)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions -fvisibility-inlines-hidden")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions")
+	if(NOT WIN32)
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden")
+	endif()
 endif()
 
 foreach(plugin ${plugin_sources})
 	string(REPLACE .cpp "" plugin_name ${plugin} )
-        if(WIN32)
-        	add_library(${plugin_name} MODULE ${plugin} ../../platform/windows/PlugIns/ExportHelper.cpp)
-        else()
-        	add_library(${plugin_name} MODULE ${plugin})
-        endif()
+		add_library(${plugin_name} MODULE ${plugin})
 	list(APPEND plugins ${plugin_name})
 endforeach(plugin)
 
 set(uiugens MouseUGens KeyboardUGens)
 
 if (WIN32)
-    set(scplugin_common_sources ../../platform/windows/PlugIns/ExportHelper.cpp)
     if(MSVC)
         include_directories (../../platform/windows/compat_stuff) # for stdbool.h
     endif()
@@ -115,10 +113,6 @@ add_library(ML_UGens MODULE
 
 if(NOT NO_LIBSNDFILE)
 	set(diskio_sources DiskIO_UGens.cpp)
-
-	if(WIN32)
-		set(diskio_sources ${diskio_sources} ../../platform/windows/PlugIns/ExportHelper.cpp)
-	endif()
 
 	add_library(DiskIO_UGens MODULE ${diskio_sources})
 
@@ -221,17 +215,17 @@ endforeach()
 
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-	find_package(X11)
+	find_package(X11 REQUIRED)
 
-	if(X11_FOUND)
-		include_directories(X11_INCLUDE_DIR)
-
-		foreach (ugen ${uiugens})
-			target_link_libraries(${ugen} ${X11_X11_LIB})
-		endforeach()
-	elseif()
-		message(SEND_ERROR "Cannot find libx11")
+	if (NOT X11_Xt_FOUND)
+		message(FATAL_ERROR "libxt not found")
 	endif()
+
+	include_directories(X11_Xt_INCLUDE_PATH)
+
+	foreach (ugen ${uiugens})
+		target_link_libraries(${ugen} ${X11_X11_LIB})
+	endforeach()
 elseif (APPLE)
 	foreach (ugen ${uiugens})
 		target_link_libraries(${ugen} "-framework CoreServices -framework Carbon")
@@ -250,15 +244,20 @@ if (APPLE)
 
 	install(TARGETS ${plugins}
 			DESTINATION "${scappauxresourcesdir}/plugins"
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE)
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+
+elseif (WIN32)
+	install(TARGETS ${plugins}
+			DESTINATION "SuperCollider/plugins"
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 else()
 	install(TARGETS ${plugins}
 			DESTINATION "lib/SuperCollider/plugins"
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 	if (SUPERNOVA)
 		install(TARGETS ${supernova_plugins}
 			DESTINATION "lib/supernova/plugins"
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 	endif()
 endif()

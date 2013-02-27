@@ -1,43 +1,33 @@
 #include "Common.h"
+#include "Slot.h"
 
-#include <QApplication>
-#include <QThread>
-#include <QAtomicInt>
+#include <PyrKernel.h>
+#include <VMGlobals.h>
+#include <PyrLexer.h>
 
-static QAtomicInt& debugLevelInt() {
-  static QAtomicInt *i = new QAtomicInt(0);
-  return *i;
-}
-
-int QtCollider::debugLevel() {
-  int l = debugLevelInt();
-  return l;
-}
-
-void QtCollider::setDebugLevel( int i ) {
-  debugLevelInt() = i;
-}
-
-void QtCollider::lockLang()
+// WARNING: QtCollider::lockLang() must be called before
+void QtCollider::runLang (
+  PyrObjectHdr *receiver,
+  PyrSymbol *method,
+  const QList<QVariant> & args,
+  PyrSlot *result )
 {
-  qcDebugMsg(2,"locking lang!");
-
-#ifdef QC_DEBUG
-  QString msg;
-#endif
-
-  while( pthread_mutex_trylock (&gLangMutex) ) {
-#ifdef QC_DEBUG
-    msg += QChar('.');
-#endif
-    /* FIXME Dangerous! This sends to all QObjects. no matter what thread they
-      live in */
-    QApplication::sendPostedEvents( 0, QtCollider::Event_Sync );
-    QThread::yieldCurrentThread();
+  VMGlobals *g = gMainVMGlobals;
+  g->canCallOS = true;
+  ++g->sp;  SetObject(g->sp, receiver);
+  Q_FOREACH( QVariant var, args ) {
+    ++g->sp;
+    if( !Slot::setVariant( g->sp, var ) )
+      SetNil( g->sp );
   }
+  runInterpreter(g, method, args.size() + 1);
+  g->canCallOS = false;
+  if (result) slotCopy(result, &g->result);
+}
 
-#ifdef QC_DEBUG
-  msg += "locked";
-#endif
-  qcDebugMsg(2,msg);
+int QtCollider::wrongThreadError ()
+{
+  qcErrorMsg( "You can not use this Qt functionality in the current thread. "
+              "Try scheduling on AppClock instead." );
+  return errFailed;
 }

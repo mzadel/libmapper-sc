@@ -25,12 +25,19 @@
 #include "SC_VFP11.h"
 #endif
 
+#ifdef SUPERNOVA
+#include "nova-tt/spin_lock.hpp"
+#include "nova-tt/rw_spinlock.hpp"
+#endif
+
 #ifdef NOVA_SIMD
 #include "simd_memory.hpp"
 #include "simd_mix.hpp"
 #include "simd_binary_arithmetic.hpp"
 
-#ifdef __GNUC__
+using nova::slope_argument;
+
+#if defined(__GNUC__) && !defined(__clang__)
 #define inline_functions __attribute__ ((flatten))
 #else
 #define inline_functions
@@ -84,12 +91,11 @@ struct LocalIn : public Unit
 {
 	float *m_bus;
 	int32 *m_busTouched;
+	float *m_realData;
 };
 
 extern "C"
 {
-	void load(InterfaceTable *inTable);
-
 	void Control_Ctor(Unit *inUnit);
 	void Control_next_k(Unit *unit, int inNumSamples);
 	void Control_next_1(Unit *unit, int inNumSamples);
@@ -810,8 +816,10 @@ void ReplaceOut_next_k(IOUnit *unit, int inNumSamples)
 	int32 bufCounter = unit->mWorld->mBufCounter;
 	for (int i=0; i<numChannels; ++i, out++) {
 		float *in = IN(i+1);
+		ACQUIRE_BUS_CONTROL((int32)fbusChannel + i);
 		*out = *in;
 		touched[i] = bufCounter;
+		RELEASE_BUS_CONTROL((int32)fbusChannel + i);
 	}
 }
 
@@ -1078,11 +1086,14 @@ void Out_next_k(IOUnit *unit, int inNumSamples)
 	int32 bufCounter = unit->mWorld->mBufCounter;
 	for (int i=0; i<numChannels; ++i, out++) {
 		float *in = IN(i+1);
-		if (touched[i] == bufCounter) *out += *in;
+		ACQUIRE_BUS_CONTROL((int32)fbusChannel + i);
+		if (touched[i] == bufCounter)
+			*out += *in;
 		else {
 			*out = *in;
 			touched[i] = bufCounter;
 		}
+		RELEASE_BUS_CONTROL((int32)fbusChannel + i);
 	}
 }
 
@@ -1237,9 +1248,9 @@ inline_functions void XOut_next_a_nova(XOut *unit, int inNumSamples)
 			float *in = IN(i+2);
 			ACQUIRE_BUS_AUDIO((int32)fbusChannel + i);
 			if (touched[i] == bufCounter)
-				nova::mix_vec_simd(out, out, 1-xfade0, -slope, in, xfade0, slope, inNumSamples);
+				nova::mix_vec_simd(out, out, slope_argument(1-xfade0, -slope), in, slope_argument(xfade0, slope), inNumSamples);
 			else {
-				nova::times_vec_simd(out, in, xfade, slope, inNumSamples);
+				nova::times_vec_simd(out, in, slope_argument(xfade, slope), inNumSamples);
 				touched[i] = bufCounter;
 			}
 			RELEASE_BUS_AUDIO((int32)fbusChannel + i);
@@ -1297,6 +1308,7 @@ void XOut_next_k(XOut *unit, int inNumSamples)
 	int32 bufCounter = unit->mWorld->mBufCounter;
 	for (int i=0; i<numChannels; ++i, out++) {
 		float *in = IN(i+2);
+		ACQUIRE_BUS_CONTROL((int32)fbusChannel + i);
 		if (touched[i] == bufCounter) {
 			float zin = *in;
 			float zout = *out;
@@ -1305,6 +1317,7 @@ void XOut_next_k(XOut *unit, int inNumSamples)
 			*out = xfade * *in;
 			touched[i] = bufCounter;
 		}
+		RELEASE_BUS_CONTROL((int32)fbusChannel + i);
 	}
 }
 
@@ -1620,12 +1633,17 @@ void LocalIn_Ctor(LocalIn* unit)
 	World *world = unit->mWorld;
 
 	int busDataSize = numChannels * BUFLENGTH;
-	unit->m_bus = (float*)RTAlloc(world, busDataSize * sizeof(float) + numChannels * sizeof(int32));
+
+	// align the buffer to 256 bytes so that we can use avx instructions
+	unit->m_realData = (float*)RTAlloc(world, busDataSize * sizeof(float) + numChannels * sizeof(int32) + 32 * sizeof(float));
+	size_t alignment = (unsigned long)unit->m_realData & 31;
+
+	unit->m_bus = alignment ? (float*)(size_t(unit->m_realData + 32) & ~31)
+	                        : unit->m_realData;
+
 	unit->m_busTouched = (int32*)(unit->m_bus + busDataSize);
 	for (int i=0; i<numChannels; ++i)
-	{
 		unit->m_busTouched[i] = -1;
-	}
 
 	if (unit->mCalcRate == calc_FullRate) {
 		if (unit->mParent->mLocalAudioBusUnit)
@@ -1661,7 +1679,7 @@ void LocalIn_Ctor(LocalIn* unit)
 void LocalIn_Dtor(LocalIn* unit)
 {
 	World *world = unit->mWorld;
-	RTFree(world, unit->m_bus);
+	RTFree(world, unit->m_realData);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////

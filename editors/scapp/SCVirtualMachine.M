@@ -492,9 +492,8 @@ bool gIsFullScreen = false;
     [scvm defer: anInvocation];
 }
 
-- (IBAction)showHelp:(id)sender {
-    // a useless waste of a search to get the main page
-    showHelpFor( @"Help");
+- (IBAction)showHelpFor:(id)sender {
+	[self sendMain: "showHelp"];
 }
 - (IBAction)showHelpBrowser:(id)sender {
 	[self sendMain: "showHelpBrowser"];
@@ -505,6 +504,24 @@ bool gIsFullScreen = false;
 - (IBAction)showClassBrowser:(id)sender {
 	[self sendMain: "showClassBrowser"];
 }
+
+- (IBAction) executeSelection: (id)sender
+{
+    [self sendMain: "interpretPrintCmdLine" ];
+}
+- (IBAction) openCode: (id)sender
+{
+    [self sendMain: "openCodeFile"];
+}
+- (IBAction) methodTemplates: (id)sender
+{
+    [self sendMain: "methodTemplates"];
+}
+- (IBAction) methodReferences: (id)sender
+{
+    [self sendMain: "methodReferences"];
+}
+
 
 - (void)applicationWillTerminate:(NSNotification *)notification
 {

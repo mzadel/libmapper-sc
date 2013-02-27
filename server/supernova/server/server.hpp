@@ -31,6 +31,8 @@
 #include "../sc/sc_ugen_factory.hpp"
 #include "../utilities/callback_interpreter.hpp"
 #include "../utilities/static_pooled_class.hpp"
+#include "../utilities/asynchronous_log.hpp"
+#include "../../common/server_shm.hpp"
 
 #ifdef PORTAUDIO_BACKEND
 #include "audio_backend/audio_frontend.hpp"
@@ -38,13 +40,13 @@
 #include "audio_backend/jack_backend.hpp"
 #endif
 
-namespace nova
-{
+namespace nova {
 
 struct realtime_engine_functor
 {
-    inline void init_tick(void);
-    inline void run_tick(void);
+    static inline void sync_clock(void);
+    static void init_thread(void);
+    static inline void run_tick(void);
 };
 
 extern class nova_server * instance;
@@ -107,6 +109,11 @@ private:
     bool rt;
 };
 
+struct io_thread_init_functor
+{
+    void operator()() const;
+};
+
 /** scheduler hook
  *
  *  evaluate scheduled bundles
@@ -119,7 +126,9 @@ struct scheduler_hook
 
 
 class nova_server:
+    public asynchronous_log_thread,
     public node_graph,
+    public server_shared_memory_creator,
     public scheduler<scheduler_hook, thread_init_functor>,
 #if defined(JACK_BACKEND)
     public jack_backend<realtime_engine_functor, float, false>,
@@ -149,7 +158,9 @@ public:
     /* @} */
 
     /* @{ */
-    /** system interpreter */
+    /** system interpreter
+      * \note: should only be called from the main audio thread
+      */
     void add_system_callback(system_callback * cb)
     {
         system_interpreter.add_callback(cb);
@@ -188,8 +199,7 @@ private:
     {
         if (node.is_synth())
             server->notification_node_ended(&node);
-        else
-        {
+        else {
             abstract_group * group = static_cast<abstract_group*>(&node);
             group->apply_on_children(boost::bind(nova_server::free_deep_notify, server, _1));
         }
@@ -237,12 +247,12 @@ public:
 
     void register_prototype(synth_prototype_ptr const & prototype);
 
-    float cpu_load(void) const
+    void cpu_load(float & peak, float & average) const
     {
 #ifdef JACK_BACKEND
-        return get_cpuload();
+        return get_cpuload(peak, average);
 #else
-        return 0.f;
+        peak = average = 0.f;
 #endif
     }
 
@@ -264,11 +274,8 @@ public:
         sc_osc_handler::increment_logical_time(time_per_tick);
     }
 
-private:
-    time_tag time_per_tick;
-
 public:
-    void operator()(void)
+    HOT void operator()(void)
     {
         if (unlikely(dsp_queue_dirty))
             rebuild_dsp_queue();
@@ -287,9 +294,8 @@ public:
 private:
     bool dsp_queue_dirty;
 
-private:
-    callback_interpreter<system_callback> system_interpreter;
-    callback_interpreter_threadpool<system_callback> io_interpreter;
+    callback_interpreter<system_callback, false> system_interpreter; // rt to system thread
+    threaded_callback_interpreter<system_callback, io_thread_init_functor> io_interpreter; // for network IO
 };
 
 inline void run_scheduler_tick(void)
@@ -314,7 +320,7 @@ inline void run_scheduler_tick(void)
     }
 }
 
-inline void realtime_engine_functor::init_tick(void)
+inline void realtime_engine_functor::sync_clock(void)
 {
     instance->update_time_from_system();
 }
@@ -328,6 +334,23 @@ inline void realtime_engine_functor::run_tick(void)
 inline void scheduler_hook::operator()(void)
 {
     instance->execute_scheduled_bundles();
+}
+
+inline bool log_printf(const char *fmt, ...)
+{
+    va_list vargs;
+    va_start(vargs, fmt);
+    return instance->log_printf(fmt, vargs);
+}
+
+inline bool log(const char * string)
+{
+    return instance->log(string);
+}
+
+inline bool log(const char * string, size_t length)
+{
+    return instance->log(string, length);
 }
 
 } /* namespace nova */

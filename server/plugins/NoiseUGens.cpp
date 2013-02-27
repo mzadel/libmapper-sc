@@ -156,8 +156,6 @@ struct RandID : public Unit
 
 extern "C"
 {
-	void load(InterfaceTable *inTable);
-
 	void WhiteNoise_next(WhiteNoise *unit, int inNumSamples);
 	void WhiteNoise_Ctor(WhiteNoise* unit);
 
@@ -747,12 +745,12 @@ void CoinGate_next(CoinGate* unit, int inNumSamples)
 {
 	float *trig = ZIN(1);
 	float *out = ZOUT(0);
-	float level = 0.f;
 	float prevtrig = unit->m_trig;
 	float probability = ZIN0(0);
 	RGen& rgen = *unit->mParent->mRGen;
 	LOOP1(inNumSamples,
 		float curtrig = ZXP(trig);
+		float level = 0.f;
 		if (prevtrig <= 0.f && curtrig > 0.f) {
 			if(rgen.frand() < probability) {
 					level = curtrig;

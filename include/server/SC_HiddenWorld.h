@@ -32,6 +32,8 @@
 #include "SC_Reply.h"
 #include "MsgFifo.h"
 
+#include "../../common/server_shm.hpp"
+
 extern HashTable<struct UnitDef, Malloc> *gUnitDefLib;
 
 
@@ -87,7 +89,6 @@ typedef HashTable<struct GraphDef, Malloc> GrafDefTable;
 
 struct HiddenWorld
 {
-
 	class AllocPool *mAllocPool;
 	IntHashTable<struct Node, AllocPool> *mNodeLib;
 	GrafDefTable *mGraphDefLib;
@@ -106,6 +107,7 @@ struct HiddenWorld
 	DeleteGraphDefsFifo mDeleteGraphDefs;
 
 	SC_Semaphore* mQuitProgram;
+	bool mTerminating;
 
 #ifndef NO_LIBSNDFILE
 	SNDFILE *mNRTInputFile;
@@ -122,6 +124,7 @@ struct HiddenWorld
 #endif
 	const char *mInDeviceName;
 	const char *mOutDeviceName;
+	class server_shared_memory_creator * mShmem;
 };
 
 typedef struct HiddenWorld HiddenWorld;

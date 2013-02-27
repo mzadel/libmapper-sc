@@ -27,12 +27,9 @@
 #include "SC_UnitSpec.h"
 #include "SC_UnitDef.h"
 #include "SC_HiddenWorld.h"
-#include <stdio.h>
-#include <stdlib.h>
 #ifndef _MSC_VER
 #include <dirent.h>
 #endif //_MSC_VER
-#include <stdexcept>
 #include "ReadWriteMacros.h"
 #include "SC_Prototypes.h"
 #include "SC_CoreAudio.h"
@@ -41,6 +38,12 @@
 #ifdef _WIN32
 #include "SC_Win32Utils.h"
 #endif
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 
 extern Malloc gMalloc;
 
@@ -58,15 +61,30 @@ int32* GetKey(ParamSpec* inParamSpec)
 void ReadName(char*& buffer, int32* name);
 void ReadName(char*& buffer, int32* name)
 {
-	uint32 namelen = readInt8(buffer);
+	uint32 namelen = readUInt8(buffer);
 	if (namelen >= kSCNameByteLen) {
-		throw std::runtime_error("name too long > 31 chars");
-		namelen = 31;
+		std::ostringstream os;
+		os << "name too long (> " << kSCNameByteLen - 1 << " chars): "
+		   << std::string(buffer, namelen);
+		throw std::runtime_error(os.str());
 	}
 	memset(name, 0, kSCNameByteLen);
 	readData(buffer, (char*)name, namelen);
 }
 
+void ReadNodeDefName(char*& buffer, int32* name);
+void ReadNodeDefName(char*& buffer, int32* name)
+{
+	uint32 namelen = readUInt8(buffer);
+	if (namelen >= kSCNodeDefNameByteLen) {
+		std::ostringstream os;
+		os << "node definition name too long (> " << kSCNodeDefNameByteLen - 1 << " chars): "
+		   << std::string(buffer, namelen);
+		throw std::runtime_error(os.str());
+	}
+	memset(name, 0, kSCNodeDefNameByteLen);
+	readData(buffer, (char*)name, namelen);
+}
 
 void ParamSpec_Read(ParamSpec* inParamSpec, char*& buffer);
 void ParamSpec_Read(ParamSpec* inParamSpec, char*& buffer)
@@ -166,8 +184,8 @@ void GraphDef_ReadVariant(World *inWorld, char*& buffer, GraphDef* inGraphDef, G
 
 GraphDef* GraphDef_Read(World *inWorld, char*& buffer, GraphDef* inList, int32 inVersion)
 {
-	int32 name[kSCNameLen];
-	ReadName(buffer, name);
+	int32 name[kSCNodeDefNameLen];
+	ReadNodeDefName(buffer, name);
 
 	GraphDef* graphDef = (GraphDef*)calloc(1, sizeof(GraphDef));
 
@@ -175,7 +193,7 @@ GraphDef* GraphDef_Read(World *inWorld, char*& buffer, GraphDef* inList, int32 i
 
 	graphDef->mNodeDef.mAllocSize = sizeof(Graph);
 
-	memcpy((char*)graphDef->mNodeDef.mName, (char*)name, kSCNameByteLen);
+	memcpy((char*)graphDef->mNodeDef.mName, (char*)name, kSCNodeDefNameByteLen);
 
 	graphDef->mNodeDef.mHash = Hash(graphDef->mNodeDef.mName);
 
@@ -346,11 +364,8 @@ GraphDef* GraphDef_LoadGlob(World *inWorld, const char *pattern, GraphDef *inLis
 
 GraphDef* GraphDef_Load(World *inWorld, const char *filename, GraphDef *inList)
 {
-#ifdef _WIN32
-	FILE *file = fopenLocalOrRemote(filename, "rb");
-#else
-	FILE *file = fopenLocalOrRemote(filename, "r");
-#endif
+	FILE *file = fopen(filename, "rb");
+
 	if (!file) {
 		scprintf("*** ERROR: can't fopen '%s'\n", filename);
 		return inList;

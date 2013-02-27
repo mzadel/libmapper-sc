@@ -1,4 +1,3 @@
-
 Pattern : AbstractFunction {
 
 
@@ -83,6 +82,7 @@ Pattern : AbstractFunction {
 
 	trace { arg key, printStream, prefix=""; ^Ptrace(this, key, printStream, prefix) }
 	differentiate { ^Pdiff(this) }
+	integrate { ^Plazy { var sum = 0; this.collect { |x| sum = sum + x } } }
 
 	//////////////////////
 
@@ -303,21 +303,16 @@ Pchain : Pattern {
 		^this.class.new(*list)
 	}
 	embedInStream { arg inval;
-		var streams, inevent;
+		var streams, inevent, cleanup = EventStreamCleanup.new;
 		streams = patterns.collect(_.asStream);
 		loop {
+			inevent = inval.copy;
 			streams.reverseDo { |str|
-				inevent = str.next(inval);
-				if(inevent.isNil) { ^inval };
-				inval = inevent;
+				inevent = str.next(inevent);
+				if(inevent.isNil) { ^cleanup.exit(inval) };
 			};
+			cleanup.update(inevent);
 			inval = yield(inevent);
-			if (inval.isNil) {
-				streams.reverseDo { |str|
-					str.next(inval);
-				};
-				^nil.yield;
-			};
 		};
 	}
 	storeOn { arg stream;

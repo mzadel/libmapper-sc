@@ -1,51 +1,53 @@
-QScrollTopView : QAbstractScroll {
+QTopScrollWidget : QScrollCanvas {
+  var <>win;
+  doDrawFunc { win.drawFunc.value(win); }
+}
+
+QScrollTopView : QScrollView {
   var >window;
 
-  *qtClass {^"QcWindow"}
+  *qtClass {^'QcScrollWindow'}
 
   *new { arg win, name, bounds, resizable, border;
-    ^super.newCustom([name, bounds, resizable, border, true /*scroll*/])
+    ^super.newCustom([name, bounds, resizable, border])
           .initQScrollTopView(win);
   }
 
-  initQScrollTopView { arg win; window = win; }
+  initQScrollTopView { arg win;
+    var cnv;
+    window = win;
+    // NOTE: The canvas widget must not be a QView, so that asking its
+    // children for parent will skip it and hit this view instead.
+    cnv = QTopScrollWidget.new;
+    cnv.win = win;
+    this.canvas = cnv;
+  }
 
   bounds {
     var r;
-    r = this.getProperty( \geometry, Rect.new );
+    r = this.getProperty( \geometry );
     ^r.moveTo(0,0);
   }
 
   bounds_ { arg rect;
     var rNew = rect.asRect;
-    var rOld = this.getProperty( \geometry, Rect.new );
+    var rOld = this.getProperty( \geometry );
     this.setProperty( \geometry, rOld.resizeTo( rNew.width, rNew.height ) );
   }
 
+  drawingEnabled_ { arg bool; canvas.setProperty( \drawingEnabled, bool ); }
+
   findWindow { ^window; }
-
-  doDrawFunc { window.drawHook.value(window) }
-
-  visibleOrigin {
-    ^this.getProperty( \visibleOrigin, Point.new );
-  }
-
-  visibleOrigin_ { arg point;
-    this.setProperty( \visibleOrigin, point );
-  }
-
-  innerBounds {
-    ^this.getProperty( \innerBounds, Rect.new );
-  }
 }
 
 QTopView : QView {
   var >window;
+  var <background;
 
-  *qtClass {^"QcWindow"}
+  *qtClass {^'QcWindow'}
 
   *new { arg win, name, bounds, resizable, border;
-    ^super.newCustom([name, bounds, resizable, border, false /*scroll*/])
+    ^super.newCustom([name, bounds, resizable, border])
           .initQTopView(win);
   }
 
@@ -53,31 +55,37 @@ QTopView : QView {
 
   bounds {
     var r;
-    r = this.getProperty( \geometry, Rect.new );
+    r = this.getProperty( \geometry );
     ^r.moveTo(0,0);
   }
 
   bounds_ { arg rect;
     var rNew = rect.asRect;
-    var rOld = this.getProperty( \geometry, Rect.new );
+    var rOld = this.getProperty( \geometry );
     this.setProperty( \geometry, rOld.resizeTo( rNew.width, rNew.height ) );
   }
 
+  background_ { arg aColor;
+    background = aColor;
+    this.setProperty( \background, aColor, true );
+  }
+
+  drawingEnabled_ { arg bool; this.setProperty( \drawingEnabled, bool ); }
+
   findWindow { ^window; }
 
-  doDrawFunc { window.drawHook.value(window) }
+  doDrawFunc { window.drawFunc.value(window) }
 }
 
 QWindow
 {
   classvar <allWindows, <>initAction;
 
-  var resizable, <drawHook, <background, <onClose;
+  var resizable, <drawFunc, <onClose;
   var <view;
 
   //TODO
-  var <>acceptsClickThrough=false, <>acceptsMouseOver=false,
-      <>alwaysOnTop=false;
+  var <>acceptsClickThrough=false, <>acceptsMouseOver=false;
   var <currentSheet;
 
   *initClass {
@@ -85,24 +93,34 @@ QWindow
   }
 
   *screenBounds {
-    ^this.prScreenBounds( Rect.new );
+    _QWindow_ScreenBounds
+  }
+
+  *availableBounds {
+    _QWindow_AvailableGeometry
   }
 
   *closeAll {
     allWindows.copy.do { |win| win.close };
   }
 
-  *new { arg name,
-         bounds = Rect( 128, 64, 400, 400 ),
+  /* NOTE:
+    - 'server' is only for compatibility with SwingOSC
+    - all args have to be of correct type for QWidget constructor to match!
+  */
+  *new { arg name="",
+         bounds,
          resizable = true,
          border = true,
          server,
          scroll = false;
 
-    //NOTE server is only for compatibility with SwingOSC
-
-    var b = QWindow.flipY( bounds.asRect );
-    ^super.new.initQWindow( name, b, resizable, border, scroll );
+    if( bounds.isNil ) {
+      bounds = Rect(0,0,400,400).center_( QWindow.availableBounds.center );
+    }{
+      bounds = QWindow.flipY( bounds.asRect );
+    };
+    ^super.new.initQWindow( name, bounds, resizable, border, scroll );
   }
 
   //------------------------ QWindow specific  -----------------------//
@@ -130,31 +148,26 @@ QWindow
   bounds_ { arg aRect;
     var r = QWindow.flipY( aRect.asRect );
     view.setProperty( \geometry, r );
-    if( resizable.not ) {
-      view.setProperty( \minimumSize, r.asSize );
-      view.setProperty( \maximumSize, r.asSize );
-    }
+    if( resizable.not ) { view.fixedSize = r.size }
   }
 
   bounds {
-    ^QWindow.flipY( view.getProperty( \geometry, Rect.new ) );
+    ^QWindow.flipY( view.getProperty( \geometry ) );
   }
 
   setInnerExtent { arg w, h;
     // bypass this.bounds, to avoid QWindow flipping the y coordinate
-    var r = view.getProperty(\geometry, Rect.new );
+    var r = view.getProperty(\geometry );
     view.setProperty(\geometry, r.resizeTo( w, h ); )
   }
 
-  background_ { arg aColor;
-    background = aColor;
-    view.setProperty( \background, aColor, true );
-  }
+  background { ^view.backgroud; }
 
-  drawHook_ { arg aFunction;
-    if( drawHook.isNil ) { view.setProperty( \drawingEnabled, true ) };
-    if( aFunction.isNil ) { view.setProperty( \drawingEnabled, false ) };
-    drawHook = aFunction;
+  background_ { arg aColor; view.background = aColor; }
+
+  drawFunc_ { arg aFunction;
+    view.drawingEnabled = aFunction.notNil;
+    drawFunc = aFunction;
   }
 
   setTopLeftBounds{ arg rect, menuSpacer=45;
@@ -162,10 +175,7 @@ QWindow
   }
 
   onClose_ { arg func;
-    if( onClose != func && onClose.notNil ) {
-      view.disconnectFunction( 'destroyed()', onClose );
-    };
-    view.connectFunction( 'destroyed()', func, false );
+    view.manageFunctionConnection( onClose, func, 'destroyed()', false );
     onClose = func;
   }
 
@@ -175,32 +185,38 @@ QWindow
 
   //------------------- simply redirected to QView ---------------------//
 
-  alpha_ { var value; view.alpha_(value); }
+  sizeHint { ^view.sizeHint }
+  minSizeHint { ^view.minSizeHint }
+  alpha_ { arg value; view.alpha_(value); }
   addFlowLayout { arg margin, gap; ^view.addFlowLayout( margin, gap ); }
   close { view.close; }
+  isClosed { ^view.isClosed; }
+  visible { ^view.visible; }
+  visible_ { arg boolean; view.visible_(boolean); }
   front { view.front; }
   fullScreen { view.fullScreen; }
   endFullScreen { view.endFullScreen; }
-  isClosed { ^view.isClosed; }
   minimize { view.minimize; }
+  unminimize { view.unminimize; }
   name { ^view.name; }
   name_ { arg string; view.name_(string); }
   refresh { view.refresh; }
   userCanClose { ^view.userCanClose; }
   userCanClose_ { arg boolean; view.userCanClose_( boolean ); }
+  alwaysOnTop { ^view.alwaysOnTop; }
+  alwaysOnTop_ { arg boolean; view.alwaysOnTop_(boolean); }
   layout { ^view.layout; }
   layout_ { arg layout; view.layout_(layout); }
+  toFrontAction_ { arg action; view.toFrontAction_(action) }
+  toFrontAction { ^view.toFrontAction }
+  endFrontAction_ { arg action; view.endFrontAction_(action) }
+  endFrontAction { ^view.endFrontAction }
 
   // ---------------------- private ------------------------------------
 
   *flipY { arg aRect;
     var flippedTop = QWindow.screenBounds.height - aRect.top - aRect.height;
     ^Rect( aRect.left, flippedTop, aRect.width, aRect.height );
-  }
-
-  *prScreenBounds { arg return;
-    _QWindow_ScreenBounds
-    ^this.primitiveFailed
   }
 
   *addWindow { arg window;

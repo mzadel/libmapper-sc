@@ -17,7 +17,6 @@
 //  Boston, MA 02111-1307, USA.
 
 #include <cstdarg>
-#include <cstdio>
 
 #include "sndfile.hh"
 
@@ -45,10 +44,26 @@
 #undef scfft_doifft
 #undef scfft_destroy
 
-namespace nova
+namespace nova {
+
+spin_lock log_guard; // needs to be acquired for logging from the helper threads!
+
+namespace {
+
+inline Node * as_Node(server_node * node)
 {
-namespace
-{
+    if (node == NULL)
+        return NULL;
+
+    // hack!!! we only assume that the 32bit integer mID member can be accessed via Node
+    if (node->is_synth()) {
+        sc_synth * s = static_cast<sc_synth*>(node);
+        return &s->mNode;
+    } else {
+        void * nodePointer = &node->node_id;
+        return (Node*)nodePointer;
+    }
+}
 
 void pause_node(Unit * unit)
 {
@@ -68,7 +83,8 @@ void free_node_and_preceding(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of preceding nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of preceding nodes\n");
         return;
     }
 
@@ -83,7 +99,8 @@ void free_node_and_pause_preceding(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of preceding nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of preceding nodes\n");
         return;
     }
 
@@ -98,7 +115,8 @@ void free_node_and_preceding_children(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of preceding nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of preceding nodes");
         return;
     }
 
@@ -120,7 +138,7 @@ void free_node_and_preceding_deep(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of preceding nodes" << std::endl;
+        log("parallel groups have no notion of preceding nodes\n");
         return;
     }
 
@@ -141,12 +159,12 @@ void free_node_and_all_preceding(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of preceding nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of preceding nodes\n");
         return;
     }
 
-    for(;;)
-    {
+    for(;;) {
         node = node->previous_node();
         if (node)
             sc_factory->add_done_node(node);
@@ -161,7 +179,8 @@ void free_node_and_following(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of following nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of following nodes\n");
         return;
     }
 
@@ -176,7 +195,8 @@ void free_node_and_pause_following(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of following nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of following nodes\n");
         return;
     }
 
@@ -191,7 +211,8 @@ void free_node_and_following_children(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of following nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of following nodes\n");
         return;
     }
 
@@ -212,7 +233,8 @@ void free_node_and_following_deep(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of following nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of following nodes\n");
         return;
     }
 
@@ -233,12 +255,12 @@ void free_node_and_all_following(Unit * unit)
     sc_factory->add_done_node(node);
 
     if (node->get_parent()->is_parallel()) {
-        std::cerr << "parallel groups have no notion of following nodes" << std::endl;
+        spin_lock::scoped_lock lock(log_guard);
+        log("parallel groups have no notion of following nodes\n");
         return;
     }
 
-    for(;;)
-    {
+    for(;;) {
         node = node->previous_node();
         if (node)
             sc_factory->add_done_node(node);
@@ -262,6 +284,35 @@ void free_parent_group(Unit * unit)
     sc_factory->add_done_node(group);
 }
 
+bool get_scope_buffer(World *inWorld, int index, int channels, int maxFrames, ScopeBufferHnd &hnd)
+{
+    scope_buffer_writer writer = instance->get_scope_buffer_writer( index, channels, maxFrames );
+
+    if( writer.valid() ) {
+        hnd.internalData = writer.buffer;
+        hnd.data = writer.data();
+        hnd.channels = channels;
+        hnd.maxFrames = maxFrames;
+        return true;
+    }
+    else {
+        hnd.internalData = 0;
+        return false;
+    }
+}
+
+void push_scope_buffer(World *inWorld, ScopeBufferHnd &hnd, int frames)
+{
+    scope_buffer_writer writer(reinterpret_cast<scope_buffer*>(hnd.internalData));
+    writer.push(frames);
+    hnd.data = writer.data();
+}
+
+void release_scope_buffer(World *inWorld, ScopeBufferHnd &hnd)
+{
+    scope_buffer_writer writer(reinterpret_cast<scope_buffer*>(hnd.internalData));
+    instance->release_scope_buffer_writer( writer );
+}
 
 } /* namespace */
 } /* namespace nova */
@@ -302,8 +353,7 @@ bool define_unitcmd(const char * unitClassName, const char * cmdName, UnitCmdFun
 
 bool define_plugincmd(const char * name, PlugInCmdFunc func, void * user_data)
 {
-    std::cerr << "plugin commands not implemented: " << name << std::endl;
-    return false;
+    return nova::sc_factory->register_cmd_plugin(name, func, user_data);
 }
 
 void * rt_alloc(World * dummy, size_t size)
@@ -358,27 +408,36 @@ void node_end(struct Node * node)
     nova::sc_factory->add_done_node(s);
 }
 
+void node_set_run(struct Node * node, int run)
+{
+    using namespace nova;
+    server_node * s = instance->find_node(node->mID);
+
+    if (run == 0)
+        sc_factory->add_pause_node(s);
+    else
+        sc_factory->add_resume_node(s);
+}
+
+
 int print(const char *fmt, ...)
 {
     va_list vargs;
     va_start(vargs, fmt);
 
-    char data[1024];
-
-    vsprintf(data, fmt, vargs);
-
-    std::cout << data << std::endl;
+    nova::log_guard.lock();
+    bool status = nova::instance->log_printf(fmt, vargs);
+    nova::log_guard.unlock();
 
     va_end(vargs);
-    return 0;
+    return (status == true) ? 0 : -1;
 }
 
 /* todo: we need to implement most of the done actions */
 void done_action(int done_action, struct Unit *unit)
 {
     using namespace nova;
-    switch(done_action)
-    {
+    switch(done_action) {
     case 0:
         // do nothing when the UGen is finished
         return;
@@ -477,6 +536,12 @@ void world_unlock(World *world)
     world->mNRTLock->Unlock();
 }
 
+Node * get_node(World *world, int id)
+{
+    nova::server_node * node = nova::instance->find_node(id);
+    return nova::as_Node(node);
+}
+
 void send_node_reply(Node* node, int reply_id, const char* command_name, int argument_count, const float* values)
 {
     if (!nova::sc_factory->world.mRealTime)
@@ -485,6 +550,18 @@ void send_node_reply(Node* node, int reply_id, const char* command_name, int arg
     nova::instance->send_node_reply(node->mID, reply_id, command_name, argument_count, values);
 }
 
+int do_asynchronous_command(World *inWorld, void* replyAddr, const char* cmdName, void *cmdData,
+                            AsyncStageFn stage2, // stage2 is non real time
+                            AsyncStageFn stage3, // stage3 is real time - completion msg performed if stage3 returns true
+                            AsyncStageFn stage4, // stage4 is non real time - sends done if stage4 returns true
+                            AsyncFreeFn cleanup,
+                            int completionMsgSize, void* completionMsgData)
+{
+    nova::instance->do_asynchronous_command(inWorld, replyAddr, cmdName, cmdData,
+                                            stage2, stage3, stage4, cleanup,
+                                            completionMsgSize, completionMsgData);
+    return 0;
+};
 
 } /* extern "C" */
 
@@ -513,14 +590,13 @@ inline void initialize_rate(Rate & rate, double sample_rate, int blocksize)
 }
 
 
-void sc_plugin_interface::initialize(void)
+void sc_plugin_interface::initialize(server_arguments const & args, float * control_busses)
 {
     done_nodes.reserve(64);
     pause_nodes.reserve(16);
+    resume_nodes.reserve(16);
     freeAll_nodes.reserve(16);
     freeDeep_nodes.reserve(16);
-
-    server_arguments const & args = server_arguments::instance();
 
     /* define functions */
     sc_interface.fDefineUnit = &define_unit;
@@ -530,6 +606,8 @@ void sc_plugin_interface::initialize(void)
 
     /* interface functions */
     sc_interface.fNodeEnd = &node_end;
+    sc_interface.fGetNode = &get_node;
+    sc_interface.fNodeRun = &node_set_run;
     sc_interface.fPrint = &print;
     sc_interface.fDoneAction = &done_action;
 
@@ -569,14 +647,20 @@ void sc_plugin_interface::initialize(void)
     sc_interface.fSCfftDoFFT = &scfft_dofft;
     sc_interface.fSCfftDoIFFT = &scfft_doifft;
 
+    /* scope API */
+    sc_interface.fGetScopeBuffer = &get_scope_buffer;
+    sc_interface.fPushScopeBuffer = &push_scope_buffer;
+    sc_interface.fReleaseScopeBuffer = &release_scope_buffer;
+
+    /* osc plugins */
+    sc_interface.fDoAsynchronousCommand = &do_asynchronous_command;
 
     /* initialize world */
     /* control busses */
-    world.mControlBus = new float[args.control_busses];
+    world.mControlBus = control_busses;
     world.mNumControlBusChannels = args.control_busses;
     world.mControlBusTouched = new int32[args.control_busses];
-    for (size_t i = 0; i != args.control_busses; ++i)
-        world.mControlBusTouched[i] = -1;
+    std::fill(world.mControlBusTouched, world.mControlBusTouched + args.control_busses, -1);
 
     /* audio busses */
     audio_busses.initialize(args.audio_busses, args.blocksize);
@@ -585,8 +669,8 @@ void sc_plugin_interface::initialize(void)
     world.mNumAudioBusChannels = args.audio_busses;
     world.mAudioBusTouched = new int32[args.audio_busses];
     world.mAudioBusLocks = audio_busses.locks;
-    for (size_t i = 0; i != args.audio_busses; ++i)
-        world.mAudioBusTouched[i]   = -1;
+    world.mControlBusLock = new spin_lock();
+    std::fill(world.mAudioBusTouched, world.mAudioBusTouched + args.audio_busses, -1);
 
     /* audio buffers */
     world.mNumSndBufs = args.buffers;
@@ -610,13 +694,25 @@ void sc_plugin_interface::initialize(void)
     world.mNumInputs = args.input_channels;
     world.mNumOutputs = args.output_channels;
 
-    world.mRealTime = true; /* todo: for now we just support real-time synthesis */
+    world.mRealTime = !args.non_rt;
 }
+
+void sc_plugin_interface::reset_sampling_rate(int sr)
+{
+    world.mSampleRate = sr;
+
+    initialize_rate(world.mFullRate, sr, world.mBufLength);
+    initialize_rate(world.mBufRate, double(sr)/world.mBufLength, 1);
+}
+
 
 void sc_done_action_handler::update_nodegraph(void)
 {
     std::for_each(done_nodes.begin(), done_nodes.end(), boost::bind(&nova_server::free_node, instance, _1));
     done_nodes.clear();
+
+    std::for_each(resume_nodes.begin(), resume_nodes.end(), boost::bind(&nova_server::node_resume, instance, _1));
+    resume_nodes.clear();
 
     std::for_each(pause_nodes.begin(), pause_nodes.end(), boost::bind(&nova_server::node_pause, instance, _1));
     pause_nodes.clear();
@@ -689,16 +785,24 @@ inline void sndbuf_copy(SndBuf * dest, const SndBuf * src)
     dest->sndfile = src->sndfile;
 }
 
-void read_channel(SndfileHandle & sf, uint32_t channel_count, const uint32_t * channel_data,
-                  uint32 frames, sample * data)
+static inline size_t compute_remaining_samples(size_t frames_per_read, size_t already_read, size_t total_frames)
+{
+    int remain = frames_per_read;
+    if (already_read + frames_per_read > total_frames)
+        remain = total_frames - already_read;
+    return remain;
+}
+
+void read_channel(SndfileHandle & sf, uint32_t channel_count, const uint32_t * channel_data, uint32 total_frames, sample * data)
 {
     const unsigned int frames_per_read = 1024;
     sized_array<sample> read_frame(sf.channels() * frames_per_read);
 
     if (channel_count == 1) {
         // fast-path for single-channel read
-        for (size_t i = 0; i < frames; i += frames_per_read) {
-            size_t read = sf.readf(read_frame.c_array(), frames_per_read);
+        for (size_t i = 0; i < total_frames; i += frames_per_read) {
+            int remaining_samples = compute_remaining_samples(frames_per_read, i, total_frames);
+            size_t read = sf.readf(read_frame.c_array(), remaining_samples);
 
             size_t channel_mapping = channel_data[0];
             for (size_t frame = 0; frame != read; ++frame) {
@@ -707,8 +811,9 @@ void read_channel(SndfileHandle & sf, uint32_t channel_count, const uint32_t * c
             }
         }
     } else {
-        for (size_t i = 0; i < frames; i += frames_per_read) {
-            size_t read = sf.readf(read_frame.c_array(), frames_per_read);
+        for (size_t i = 0; i < total_frames; i += frames_per_read) {
+            int remaining_samples = compute_remaining_samples(frames_per_read, i, total_frames);
+            size_t read = sf.readf(read_frame.c_array(), remaining_samples);
 
             for (size_t frame = 0; frame != read; ++frame) {
                 for (size_t c = 0; c != channel_count; ++c) {
@@ -993,17 +1098,9 @@ void sc_plugin_interface::buffer_zero(uint32_t index)
     zerovec(buf->data + unrolled, remain);
 }
 
-sample * sc_plugin_interface::buffer_generate(uint32_t index, const char* cmd_name, struct sc_msg_iter & msg)
+sample * sc_plugin_interface::buffer_generate(uint32_t buffer_index, const char* cmd_name, struct sc_msg_iter & msg)
 {
-    SndBuf * buf = World_GetNRTBuf(&world, index);
-    sample * data = buf->data;
-
-    BufGenFunc bufgen = sc_factory->find_bufgen(cmd_name);
-    (bufgen)(&world, buf, &msg);
-    if (data == buf->data)
-        return NULL;
-    else
-        return data;
+    return sc_factory->run_bufgen(&world, cmd_name, buffer_index, &msg);
 }
 
 void sc_plugin_interface::buffer_sync(uint32_t index)
@@ -1022,7 +1119,9 @@ void sc_plugin_interface::initialize_synths_perform(void)
     for (std::size_t i = 0; i != uninitialized_synths.size(); ++i)
     {
         sc_synth * synth = static_cast<sc_synth*>(uninitialized_synths[i]);
-        synth->prepare();
+        if (likely(synth->get_parent())) // it is possible to remove a synth before it is initialized
+            synth->prepare();
+        synth->release();
     }
     synths_to_initialize = false;
     uninitialized_synths.clear();

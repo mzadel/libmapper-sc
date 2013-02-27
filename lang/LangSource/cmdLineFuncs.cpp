@@ -17,7 +17,6 @@
     along with this program; if not, write to the Free Software
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 */
-#ifndef SC_WIN32
 
 // #ifdef SC_DARWIN
 // # define USE_SC_TERMINAL_CLIENT 0
@@ -182,8 +181,9 @@ int main()
 	compileLibrary();
 	runLibrary(s_run); fflush(postfile);
 
+	cleanup_OSC();
+
 	return 0;
 }
 
 #endif // USE_SC_TERMINAL_CLIENT
-#endif //SC_WIN32

@@ -29,7 +29,7 @@ CocoaDocument : Document {
 		_TextWindow_SetDefaultFont
 	}
 
-	*prSetSyntaxColorTheme {|textC, classC, stringC, symbolC, commentC, numberC|
+	*prSetSyntaxColorTheme {|textC, classC, stringC, symbolC, commentC, numberC, specialValsC, specialVarsC, declC, puncC, environC|
 		_TextWindow_SetSyntaxColorTheme
 	}
 
@@ -103,11 +103,11 @@ CocoaDocument : Document {
 	*prDefaultUsesAutoInOutdent_{|bool|
 		_TextWindow_DefaultUsesAutoInOutdent
 	}
-	
+
 	prUsesAutoInOutdent_{|bool|
 		_TextWindow_UsesAutoInOutdent
 	}
-	
+
 	prIsEditable_{arg editable=true;
 		_TextWindow_SetEditable
 	}

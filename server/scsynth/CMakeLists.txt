@@ -1,4 +1,7 @@
 find_package(Sndfile)
+if (WIN32)
+	find_package(Portaudio)
+endif()
 
 # here we choose who provides us with the FFT lib
 if (FFT_GREEN)
@@ -16,7 +19,9 @@ else()
 endif()
 
 
-if (APPLE)
+if (NO_AVAHI)
+
+elseif (APPLE)
 	add_definitions(-DUSE_RENDEZVOUS=1)
 else()
 	find_package(Avahi)
@@ -86,6 +91,8 @@ set(scsynth_sources
 	${CMAKE_SOURCE_DIR}/common/SC_StringParser.cpp
 	${CMAKE_SOURCE_DIR}/common/scsynthsend.cpp
 	${CMAKE_SOURCE_DIR}/common/sc_popen.cpp
+
+	${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src/tlsf.c
 )
 
 if(WIN32)
@@ -93,7 +100,7 @@ if(WIN32)
 endif()
 
 if (FFT_GREEN)
-	list(APPEND scsynth_sources ../common/fftlib.c)
+	list(APPEND scsynth_sources ../../common/fftlib.c)
 endif()
 
 if (FFTW3F_FOUND)
@@ -102,12 +109,15 @@ endif()
 
 
 include_directories(${CMAKE_SOURCE_DIR}/include/common
+                    ${CMAKE_SOURCE_DIR}/common
                     ${CMAKE_SOURCE_DIR}/include/server
                     ${CMAKE_SOURCE_DIR}/include/plugin_interface)
 
+include_directories (${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src)
+
 set_property(DIRECTORY
              APPEND
-             PROPERTY COMPILE_DEFINITIONS SC_MEMORY_ALIGNMENT=16)
+             PROPERTY COMPILE_DEFINITIONS SC_MEMORY_ALIGNMENT=32)
 
 if (AUDIOAPI STREQUAL jack)
 	list(APPEND scsynth_sources SC_Jack.cpp)
@@ -131,10 +141,9 @@ set_property(TARGET libscsynth
 	APPEND
 	PROPERTY COMPILE_DEFINITIONS BUILDING_SUPERCOLLIDER)
 
-if(CURL)
-	if(CURL_FOUND)
-		target_link_libraries(libscsynth ${CURL_LIBRARIES})
-	endif()
+find_library(DL NAMES dl)
+if (DL)
+    target_link_libraries(libscsynth ${DL})
 endif()
 
 if(AVAHI_FOUND)
@@ -162,6 +171,16 @@ elseif(AUDIOAPI STREQUAL coreaudio)
 	target_link_libraries(libscsynth "-framework CoreAudio")
 endif()
 
+if(PTHREADS_FOUND)
+	target_link_libraries(libscsynth ${PTHREADS_LIBRARIES})
+endif()
+
+
+if (WIN32)
+	target_link_libraries(libscsynth wsock32 ws2_32)
+endif()
+
+
 set_property(TARGET libscsynth PROPERTY OUTPUT_NAME scsynth)
 # These two properties are ABI version info, not sc version:
 set_property(TARGET libscsynth PROPERTY VERSION     1.0.0)
@@ -176,6 +195,11 @@ if (APPLE)
 	target_link_libraries(libscsynth "-framework vecLib -framework CoreServices")
 endif()
 
+if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+	target_link_libraries(libscsynth rt)
+endif()
+
+
 add_executable(scsynth scsynth_main.cpp)
 target_link_libraries(scsynth libscsynth ${PTHREADS_LIBRARY})
 
@@ -184,7 +208,7 @@ if(LTO)
                  APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
 
     set_property(TARGET scsynth libscsynth
-                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report")
+                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report -fwhole-program")
 endif()
 
 #TODO allow apple users to install to fhs-ish path if INSTALL_FHS option is enabled
@@ -193,21 +217,18 @@ if(APPLE)
 	# determines the app name and app install location (scappbundlename, scappdir):
 	include (${CMAKE_SOURCE_DIR}/cmake_modules/MacAppFolder.cmake)
 
-	install(TARGETS libscsynth
+	install(TARGETS libscsynth scsynth
 			DESTINATION ${scappauxresourcesdir}
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE
-			COMPONENT app)
-
-	install(TARGETS scsynth
 			RUNTIME DESTINATION ${scappauxresourcesdir}
 			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE
 			COMPONENT app)
-else()
-	install(TARGETS libscsynth
-			DESTINATION "lib"
+elseif(WIN32)
+	install(TARGETS libscsynth scsynth
+			DESTINATION "SuperCollider"
 			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-
-	install(TARGETS scsynth
+else()
+	install(TARGETS libscsynth scsynth
+			LIBRARY DESTINATION "lib"
 			RUNTIME DESTINATION "bin"
 			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endif()

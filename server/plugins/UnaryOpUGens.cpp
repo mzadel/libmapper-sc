@@ -30,12 +30,11 @@
 #include "softclip.hpp"
 #include "simd_unit_conversion.hpp"
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 #define inline_functions __attribute__ ((flatten))
 #else
 #define inline_functions
 #endif
-
 
 using nova::wrap_argument;
 
@@ -58,6 +57,7 @@ using nova::wrap_argument;
 
 #endif
 
+using namespace std; // for math functions
 
 static InterfaceTable *ft;
 
@@ -138,7 +138,6 @@ typedef void (*UnaryOpFunc)(UnaryOpUGen *unit, int inNumSamples);
 
 extern "C"
 {
-	void load(InterfaceTable *inTable);
 
 	void UnaryOpUGen_Ctor(UnaryOpUGen *unit);
 }

@@ -1,4 +1,3 @@
-
 Filter : UGen {
  	checkInputs { ^this.checkSameRateAsFirstInput }
 }
@@ -95,6 +94,32 @@ LagUD : Filter {
 
 Lag2UD : LagUD {}
 Lag3UD : LagUD {}
+
+VarLag : Filter {
+	*ar { arg in = 0.0, time = 0.1, curvature = 0, warp = 5, start, mul = 1.0, add = 0.0;
+		^this.multiNew('audio', in, time, curvature, warp, start).madd(mul, add);
+	}
+	*kr { arg in = 0.0, time = 0.1, curvature = 0, warp = 5, start, mul = 1.0, add = 0.0;
+		^this.multiNew('control', in, time, curvature, warp, start).madd(mul, add);
+	}
+	// FIXME: Implement 'curve' input on VLag ugen instead of using EnvGen.
+	// Then \exp warp should probably behave as Lag ugen.
+	*new1 { arg rate, in, time, curvature, warp, start;
+		var e, curve, trig, sel = if(rate==\audio,\ar,\kr);
+		start = start ? in;
+		curve = Env.shapeNames[warp] ? warp;
+		^if(curve != 1) {
+			e = Env([start, in], [time], warp).asArray;
+			e[6] = curve;
+			e[7] = curvature;
+			trig = Changed.perform(sel, in) + Impulse.perform(sel, 0);
+			if(time.rate != \scalar) { trig = trig + Changed.kr(time) };
+			EnvGen.perform(sel, e, trig);
+		} {
+			^super.new.rate_(rate).addToSynth.init(in, time, start);
+		}
+	}
+}
 
 LeakDC : Filter {
 
@@ -319,4 +344,3 @@ DetectSilence : Filter {
 //		^this.multiNew('control', in)
 //	}
 //}
-

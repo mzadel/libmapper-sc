@@ -1,4 +1,3 @@
-
 FilterPattern : Pattern {
 	var <>pattern;
 
@@ -7,18 +6,47 @@ FilterPattern : Pattern {
 	}
 }
 
+
 Pn : FilterPattern {
-	var <>repeats;
-	*new { arg pattern, repeats=inf;
-		^super.new(pattern).repeats_(repeats)
+	var <>repeats, <>key;
+	*new { arg pattern, repeats=inf, key;
+		^super.newCopyArgs(pattern, repeats, key )
 	}
-	storeArgs { ^[pattern,repeats] }
-	embedInStream { arg event;
-		repeats.value(event).do { event = pattern.embedInStream(event) };
+	storeArgs { ^[pattern,repeats, key] }
+	embedInStream { | event |
+		if(key.isNil) {
+			repeats.value(event).do { event = pattern.embedInStream(event) };
+		} {
+			repeats.value(event).do {
+				event = pattern.embedInStream(event);
+				event[key] = true;
+			};
+			event[key] = false;
+		};
 		^event;
 	}
 }
 
+Pgate  : Pn {
+	*new { arg pattern, repeats=inf,  key	;
+		^super.new(pattern).repeats_(repeats).key_(key)
+	}
+	storeArgs { ^[pattern,repeats, key] }
+	embedInStream { | event |
+		var stream, output;
+		repeats.do {
+			stream = pattern.asStream;
+			output = stream.next(event);
+			while {
+				if (event[key] == true) { output = stream.next(event) };
+				output.notNil;
+			} {
+				event = output.copy.embedInStream(event)
+			}
+		};
+		^event;
+	}
+}
 
 FuncFilterPattern : FilterPattern {
 	var <>func;
@@ -85,26 +113,31 @@ Pfset : FuncFilterPattern {
 	*new { |func, pattern, cleanupFunc|
 		^super.new(func, pattern).cleanupFunc_(cleanupFunc)
 	}
-	embedInStream { arg event;
-		var inevent, cleanup = EventStreamCleanup.new;
-			// cleanup is passed in
-			// maybe you want to add other cleanup actions
-			// beyond your cleanupFunc
+	embedInStream { arg inevent;
+		var event, cleanup = IneventStreamCleanup.new;
+			// cleanup should actually not be passed in
+			// but retaining (temporarily) for backward compatibility
 		var envir = Event.make({ func.value(cleanup) });
 		var stream = pattern.asStream;
-
-		cleanup.addFunction(event, { |flag|
-			envir.use({ cleanupFunc.value(flag) });
-		});
+		var once = true;
 
 		loop {
-			event = event.copy;
-			event.putAll(envir);
-			inevent = stream.next(event);
-			cleanup.update(inevent);
-			if (inevent.isNil) { ^cleanup.exit(event) };
-			event = yield(inevent);
-			if(event.isNil) { ^cleanup.exit(inevent) }
+			inevent = inevent.copy;
+			inevent.putAll(envir);
+			event = stream.next(inevent);
+			if(once) {
+				cleanup.addFunction(event, { |flag|
+					envir.use({ cleanupFunc.value(flag) });
+				});
+				once = false;
+			};
+			if (event.isNil) {
+				^cleanup.exit(inevent)
+			} {
+				cleanup.update(event);
+			};
+			inevent = yield(event);
+			if(inevent.isNil) { ^cleanup.exit(event) }
 		};
 	}
 }
@@ -759,12 +792,6 @@ Pdiff : FilterPattern {
 			prev = next;
 		}
 		^event
-	}
-}
-
-Pflow : FilterPattern {
-	*new {
-		Error("Pflow was replaced. please use Pstep instead").throw;
 	}
 }
 

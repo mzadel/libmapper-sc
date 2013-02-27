@@ -178,10 +178,10 @@ AbstractFunction {
 	degreeToKey { arg scale, stepsPerOctave=12;
 		^this.composeNAryOp('degreeToKey', [scale, stepsPerOctave])
 	}
-	
+
 	degrad { ^this.composeUnaryOp('degrad') }
 	raddeg { ^this.composeUnaryOp('raddeg') }
-	
+
 	applyTo { arg ... args;
 		^this.valueArray(args)
 	}
@@ -190,7 +190,7 @@ AbstractFunction {
 		// function composition
 		^{|...args| this.value(that.value(*args)) }
 	}
-	
+
 	sampled{ |n=80,from=0.0,to=1.0|
 		var valueArray;
 		valueArray = (from,(to-from)/(n-1) .. to).collect{|x| this.value(x) };
@@ -199,6 +199,10 @@ AbstractFunction {
 
 	// embed in ugen graph
 	asUGenInput { arg for; ^this.value(for) }
+	asAudioRateInput { |for|
+		var result = this.value(for);
+		^if(result.rate != \audio) { K2A.ar(result) } { result }
+	}
 	// convert to control input
 	asControlInput { ^this.value }
 	isValidUGenInput { ^true }
@@ -303,6 +307,10 @@ FunctionList : AbstractFunction {
 	removeFunc { arg function;
 		array.remove(function);
 		if(array.size < 2) { ^array[0] };
+	}
+	
+	replaceFunc { arg find, replace;
+		array = array.replace(find, replace);
 	}
 
 	value { arg ... args;

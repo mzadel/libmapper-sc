@@ -166,17 +166,15 @@ SequenceableCollection : Collection {
 		});
 		^nil
 	}
-	indicesOfEqual { |item|
-		var indices, i=0, offset=0;
-		while {
-			i = this.indexOfEqual(item, offset);
-			i.notNil
-		}{
-			indices = indices.add(i);
-			offset = i + 1;
-		}
-		^indices
-	}
+
+        indicesOfEqual { |item|
+                var indices;
+                this.do { arg val, i;
+                        if (item == val) { indices = indices.add(i) }
+                };
+                ^indices
+        }
+
 
 	find { |sublist, offset=0|
 		var subSize_1 = sublist.size - 1, first = sublist.first, index;
@@ -293,7 +291,7 @@ SequenceableCollection : Collection {
 	keysValuesDo { arg function;
 		^this.pairsDo(function)
 	}
-	
+
 	doAdjacentPairs { arg function;
 		(this.size - 1).do({ arg i;
 			function.value(this.at(i), this.at(i+1), i);
@@ -329,29 +327,30 @@ SequenceableCollection : Collection {
 		^list
 	}
 	clump { arg groupSize;
-		var list, sublist;
-		list = Array.new;
-		sublist = this.species.new;
+		var list = Array.new((this.size / groupSize).roundUp.asInteger);
+		var sublist = this.species.new(groupSize);
 		this.do({ arg item;
-			sublist = sublist.add(item);
+			sublist.add(item);
 			if (sublist.size >= groupSize, {
-				list = list.add(sublist);
-				sublist = this.species.new;
+				list.add(sublist);
+				sublist = this.species.new(groupSize);
 			});
 		});
 		if (sublist.size > 0, { list = list.add(sublist); });
 		^list
 	}
 	clumps { arg groupSizeList;
-		var list, sublist, i=0;
-		list = Array.new;
-		sublist = this.species.new;
+		var i = 0;
+		var list = Array.new(groupSizeList.size); // still better estimate than default
+		var subSize = groupSizeList.at(0);
+		var sublist = this.species.new(subSize);
 		this.do({ arg item;
 			sublist = sublist.add(item);
-			if (sublist.size >= groupSizeList.wrapAt(i), {
+			if (sublist.size >= subSize, {
 				i = i + 1;
 				list = list.add(sublist);
-				sublist = this.species.new;
+				subSize = groupSizeList.wrapAt(i);
+				sublist = this.species.new(subSize);
 			});
 		});
 		if (sublist.size > 0, { list = list.add(sublist); });
@@ -376,13 +375,15 @@ SequenceableCollection : Collection {
 		});
 		^list
 	}
-
+	
 	flat {
-		var list;
-		list = this.species.new;
+		^this.prFlat(this.species.new(this.flatSize))
+	}
+	
+	prFlat { |list|
 		this.do({ arg item, i;
-			if (item.respondsTo('flat'), {
-				list = list.addAll(item.flat);
+			if (item.respondsTo('prFlat'), {
+				list = item.prFlat(list);
 			},{
 				list = list.add(item);
 			});
@@ -390,19 +391,18 @@ SequenceableCollection : Collection {
 		^list
 	}
 
-	flatIf { arg func;
-		var list;
-		list = this.species.new;
+	flatIf { |func|
+		var list = this.species.new(this.size); // as we don't know the size, just guess
 		this.do({ arg item, i;
-			if (item.respondsTo('flat') and: { func.value(item, i) }, {
-				list = list.addAll(item.flat);
+			if (item.respondsTo('flatIf') and: { func.value(item, i) }, {
+				list = list.addAll(item.flatIf(func));
 			},{
 				list = list.add(item);
 			});
 		});
 		^list
 	}
-
+	
 	flop {
 		var list, size, maxsize;
 
@@ -813,29 +813,6 @@ SequenceableCollection : Collection {
 			aComplex.perform(aSelector, item, adverb)
 		})
 	}
-	clip { arg lo, hi; ^this.collect {|item| item.clip(lo,hi) }  }
-	wrap { arg lo, hi; ^this.collect {|item| item.wrap(lo,hi) }  }
-	fold { arg lo, hi; ^this.collect {|item| item.fold(lo,hi) }  }
-
-
-	linlin { arg inMin = 0, inMax = 1, outMin = 0, outMax = 1, clip=\minmax;
-		^this.collect {|item| item.linlin(inMin, inMax, outMin, outMax, clip) }
-	}
-	linexp { arg inMin = 0, inMax = 1, outMin = 0.001, outMax = 1, clip=\minmax;
-		^this.collect {|item| item.linexp(inMin, inMax, outMin, outMax, clip) }
-	}
-	explin { arg inMin = 0.001, inMax = 1, outMin = 0, outMax = 1, clip=\minmax;
-		^this.collect {|item| item.explin(inMin, inMax, outMin, outMax, clip) }
-	}
-	expexp { arg inMin = 0.001, inMax = 1, outMin = 0.001, outMax = 1, clip=\minmax;
-		^this.collect {|item| item.expexp(inMin, inMax, outMin, outMax, clip) }
-	}
-	lincurve { arg inMin = 0, inMax = 1, outMin = 0, outMax = 1, curve = -4, clip=\minmax;
-		^this.collect {|item| item.lincurve(inMin, inMax, outMin, outMax, curve, clip) }
-	}
-	curvelin { arg inMin = 0, inMax = 1, outMin = 0, outMax = 1, curve = -4, clip=\minmax;
-		^this.collect {|item| item.curvelin(inMin, inMax, outMin, outMax, curve, clip) }
-	}
 
 	asFraction { arg denominator=100, fasterBetter=true;
 		^this.collect { |item| item.asFraction(denominator, fasterBetter) }
@@ -855,25 +832,42 @@ SequenceableCollection : Collection {
 		// 'scalar' > 'control' > 'audio'
 	}
 
-
-	// support UGen range
-
-
-	range { arg lo = 0.0, hi = 1.0;
-		^this.multiChannelPerform(\range, lo, hi)
+	// if we don't catch the special case of an empty array,
+	// Object:multiChannelPerform goes into infinite recursion
+	multiChannelPerform { arg selector ... args;
+		if(this.size > 0) {
+			^super.multiChannelPerform(selector, *args);
+		} {
+			^this.class.new
+		}
 	}
-	exprange { arg lo = 0.0, hi = 1.0;
-		^this.multiChannelPerform(\exprange, lo, hi)
-	}
 
-	unipolar { arg mul = 1; ^this.collect {|item| item.unipolar(mul) }  }
-	bipolar { arg mul = 1; ^this.collect {|item| item.bipolar(mul) }  }
+	// support some UGen convenience methods.
+	// NOTE: don't forget to add a wrapper here when adding a method to UGen or AbstractFunction
+	clip { arg ... args; ^this.multiChannelPerform('clip', *args) }
+	wrap { arg ... args; ^this.multiChannelPerform('wrap', *args) }
+	fold { arg ... args; ^this.multiChannelPerform('fold', *args) }
+	linlin { arg ... args; ^this.multiChannelPerform('linlin', *args) }
+	linexp { arg ... args; ^this.multiChannelPerform('linexp', *args) }
+	explin { arg ... args; ^this.multiChannelPerform('explin', *args) }
+	expexp { arg ... args; ^this.multiChannelPerform('expexp', *args) }
+	lincurve { arg ... args; ^this.multiChannelPerform('lincurve', *args) }
+	curvelin { arg ... args; ^this.multiChannelPerform('curvelin', *args) }
+	range { arg ... args; ^this.multiChannelPerform('range', *args) }
+	exprange { arg ... args; ^this.multiChannelPerform('exprange', *args) }
+	unipolar { arg ... args; ^this.multiChannelPerform('unipolar', *args) }
+	bipolar { arg ... args; ^this.multiChannelPerform('bipolar', *args) }
+	lag { arg ... args; ^this.multiChannelPerform('lag', *args) }
+	lag2 { arg ... args; ^this.multiChannelPerform('lag2', *args) }
+	lag3 { arg ... args; ^this.multiChannelPerform('lag3', *args) }
+	lagud { arg ... args; ^this.multiChannelPerform('lagud', *args) }
+	lag2ud { arg ... args; ^this.multiChannelPerform('lag2ud', *args) }
+	lag3ud { arg ... args; ^this.multiChannelPerform('lag3ud', *args) }
+	varlag { arg ... args; ^this.multiChannelPerform('varlag', *args) }
+	blend { arg ... args; ^this.multiChannelPerform('blend', *args) }
+	checkBadValues { arg ... args; ^this.multiChannelPerform('checkBadValues', *args) }
+	prune { arg ... args; ^this.multiChannelPerform('prune', *args) }
 
-	// UGen support
-
-	lag { arg t1=0.1, t2; ^this.collect { arg item; item.lag(t1, t2) } }
-	lag2 { arg t1=0.1, t2; ^this.collect { arg item; item.lag2(t1, t2) } }
-	lag3 { arg t1=0.1, t2; ^this.collect { arg item; item.lag3(t1, t2) } }
 	minNyquist { ^min(this, SampleRate.ir * 0.5) }
 
 	// sorting

@@ -27,8 +27,8 @@ CocoaGUI {
 
 	///////////////// Common -> GUI /////////////////
 
-	*freqScope { ^SCFreqScopeWindow }
-	*freqScopeView { ^SCFreqScope }
+	*freqScope     { ^PlusFreqScopeWindow }
+	*freqScopeView { ^PlusFreqScope }
 	*scopeView { ^SCScope }
 	*stethoscope { ^SCStethoscope }
 
@@ -75,6 +75,7 @@ CocoaGUI {
 	*font { ^SCFont }
 	*pen { ^SCPen }
 	*image { ^SCImage }
+	*webView {^SCWebView }
 
 	///////////////// Common -> Audio /////////////////
 

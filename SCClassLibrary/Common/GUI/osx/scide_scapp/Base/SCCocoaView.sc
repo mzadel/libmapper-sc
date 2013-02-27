@@ -47,11 +47,11 @@ SCTextView : SCView{
 	setStringColor{arg color, rangeStart = -1, rangeSize = 0;
 		this.setProperty(\setTextColor, [color,rangeStart, rangeSize]);
 	}
-	
+
 	syntaxColorize {
 		this.setProperty(\setSyntaxColors);
 	}
-	
+
 	font_ {arg afont;
 		font = afont;
 		this.setFont(font, -1, 0)
@@ -60,7 +60,7 @@ SCTextView : SCView{
 	setFont{|	font, rangestart = -1, rangesize=0|
 		this.setProperty(\setFont, [font, rangestart, rangesize]);
 	}
-	
+
 	usesAutoInOutdent_{|bool|
 		this.setProperty(\setUsesAutoInOutdent, bool);
 	}
@@ -217,4 +217,77 @@ SCMovieView : SCView{
 		^this.new(parent, bounds).path_("Help/GUI/Cocoa-GUI/SCImage/flowers2.jpg");
 	}
 
+}
+
+SCWebView : SCView{
+
+	var <>onLoadFinished, <>onLoadFailed, <onLinkActivated, <enterInterpretsSelection=true;
+
+	url_ {|path|
+		if ( path.contains( "SC://"), {
+	        	path = Help.findHelpFile( path.asRelativePath( "SC:/") );
+		});
+
+		if ( path.contains( "://" ).not, {
+	        if ( path.first.asString != "/" ) { path = String.scDir +/+ path; };
+	        path = "file://"++path;
+		});
+		path = path.replace(" ", "%20");
+		this.setProperty(\url, path);
+	}
+
+	url { ^this.getProperty(\url);}
+
+	title { ^this.getProperty(\title);}
+
+	forward { this.setProperty(\forward);}
+
+	back { this.setProperty(\back);}
+
+	reload { this.setProperty(\reload);}
+
+	didLoad { onLoadFinished.value(this); }
+
+	didFail { onLoadFailed.value(this); }
+
+	// Get the displayed content in html form.
+	html { ^this.getProperty(\html); }
+
+	// Set html content.
+	html_ { arg htmlString;
+		this.setProperty(\html, htmlString);
+	}
+
+	editable_ { arg bool;
+		this.setProperty(\editable, bool);
+	}
+
+	selectedText { ^this.getProperty(\selectedText); }
+
+	// Try to extract plain text from html content and return it.
+	plainText { ^this.getProperty(\plainText); }
+
+	onLinkActivated_{|func|
+		onLinkActivated = func;
+		this.setProperty(\handleLinks, func.isNil);
+	}
+
+	linkActivated {|linkString| onLinkActivated.value(this, linkString) }
+
+	findText { arg string, reverse = false;
+		this.setProperty( \findText, [string, reverse] );
+	}
+
+	enterInterpretsSelection_{|bool|
+		enterInterpretsSelection=bool;
+		this.setProperty(\enterExecutesSelection, bool);
+	}
+
+	setFontFamily { arg generic, specific;
+		this.setProperty(\fontFamily, [generic, specific]);
+	}
+
+	*paletteExample{ arg parent, bounds;
+		^this.new(parent, bounds).url_("http://supercollider.sourceforge.net");
+	}
 }

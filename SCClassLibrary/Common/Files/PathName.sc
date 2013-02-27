@@ -1,4 +1,3 @@
-
 PathName {
 
 	var <fullPath, colonIndices;
@@ -31,9 +30,7 @@ PathName {
 	}
 	*initClass {
 		scroot = File.getcwd;
-		tmp = ["/tmp/", scroot ++ "\\sounds\\", "sounds/"].detect({ |path|
-			File.exists(path);
-		});
+		tmp = Platform.defaultTempDir;
 		tmp.isNil.if(
 			{"No valid temp directory found. Please set this manually using PathName.tmp_".warn});
 	}

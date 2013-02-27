@@ -25,7 +25,9 @@
 #include <stdio.h>
 #ifdef _WIN32
 # include <stdlib.h>
+#ifndef PATH_MAX
 # define PATH_MAX _MAX_PATH
+#endif
 #endif
 
 #include "SC_BoundsMacros.h"
@@ -47,6 +49,7 @@ void pprintf(unsigned char *str, char *fmt, ...);
 
 SC_DLLEXPORT_C void schedInit();
 SC_DLLEXPORT_C void init_OSC(int port);
+SC_DLLEXPORT_C void cleanup_OSC();
 SC_DLLEXPORT_C bool pyr_init_mem_pools(int runtime_space, int runtime_grow);
 
 SC_DLLEXPORT_C void schedRun();

@@ -17,29 +17,21 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 */
 
-#ifdef _WIN32
-#define hypotf _hypotf
-#endif
-
 #include "onsetsds.h"
 
 
 #define ODS_DEBUG_POST_CSV 0
 
-
-#ifdef _WIN32
-// the MSVC 2005 compiler is not up to date with inline
-float onsetsds_phase_rewrap(float phase);
-float onsetsds_phase_rewrap(float phase){
-	return (phase>MINUSPI && phase<PI) ? phase : phase + TWOPI * (1.f + floorf((MINUSPI - phase) * INV_TWOPI));
-}
-#else
-// Inline
-inline float onsetsds_phase_rewrap(float phase);
-inline float onsetsds_phase_rewrap(float phase){
-	return (phase>MINUSPI && phase<PI) ? phase : phase + TWOPI * (1.f + floorf((MINUSPI - phase) * INV_TWOPI));
-}
+#ifdef _MSC_VER
+// msvc doesn't support c99
+#define hypotf _hypotf
+#define inline /* inline */
 #endif
+
+static inline float onsetsds_phase_rewrap(float phase){
+	return (phase>MINUSPI && phase<PI) ? phase : phase + TWOPI * (1.f + floorf((MINUSPI - phase) * INV_TWOPI));
+}
+
 
 size_t onsetsds_memneeded (int odftype, size_t fftsize, unsigned int medspan){
 

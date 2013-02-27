@@ -6,7 +6,8 @@
 namespace QtCollider {
   QC_PUBLIC void initPrimitives ();
   QC_PUBLIC void init();
-  int run(int argc, char** argv);
+  QC_PUBLIC int exec(int argc, char** argv);
+  QC_PUBLIC int run(int argc, char** argv);
 }
 
 #endif // QT_COLLIDER_H

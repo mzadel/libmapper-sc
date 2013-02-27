@@ -1,4 +1,3 @@
-
 ArrayedCollection : SequenceableCollection {
 	*newClear { arg indexedSize = 0;
 		_BasicNewClear
@@ -276,7 +275,7 @@ ArrayedCollection : SequenceableCollection {
 	}
 	normalizeSum {
 		_ArrayNormalizeSum
-		^(this / this.sum)
+		^(this * this.sum.reciprocal)
 	}
 	normalize { arg min=0.0, max=1.0;
 		var minItem = this.minItem;
@@ -305,6 +304,9 @@ ArrayedCollection : SequenceableCollection {
 		^this.overWrite(this.copyRange(from, to).performList(selector, argList), from)
 	}
 
+	clipExtend { arg length;
+		^this.extend(length, this.last)
+	}
 
 	// concepts borrowed from J programming language
 	rank {
@@ -478,6 +480,10 @@ RawArray : ArrayedCollection {
 			this.shouldNotImplement(thisMethod);
 		}
 	}
+
+	powerset {
+		^this.as(Array).powerset
+	}
 }
 
 Int8Array[int8] : RawArray {
@@ -518,4 +524,3 @@ DoubleArray[double] : RawArray {
 	// readFromStream not implemented yet
 SymbolArray[symbol] : RawArray {
 }
-

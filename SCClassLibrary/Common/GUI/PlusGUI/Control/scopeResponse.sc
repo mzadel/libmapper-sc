@@ -20,41 +20,52 @@ Slew.scopeResponse
 */
 
 + Function {
-	scopeResponse{ |server, freqMode=1, label="Empirical Frequency response"| 
-		
+	scopeResponse{ |server, freqMode=1, label="Empirical Frequency response", mute = false|
+
 		var bus1, bus2, synth, win, fs;
 		server = server ?? {GUI.stethoscope.defaultServer};
-		
+
+		if (server != GUI.freqScopeView.server) {
+			"Function-scopeReponse: resetting GUI.freqScopeView.server".warn;
+			GUI.freqScopeView.server = server;
+		};
+
 		// Create two private busses
 		bus1 = Bus.audio(server, 1).postln;
 		bus2 = Bus.audio(server, 1).postln;
-		
+
 		// Create the SCFreqScope.response using the same simple window as in the helpfile
 		// Also, onClose must free the synth and the busses
-		
+
 		win = GUI.window.new(label, Rect(100, 100, 511, 300));
 		fs = GUI.freqScopeView.response(win, win.view.bounds, bus1, bus2, freqMode);
-		win.onClose_{
-			fs.kill; 
-			server.bind{[synth, bus1, bus2].do(_.free)};
+
+		win.onClose_ {
+			fs.kill;
+			synth.release;
 		};
+
 		win.front;
 		fs.active_(true);
-		
-		Task{
-			1.5.wait;
-			server.sync;
-			// Create a synth using this function and the busses
-			synth = {
-			    var son1, son2;
-			    son1 = PinkNoise.ar;
-			    son2 = this.value(son1);
-			    Out.ar(bus1, son1);
-			    Out.ar(bus2, son2);
-			    Out.ar(0, [son1, son2] * 0.1); // audible
-			}.play(Node.basicNew(server, fs.node), addAction: \addBefore);
-		}.play;
-		
+
+		// Create a synth using this function and the busses
+		synth = { |gate = 1|
+			var noise = PinkNoise.ar;
+			var filtered = this.value(noise);
+			var env = EnvGen.kr(Env.asr(0.1, 1, 0.1, \sine), gate, 0.1, doneAction: 2);
+			if (not(mute)) {
+				Out.ar(0, (filtered * env) ! 2);   // filter only
+			};
+			Out.ar(bus1, noise);
+			Out.ar(bus2, filtered);
+		}.play(fs.synth.asTarget, addAction: \addBefore);
+		synth.register;
+		synth.onFree {
+			{
+				[bus1, bus2].do(_.free);
+			}.defer;
+		}
+
 		^fs
 	}
 }
@@ -64,15 +75,15 @@ Slew.scopeResponse
 	*scopeResponse { |server, freqMode=1, label, args|
 		var argNames = this.class.findRespondingMethodFor(\ar).argNames;
 		var hasFreqInput = argNames.includes(\freq);
-		
+
 		^if(hasFreqInput){
 			{|in| this.ar(in: in, freq:MouseX.kr(10, 10000, 1)) * Line.ar(0,1,0.1) }
-				.scopeResponse(server, freqMode, 
+				.scopeResponse(server, freqMode,
 					label ?? {"%: empirical frequency response (move mouse to change freq)".format(this.asString)}
 					)
 		}{ // no freq input
 			{|in| this.ar(in: in) * Line.ar(0,1,0.1) }
-				.scopeResponse(server, freqMode, 
+				.scopeResponse(server, freqMode,
 					label ?? {"%: empirical frequency response".format(this.asString)}
 					)
 		}

@@ -29,6 +29,7 @@
 #include "PyrObjectProto.h"
 #include "GC.h"
 #include <new>
+#include <string>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -73,10 +74,12 @@ long gInliningLevel;
 
 int compileErrors = 0;
 int numOverwrites = 0;
-char overwriteMsg[OVERWRITEMSGBUFSIZE] = "";
+std::string overwriteMsg;
 
 extern bool compilingCmdLine;
 extern int errLineOffset, errCharPosOffset;
+
+bool gPostInlineWarnings = false;
 
 const char* nodename[] = {
 	"ClassNode",
@@ -144,7 +147,7 @@ void initParser()
 {
 	compileErrors = 0;
 	numOverwrites = 0;
-	overwriteMsg[0] = 0;
+	overwriteMsg.clear();
 }
 
 void finiParser()
@@ -1240,19 +1243,16 @@ void PyrMethodNode::compile(PyrSlot *result)
 	if (oldmethod) {
 		++numOverwrites;
 
-		char extPath[1024];
-
 		// accumulate overwrite message onto the string buffer
-		asRelativePath(gCompilingFileSym->name, extPath);
-		size_t prevMsgSize = strlen(overwriteMsg);
-		snprintf(overwriteMsg + prevMsgSize, OVERWRITEMSGBUFSIZE - prevMsgSize,
-			"%s:%s\t'%s'",
-			slotRawSymbol(&slotRawClass(&oldmethod->ownerclass)->name)->name, slotRawSymbol(&oldmethod->name)->name,
-			extPath);
-		asRelativePath(slotRawSymbol(&oldmethod->filenameSym)->name, extPath);
-		prevMsgSize = strlen(overwriteMsg);
-		snprintf(overwriteMsg + prevMsgSize, OVERWRITEMSGBUFSIZE - prevMsgSize,
-			"\t'%s'\n", extPath);
+		overwriteMsg
+			.append(slotRawSymbol(&slotRawClass(&oldmethod->ownerclass)->name)->name)
+			.append(":")
+			.append(slotRawSymbol(&oldmethod->name)->name)
+			.append("\t")
+			.append(gCompilingFileSym->name)
+			.append("\t")
+			.append(slotRawSymbol(&oldmethod->filenameSym)->name)
+			.append("\n");
 
 		method = oldmethod;
 		freePyrSlot(&method->code);
@@ -2259,14 +2259,16 @@ bool isAnInlineableBlock(PyrParseNode *node)
 		if (IsPtr(&anode->mSlot)
 				&& (bnode = (PyrBlockNode*)(slotRawPtr(&anode->mSlot)))->mClassno == pn_BlockNode) {
 			if (bnode->mArglist || bnode->mVarlist) {
-				post("WARNING: FunctionDef contains variable declarations and so"
-				" will not be inlined.\n");
-				if (bnode->mArglist) nodePostErrorLine((PyrParseNode*)bnode->mArglist);
-				else nodePostErrorLine((PyrParseNode*)bnode->mVarlist);
-
-			} else {
+				if (gPostInlineWarnings) {
+					post("WARNING: FunctionDef contains variable declarations and so"
+					" will not be inlined.\n");
+					if (bnode->mArglist)
+						nodePostErrorLine((PyrParseNode*)bnode->mArglist);
+					else
+						nodePostErrorLine((PyrParseNode*)bnode->mVarlist);
+				}
+			} else
 				res = true;
-			}
 		}
 	}
 	return res;
@@ -2282,15 +2284,19 @@ bool isAnInlineableAtomicLiteralBlock(PyrParseNode *node)
 		if (IsPtr(&anode->mSlot)
 				&& (bnode = (PyrBlockNode*)(slotRawPtr(&anode->mSlot)))->mClassno == pn_BlockNode) {
 			if (bnode->mArglist || bnode->mVarlist) {
-				post("WARNING: FunctionDef contains variable declarations and so"
-				" will not be inlined.\n");
-				if (bnode->mArglist) nodePostErrorLine((PyrParseNode*)bnode->mArglist);
-				else nodePostErrorLine((PyrParseNode*)bnode->mVarlist);
-
+				if (gPostInlineWarnings) {
+					post("WARNING: FunctionDef contains variable declarations and so"
+					" will not be inlined.\n");
+					if (bnode->mArglist)
+						nodePostErrorLine((PyrParseNode*)bnode->mArglist);
+					else
+						nodePostErrorLine((PyrParseNode*)bnode->mVarlist);
+				}
 			} else {
-				if (bnode->mBody->mClassno == pn_DropNode && ((PyrDropNode*)bnode->mBody)->mExpr2->mClassno == pn_BlockReturnNode) {
+				if (bnode->mBody->mClassno == pn_DropNode && ((PyrDropNode*)bnode->mBody)->mExpr2->mClassno == pn_BlockReturnNode)
 					res = isAtomicLiteral(((PyrDropNode*)bnode->mBody)->mExpr1);
-				} else res = false;
+				else
+					res = false;
 			}
 		}
 	}
@@ -3000,6 +3006,17 @@ void PyrBinopCallNode::compileCall(PyrSlot *result)
 				compileOpcode(opSendSpecialMsg, numArgs);
 				compileByte(index);
 				break;
+			case selUnary :
+					COMPILENODE(arg1, &dummy, false);
+					COMPILENODE(arg2, &dummy, false);
+					if (arg3)
+						COMPILENODE(arg3, &dummy, false);
+					compileTail();
+					if (arg3)
+						compileOpcode(opSpecialOpcode, opcDrop); // drop third argument
+					compileOpcode(opSpecialOpcode, opcDrop);     // drop second argument
+					compileOpcode(opSendSpecialUnaryArithMsg, index);
+				break;
 			case selBinary :
 				if (arg3) {
 					COMPILENODE(arg1, &dummy, false);
@@ -3438,7 +3455,8 @@ void compileAssignVar(PyrParseNode* node, PyrSymbol* varName, bool drop)
 						compileByte(index & 255);
 					} else {
 						compileByte(opStoreClassVar);
-						compileByte(vindex);
+						assert(false);
+						compileByte(vindex); // FIXME: vindex is not initalized!!!!
 						compileByte(index);
 						compileByte((opSpecialOpcode<<4) | opcDrop);
 					}
@@ -3827,7 +3845,7 @@ PyrBlockNode* newPyrBlockNode(PyrArgListNode *arglist, PyrVarListNode *varlist, 
 	return node;
 }
 
-void PyrBlockNode::compile(PyrSlot* result)
+void PyrBlockNode::compile(PyrSlot* slotResult)
 {
 	PyrBlock *block, *prevBlock;
 	PyrMethodRaw *methraw;
@@ -3836,12 +3854,10 @@ void PyrBlockNode::compile(PyrSlot* result)
 	PyrVarDefNode *vardef;
 	PyrObject *proto;
 	PyrSymbolArray *argNames, *varNames;
-	PyrSlot *slotResult;
 	PyrSlot dummy;
 	bool hasVarExprs = false;
 
 	//postfl("->block\n");
-	slotResult = (PyrSlot*)result;
 
 	// create a new block object
 
@@ -4542,9 +4558,9 @@ void initSpecialSelectors()
 	//sel[opNotIdentical] = getsym("!==");
 	sel[opMin] = getsym("min");
 	sel[opMax] = getsym("max");
-	sel[opBitAnd] = getsym("&");
-	sel[opBitOr] = getsym("|");
-	sel[opBitXor] = getsym("bitxor");
+	sel[opBitAnd] = getsym("bitAnd");
+	sel[opBitOr] = getsym("bitOr");
+	sel[opBitXor] = getsym("bitXor");
 	sel[opLCM] = getsym("lcm");
 	sel[opGCD] = getsym("gcd");
 	sel[opRound] = getsym("round");
@@ -4574,7 +4590,7 @@ void initSpecialSelectors()
 	sel[opFold2] = getsym("fold2");
 	sel[opWrap2] = getsym("wrap2");
 	sel[opExcess] = getsym("excess");
-	sel[opFirstArg] = getsym("<!");
+	sel[opFirstArg] = getsym("firstArg");
 	sel[opRandRange] = getsym("rrand");
 	sel[opExpRandRange] = getsym("exprand");
 

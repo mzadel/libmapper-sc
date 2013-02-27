@@ -1,4 +1,3 @@
-
 // ControlSpec - defines the range and curve of a control.
 
 Spec {
@@ -36,7 +35,7 @@ Spec {
 }
 
 ControlSpec : Spec {
-	var <minval, <maxval, <>warp, <>step, <>default, <>units;
+	var <minval, <maxval, <warp, <step, <>default, <>units;
 	var <clipLo, <clipHi;
 
 	*new { arg minval=0.0, maxval=1.0, warp='lin', step=0.0, default, units;
@@ -44,14 +43,14 @@ ControlSpec : Spec {
 				default ? minval, units ? ""
 			).init
 	}
-	
+
 	*newFrom { arg similar;
-		^this.new(similar.minval, similar.maxval, similar.warp.asSpecifier, 
+		^this.new(similar.minval, similar.maxval, similar.warp.asSpecifier,
 			similar.step, similar.default, similar.units)
 	}
-	
+
 	storeArgs { ^[minval, maxval, warp.asSpecifier, step, default, units] }
-	
+
 	init {
 		warp = warp.asWarp(this);
 		if(minval < maxval,{
@@ -65,10 +64,20 @@ ControlSpec : Spec {
 	minval_ { arg v;
 		minval = v;
 		this.init;	// rechoose the constrainfunc
+		this.changed(\minval);
 	}
 	maxval_ { arg v;
 		maxval = v;
-		this.init
+		this.init;
+		this.changed(\maxval);
+	}
+	warp_ { arg w;
+		warp = w.asWarp(this);
+		this.changed(\warp);
+	}
+	step_ { arg s;
+		step = s;
+		this.changed(\step);
 	}
 	constrain { arg value;
 		^value.asFloat.clip(clipLo, clipHi).round(step)
@@ -103,18 +112,18 @@ ControlSpec : Spec {
 		data = data.flat;
 		newMin = data.minItem;
 		newMax = data.maxItem;
-		if(newMin == newMax) { 
+		if(newMin == newMax) {
 			newMin = newMin - (defaultRange / 2);
 			newMax = newMax + (defaultRange / 2);
 		};
 		^this.copy.minval_(newMin).maxval_(newMax);
 	}
-	
+
 	normalize { |min, max|
 		if(min.isNil) { min = if(this.hasZeroCrossing) { -1.0 } { 0.0 } };		if(max.isNil) { max = 1.0 };
 		^this.copy.minval_(min).maxval_(max)
 	}
-	
+
 	roundRange { |base = 10|
 		var extent = absdif(minval, maxval);
 		var r = 10 ** ((log10(extent) * log10(base)).trunc - 1);
@@ -122,7 +131,7 @@ ControlSpec : Spec {
 		var newMax = maxval.roundUp(r);
 		^this.copy.minval_(newMin).maxval_(newMax)
 	}
-	
+
 	gridValues { |n = 20, min, max, base = 10|
 		var val, exp;
 		var low = if(min.notNil) { this.unmap(min) } { 0.0 };
@@ -133,22 +142,23 @@ ControlSpec : Spec {
 		val = val.round(base ** (exp.trunc - 1));
 		^val.as(Set).as(Array).sort
 	}
-	
+
 	zoom { |ratio = 1|
 		^this.copy.minval_(minval * ratio).maxval_(maxval * ratio)
 	}
-	
+
 	shift { |amount = 1|
 		^this.copy.minval_(minval + amount).maxval_(maxval + amount)
 	}
-	
+
 	hasZeroCrossing {
 		^minval.sign != maxval.sign
 	}
-	
-	
+
+
 	*initClass {
 		Class.initClassTree(Warp);
+		Class.initClassTree(Server);
 		specs = specs.addAll([
 			// set up some ControlSpecs for common mappings
 			// you can add your own after the fact.
@@ -182,7 +192,7 @@ ControlSpec : Spec {
 			\delay -> ControlSpec(0.0001, 1, \exp, 0, 0.3, units: " secs")
 		]);
 	}
-	
+
 	copy {
 		^this.class.newFrom(this)
 	}
@@ -281,11 +291,11 @@ CurveWarp : Warp {
 		^log((b - value) / a) / curve
 	}
 	asSpecifier { ^curve }
-	
+
 	== { arg that;
 		^this.compareObject(that, [\curve])
 	}
-	
+
 	hash {
 		^this.instVarHash([\curve])
 	}

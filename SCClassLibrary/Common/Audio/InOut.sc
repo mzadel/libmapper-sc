@@ -1,10 +1,13 @@
-
 ControlName
 {
 	var <>name, <>index, <>rate, <>defaultValue, <>argNum, <>lag;
 
 	*new { arg name, index, rate, defaultValue, argNum, lag;
 		^super.newCopyArgs(name.asSymbol, index, rate, defaultValue, argNum, lag ? 0.0)
+	}
+
+	numChannels {
+		^defaultValue.asArray.size;
 	}
 
 	printOn { arg stream;
@@ -27,7 +30,7 @@ Control : MultiOutUGen {
 		names = names.asArray;
 		names.do { |name, i|
 			synthDef.addControlName(
-				ControlName(name.asString, index + i, 'control',
+				ControlName(name, index + i, 'control',
 					nil, synthDef.allControlNames.size)
 			);
 		};
@@ -74,7 +77,7 @@ AudioControl : MultiOutUGen {
 		names = names.asArray;
 		names.do { |name, i|
 			synthDef.addControlName(
-				ControlName(name.asString, index + i, 'audio',
+				ControlName(name, index + i, 'audio',
 					nil, synthDef.allControlNames.size)
 			);
 		};
@@ -92,6 +95,7 @@ AudioControl : MultiOutUGen {
 		^this.initOutputs(values.size, rate)
 	}
 	*isAudioControlUGen { ^true }
+	*isControlUGen { ^true }
 }
 
 TrigControl : Control {}
@@ -101,7 +105,13 @@ LagControl : Control {
 		var outputs;
 
 		values = values.asArray;
-		lags = lags.asArray;
+
+		if (lags.isNumber) {
+			lags = lags ! values.size
+		} {
+			lags = lags.asArray;
+		};
+
 		if (values.size != lags.size, {
 			"LagControl values.size != lags.size".error;
 			^nil
@@ -210,11 +220,11 @@ AbstractOut : UGen {
 
  	*isOutputUGen { ^true }
 	*numFixedArgs { ^this.subclassResponsibility(thisMethod) }
-	
+
  	numAudioChannels {
  		^inputs.size - this.class.numFixedArgs
  	}
- 	
+
  	writesToBus { ^this.subclassResponsibility(thisMethod) }
 }
 
@@ -280,6 +290,7 @@ XOut : AbstractOut {
 
 SharedOut : AbstractOut {
 	*kr { arg bus, channelsArray;
+		warn("SharedOut is deprecated and will be removed. Please use Bus-getSynchronous instead.");
 		this.multiNewList(['control', bus] ++ channelsArray.asArray)
 		^0.0		// Out has no output
 	}
@@ -289,6 +300,7 @@ SharedOut : AbstractOut {
 
 SharedIn : AbstractIn {
 	*kr { arg bus = 0, numChannels = 1;
+		warn("SharedIn is deprecated and will be removed. Please use Bus-setSynchronous instead.");
 		^this.multiNew('control', numChannels, bus)
 	}
 	init { arg numChannels ... argBus;
@@ -296,4 +308,3 @@ SharedIn : AbstractIn {
 		^this.initOutputs(numChannels, rate)
 	}
 }
-

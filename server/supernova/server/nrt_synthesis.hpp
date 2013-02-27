@@ -34,10 +34,12 @@ namespace nova
 
 struct non_rt_functor
 {
-    inline void init_tick(void)
-    {}
+    static inline void init_thread(void)
+    {
+        realtime_engine_functor::init_thread();
+    }
 
-    inline void run_tick(void)
+    static inline void run_tick(void)
     {
         run_scheduler_tick();
         instance->increment_logical_time();

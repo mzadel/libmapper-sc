@@ -1,4 +1,3 @@
-
 // see MIDIResponder help for all classes on this page
 
 
@@ -53,11 +52,11 @@ NoteOnResponder : MIDIResponder {
 		if(MIDIClient.initialized.not,{ MIDIIn.connectAll });
 		norinit = true;
 		nonr = [];
-		MIDIIn.noteOn = { arg src, chan, note, veloc;
+		MIDIIn.addFuncTo(\noteOn, { arg src, chan, note, veloc;
 			nonr.any({ arg r;
 				r.respond(src,chan,note,veloc)
 			});
-		}
+		})
 	}
 	*add { arg resp;
 		nonr = nonr.add(resp);
@@ -81,11 +80,11 @@ NoteOffResponder : NoteOnResponder {
 		if(MIDIClient.initialized.not,{ MIDIIn.connectAll });
 		noffinit = true;
 		noffr = [];
-		MIDIIn.noteOff = { arg src, chan, note, veloc;
+		MIDIIn.addFuncTo(\noteOff, { arg src, chan, note, veloc;
 			noffr.any({ arg r;
 				r.respond(src,chan,note,veloc)
 			});
-		}
+		})
 	}
 	*initialized { ^noffinit }
 	*responders { ^noffr }
@@ -130,13 +129,13 @@ CCResponder : MIDIResponder {
 		ccinit = true;
 		ccr = [];
 		ccnumr = Array.newClear(128);
-		MIDIIn.control = { arg src,chan,num,val;
+		MIDIIn.addFuncTo(\control, { arg src,chan,num,val;
 			// first try cc num specific
 			// then try non-specific (matches any cc )
 			[ccnumr[num], ccr].any({ |stack|
 				stack.notNil and: {stack.any({ |r| r.respond(src,chan,num,val) })}
 			})
-		};
+		});
 	}
 	learn {
 		var oneShot;
@@ -173,11 +172,11 @@ TouchResponder : MIDIResponder {
 		if(MIDIClient.initialized.not,{ MIDIIn.connectAll });
 		touchinit = true;
 		touchr = [];
-		MIDIIn.touch = { arg src, chan, val;
+		MIDIIn.addFuncTo(\touch, { arg src, chan, val;
 			touchr.any({ arg r;
 				r.respond(src,chan,nil,val)
 			})
-		}
+		})
 	}
 	value { arg src,chan,num,val;
 		// num is irrelevant
@@ -208,11 +207,11 @@ BendResponder : TouchResponder {
 		if(MIDIClient.initialized.not,{ MIDIIn.connectAll });
 		bendinit = true;
 		bendr = [];
-		MIDIIn.bend = { arg src, chan, val;
+		MIDIIn.addFuncTo(\bend, { arg src, chan, val;
 			bendr.any({ arg r;
 				r.respond(src,chan,nil,val)
 			});
-		}
+		})
 	}
 	*initialized { ^bendinit }
 	*responders { ^bendr }
@@ -246,12 +245,12 @@ ProgramChangeResponder : MIDIResponder {
 		if(MIDIClient.initialized.not,{ MIDIIn.connectAll });
 		pcinit = true;
 		pcr = [];
-		MIDIIn.program = { arg src, chan, val;
+		MIDIIn.addFuncTo(\program, { arg src, chan, val;
 			pcr.do({ arg r;
 				if(r.matchEvent.match(src, chan, nil, val))
 					{ r.value(src,chan,val) };
 			});
-		}
+		})
 	}
 	value { arg src,chan,val;
 		function.value(src,chan,val);
@@ -266,4 +265,3 @@ ProgramChangeResponder : MIDIResponder {
 		pcr.remove(resp);
 	}
 }
-

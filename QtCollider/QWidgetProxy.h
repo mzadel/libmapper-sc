@@ -25,16 +25,36 @@
 #include "QObjectProxy.h"
 
 #include <QWidget>
+#include <QAtomicInt>
+#include <QMimeData>
 
 namespace QtCollider {
-  struct SetFocusRequest;
-  struct MapToGlobalRequest;
-  struct SetLayoutRequest;
+  struct SetFocusEvent;
+  struct SetAlwaysOnTopEvent;
+  struct StartDragEvent;
 }
 
 class QWidgetProxy : public QObjectProxy
 {
   Q_OBJECT
+
+public:
+
+  enum GlobalEvent {
+    KeyPress = 0x001,
+    KeyRelease = 0x002
+  };
+
+public:
+
+  static void setGlobalEventEnabled ( GlobalEvent ev, bool b ) {
+    int mask = _globalEventMask;
+    if(b)
+      mask |= ev;
+    else
+      mask &= ~ev;
+    _globalEventMask = mask;
+  }
 
 public:
 
@@ -44,82 +64,73 @@ public:
 
   void setMouseEventWidget( QWidget * );
 
-  bool setFocus( QtCollider::SetFocusRequest *r );
+  bool alwaysOnTop();
 
-  bool bringFront();
+  void refresh();
 
-  bool refresh();
+  void setLayout ( QObjectProxy *layoutProxy );
 
-  bool mapToGlobal( QtCollider::MapToGlobalRequest * );
-
-  bool setLayout ( QtCollider::SetLayoutRequest *r );
-
-  virtual bool setParentEvent( QtCollider::SetParentEvent *e );
-
-protected:
+  virtual bool setParent( QObjectProxy *parent );
 
   inline QWidget *widget() { return static_cast<QWidget*>( object() ); }
 
-  bool interpretEvent( QObject *, QEvent *, QList<QVariant> & );
+protected:
+
+  virtual void customEvent( QEvent * );
+
+  virtual bool filterEvent( QObject *, QEvent *, EventHandlerData &, QList<QVariant> & args );
 
 private Q_SLOTS:
 
   void customPaint( QPainter * );
 
 private:
+  bool interpretMouseEvent( QObject *, QEvent *, QList<QVariant> &args );
+  bool interpretMouseWheelEvent( QObject *, QEvent *, QList<QVariant> &args );
+  bool interpretKeyEvent( QObject *, QEvent *, QList<QVariant> &args );
+  bool interpretDragEvent( QObject *, QEvent *, QList<QVariant> &args );
 
-  void interpretMouseEvent( QEvent *e, QList<QVariant> &args );
-  void interpretKeyEvent( QEvent *e, QList<QVariant> &args );
+  void bringFrontEvent();
+  void setFocusEvent( QtCollider::SetFocusEvent * );
+  void setAlwaysOnTopEvent( QtCollider::SetAlwaysOnTopEvent * );
+  void startDragEvent( QtCollider::StartDragEvent * );
+
   static void sendRefreshEventRecursive( QWidget *w );
 
   QWidget *_keyEventWidget;
   QWidget *_mouseEventWidget;
+  static QAtomicInt _globalEventMask;
 };
 
 namespace QtCollider {
 
-class GenericWidgetRequest : public RequestEvent
+struct SetFocusEvent : public QEvent
 {
-public:
-  GenericWidgetRequest( bool (QWidgetProxy::*h)() ) : handler(h) {}
-protected:
-  virtual bool execute( QObjectProxy *proxy ) {
-    QWidgetProxy *wproxy = qobject_cast<QWidgetProxy*>( proxy );
-    return (wproxy->*handler)();
-  }
-private:
-  bool (QWidgetProxy::*handler)();
-};
-
-template <class T, bool (QWidgetProxy::*handler)( T* )>
-class WidgetRequestTemplate : public RequestEvent
-{
-protected:
-  WidgetRequestTemplate(){}
-private:
-  bool execute( QObjectProxy *proxy ) {
-    QWidgetProxy *wproxy = qobject_cast<QWidgetProxy*>( proxy );
-    return (wproxy->*handler)( static_cast<T*>( this ) );
-  }
-};
-
-struct SetFocusRequest
-: public WidgetRequestTemplate<SetFocusRequest, &QWidgetProxy::setFocus>
-{
+  SetFocusEvent( bool b )
+  : QEvent( (QEvent::Type) QtCollider::Event_Proxy_SetFocus ),
+    focus(b)
+  {}
   bool focus;
 };
 
-struct MapToGlobalRequest
-: public WidgetRequestTemplate<MapToGlobalRequest, &QWidgetProxy::mapToGlobal>
+struct SetAlwaysOnTopEvent  : public QEvent
 {
-  MapToGlobalRequest( QPoint &pt ) : point(pt) {}
-  QPoint &point;
+  SetAlwaysOnTopEvent( bool b )
+  : QEvent( (QEvent::Type) QtCollider::Event_Proxy_SetAlwaysOnTop ),
+    alwaysOnTop(b)
+  {}
+  bool alwaysOnTop;
 };
 
-struct SetLayoutRequest
-: public WidgetRequestTemplate<SetLayoutRequest, &QWidgetProxy::setLayout>
+struct StartDragEvent : public QEvent
 {
-  QObjectProxy *layoutProxy;
+  StartDragEvent( const QString &label_, QMimeData *data_ )
+  : QEvent( (QEvent::Type) QtCollider::Event_Proxy_StartDrag ),
+    label( label_ ), data( data_ )
+  {}
+  ~StartDragEvent() { delete data; }
+  QString label;
+  QMimeData *data;
 };
 
 }

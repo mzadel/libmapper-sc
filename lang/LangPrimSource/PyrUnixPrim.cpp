@@ -128,7 +128,7 @@ void* string_popen_thread_func(void *data)
 	res = WEXITSTATUS(res);
 
 	if(process->postOutput)
-		post("RESULT = %d\n", res);
+		postfl("RESULT = %d\n", res);
 
 	free(process);
 
@@ -383,7 +383,7 @@ int prGetPid(VMGlobals *g, int numArgsPushed)
 #ifndef SC_WIN32
 		getpid()
 #else
-		GetCurrentThreadId()
+		GetCurrentProcessId()
 #endif
 		);
 	return errNone;

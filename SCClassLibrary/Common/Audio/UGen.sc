@@ -1,4 +1,3 @@
-
 UGen : AbstractFunction {
 	classvar <>buildSynthDef; // the synth currently under construction
 	var <>synthDef;
@@ -7,7 +6,7 @@ UGen : AbstractFunction {
 
 	var <>synthIndex = -1, <>specialIndex=0;
 
-	var <>antecedents, <>descendants; // topo sorting
+	var <>antecedents, <>descendants, <>widthFirstAntecedents; // topo sorting
 
 	// instance creation
 	*new1 { arg rate ... args;
@@ -136,6 +135,10 @@ UGen : AbstractFunction {
 		^Lag3UD.multiNew(this.rate, this, lagTimeU, lagTimeD)
 	}
 
+	varlag { arg time=0.1, curvature=0, warp=5, start;
+		^VarLag.multiNew(this.rate, this, time, curvature, warp, start)
+	}
+
 	prune { arg min, max, type;
 		switch(type,
 			\minmax, {
@@ -150,49 +153,53 @@ UGen : AbstractFunction {
 		);
 		^this
 	}
-	linlin { arg inMin, inMax, outMin, outMax, clip;
-		^LinLin.multiNew(this.rate, this.prune(inMin, inMax, clip),
-						inMin, inMax, outMin, outMax)
+	linlin { arg inMin, inMax, outMin, outMax, clip = \minmax;
+		if (this.rate == \audio) {
+			^LinLin.ar(this.prune(inMin, inMax, clip), inMin, inMax, outMin, outMax)
+		} {
+			^LinLin.kr(this.prune(inMin, inMax, clip), inMin, inMax, outMin, outMax)
+		}
 	}
-	linexp { arg inMin, inMax, outMin, outMax, clip;
+
+	linexp { arg inMin, inMax, outMin, outMax, clip = \minmax;
 		^LinExp.multiNew(this.rate, this.prune(inMin, inMax, clip),
 						inMin, inMax, outMin, outMax)
 	}
-	explin { arg inMin, inMax, outMin, outMax, clip;
+	explin { arg inMin, inMax, outMin, outMax, clip = \minmax;
 		^(log(this.prune(inMin, inMax, clip)/inMin))
 			/ (log(inMax/inMin)) * (outMax-outMin) + outMin; // no separate ugen yet
 	}
-	expexp { arg inMin, inMax, outMin, outMax, clip;
+	expexp { arg inMin, inMax, outMin, outMax, clip = \minmax;
 		^pow(outMax/outMin, log(this.prune(inMin, inMax, clip)/inMin)
 			/ log(inMax/inMin)) * outMin;
 	}
-	
+
 	lincurve { arg inMin = 0, inMax = 1, outMin = 0, outMax = 1, curve = -4, clip = \minmax;
 		var grow, a, b, scaled;
 		if (curve.isNumber and: { abs(curve) < 0.25 }) {
-			^this.linlin(inMin, inMax, outMin, outMax, clip) 
+			^this.linlin(inMin, inMax, outMin, outMax, clip)
 		};
 		grow = exp(curve);
 		a = outMax - outMin / (1.0 - grow);
 		b = outMin + a;
 		scaled = (this.prune(inMin, inMax, clip) - inMin) / (inMax - inMin);
-		
+
 		^b - (a * pow(grow, scaled));
 	}
-	
+
 	curvelin { arg inMin = 0, inMax = 1, outMin = 0, outMax = 1, curve = -4, clip = \minmax;
 		var grow, a, b, scaled;
 		if (curve.isNumber and: { abs(curve) < 0.25 }) {
-			^this.linlin(inMin, inMax, outMin, outMax, clip) 
+			^this.linlin(inMin, inMax, outMin, outMax, clip)
 		};
 		grow = exp(curve);
 		a = outMax - outMin / (1.0 - grow);
 		b = outMin + a;
 		scaled = (this.prune(inMin, inMax, clip) - inMin) / (inMax - inMin);
-		
+
 		^log((b - scaled) / a) / curve
 	}
-	
+
 	signalRange { ^\bipolar }
 	@ { arg y; ^Point.new(this, y) } // dynamic geometry support
 
@@ -224,6 +231,19 @@ UGen : AbstractFunction {
 		});
 		^nil
 	}
+
+	checkNInputs { arg n;
+		if (rate == 'audio') {
+			n.do {| i |
+				if (inputs.at(i).rate != 'audio') {
+					//"failed".postln;
+					^("input " ++ i ++ " is not audio rate: " + inputs.at(i) + inputs.at(0).rate);
+				};
+			};
+		 };
+		^this.checkValidInputs
+	}
+
 	checkSameRateAsFirstInput {
  		if (rate !== inputs.at(0).rate) {
  			^("first input is not" + rate + "rate: " + inputs.at(0) + inputs.at(0).rate);
@@ -388,6 +408,11 @@ UGen : AbstractFunction {
 				antecedents.add(input.source);
 				input.source.descendants.add(this);
 			});
+		});
+		
+		widthFirstAntecedents.do({ arg ugen;
+			antecedents.add(ugen);
+			ugen.descendants.add(this);
 		})
 	}
 

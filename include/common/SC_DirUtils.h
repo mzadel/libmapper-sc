@@ -30,6 +30,7 @@
 # ifndef PATH_MAX
 #  define PATH_MAX _MAX_PATH
 # endif
+# include <string.h>
 # define strcasecmp stricmp
 # define snprintf _snprintf
 #endif
@@ -38,10 +39,16 @@
 #  define MAXPATHLEN PATH_MAX
 # endif
 
+#ifdef _WIN32
+#define SC_PATH_DELIMITER "\\"
+#else
+#define SC_PATH_DELIMITER "/"
+#endif
+
 // General path utilities
 
 // Add 'component' to 'path' using the platform path separator.
-void sc_AppendToPath(char *path, const char *component);
+void sc_AppendToPath(char *path, size_t max_size, const char *component);
 
 // Returns the expanded path with users home directory (also in newpath2)
 char *sc_StandardizePath(const char *path, char *newpath2);
@@ -66,7 +73,6 @@ extern const char * gIdeName; // string used for conditional compilation accordi
 // Support for Bundles
 
 void sc_GetResourceDirectory(char* pathBuf, int length);
-void sc_GetResourceDirectoryFromAppDirectory(char* pathBuf, int length);
 bool sc_IsStandAlone();
 
 // Support for Extensions
@@ -86,6 +92,8 @@ void sc_GetSystemExtensionDirectory(char *str, int size);
 // Get the User level 'Extensions' directory.
 void sc_GetUserExtensionDirectory(char *str, int size);
 
+// Get the directory for the configuration files.
+void sc_GetUserConfigDirectory(char *str, int size);
 
 // Directory access
 
@@ -119,11 +127,5 @@ void sc_GlobFree(SC_GlobHandle* glob);
 // Return next path from glob iterator.
 // Return NULL at end of stream.
 const char* sc_GlobNext(SC_GlobHandle* glob);
-
-// Wrapper function - if it seems to be a URL, dnld to local tmp file first.
-// If HAVE_LIBCURL is not set, this does absolutely nothing but call fopen.
-// Note: only modes of "r" or "rb" make sense when using this.
-FILE* fopenLocalOrRemote(const char* mFilename, const char* mode);
-bool downloadToFp(FILE* fp, const char* mFilename);
 
 #endif // SC_DIR_UTILS_H_INCLUDED

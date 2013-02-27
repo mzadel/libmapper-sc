@@ -1,27 +1,3 @@
-Model {
-	var <>dependants;
-
-	changed { arg what ... moreArgs;
-		dependants.do({ arg item;
-			item.update(this, what, *moreArgs);
-		});
-	}
-	addDependant { arg dependant;
-		if (dependants.isNil, {
-			dependants = IdentitySet.new(4);
-		});
-		dependants.add(dependant);
-	}
-	removeDependant { arg dependant;
-		if (dependants.notNil, {
-			dependants.remove(dependant);
-		});
-	}
-	release {
-		dependants = nil;
-	}
-}
-
 SimpleController {
 	var model, actions;
 	// responds to updates of a model
@@ -40,10 +16,12 @@ SimpleController {
 	}
 	update { arg theChanger, what ... moreArgs;
 		var action;
-		action = actions.at(what);
-		if (action.notNil, {
-			action.valueArray(theChanger, what, moreArgs);
-		});
+		if(actions.notNil) {
+			action = actions.at(what);
+			if (action.notNil, {
+				action.valueArray(theChanger, what, moreArgs);
+			});
+		};
 	}
 	remove {
 		model.removeDependant(this);
@@ -92,11 +70,14 @@ NotificationCenter {
 		});
 	}
 	*registerOneShot {  arg object,message,listener,action;
+		var nr;
+		nr = NotificationRegistration(object,message,listener);
 		registrations.put(object,message,listener,
 			{ |args|
 				action.value(args);
 				this.unregister(object,message,listener)
-			})
+			});
+		^nr
 	}
 	*clear {
 		registrations = MultiLevelIdentityDictionary.new;
@@ -123,4 +104,3 @@ NotificationRegistration {
 		NotificationCenter.unregister(object,message,listener)
 	}
 }
-

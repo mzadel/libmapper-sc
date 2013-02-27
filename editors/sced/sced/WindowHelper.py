@@ -17,6 +17,7 @@
 
 import gtk
 import gedit
+import gio
 
 from LogPanel import LogPanel
 from ScLang import ScLang
@@ -43,6 +44,8 @@ scui_str = """<ui>
         <menuitem action="ScedStopSound"/>
         <menuitem action="ScedRecord"/>
         <separator/>
+        <menuitem action="ScedServerGUI"/>
+        <menuitem action="ScedServerMeter"/>
         <menuitem action="ScedStartServer"/>
         <menuitem action="ScedStopServer"/>
         <separator/>
@@ -50,12 +53,18 @@ scui_str = """<ui>
         <menuitem action="ScedStopSwingOSC"/>
         <separator/>
         <menuitem action="ScedFindHelp"/>
+        <menuitem action="ScedBrowseHelp"/>
+        <menuitem action="ScedSearchHelp"/>
+        <menuitem action="ScedMethodArgs"/>
+        <separator/>
         <menuitem action="ScedFindDefinition"/>
         <menuitem action="ScedBrowseClass"/>
+        <menuitem action="ScedOpenDevFile"/>
         <separator/>
         <menuitem action="ScedInspectObject"/>
         <separator/>
         <menuitem action="ScedRestartInterpreter"/>
+        <menuitem action="ScedRecompile"/>
         <menuitem action="ScedClearOutput"/>
       </menu>
     </placeholder>
@@ -125,25 +134,53 @@ class WindowHelper:
              _("Find and open help file"),
              self.on_find_help),
 
+            ("ScedBrowseHelp", None, _("Browse Help"), None,
+             _("Browse help by categories"),
+             self.on_browse_help),
+
+            ("ScedSearchHelp", None, _("Search Help"), "<control><alt>U",
+             _("Search for help"),
+             self.on_search_help),
+
+            ("ScedMethodArgs", None, _("Show method args"), "<alt>A",
+             _("Show method arguments and defaults"),
+             self.on_method_args),
+
             ("ScedFindDefinition", None, _("Find Definition"), "<control>Y",
              _("Find and open class definition"),
              self.on_find_definition),
 
             ("ScedBrowseClass", None, _("Browse class"), None,
-             _("Browse class (needs running SwingOSC server)"),
+             _("Browse class"),
              self.on_browse_class),
 
+            ("ScedOpenDevFile", None, _("Open development file"), "<control><alt>K",
+             _("Open corresponding development file for current document"),
+             self.on_open_dev_file),
+
             ("ScedInspectObject", None, _("Inspect Object"), None,
-             _("Inspect object state (needs running SwingOSC server)"),
+             _("Inspect object state"),
              self.on_inspect_object),
 
             ("ScedRestartInterpreter", None, _("Restart Interpreter"), None,
              _("Restart sclang"),
              self.on_restart),
 
+            ("ScedRecompile", None, _("Recompile class library"), "<control><shift>R",
+             _("Recompile class library"),
+             self.on_recompile),
+
             ("ScedClearOutput", gtk.STOCK_CLEAR, _("Clear output"), None,
              _("Clear interpreter log"),
              self.on_clear_log),
+
+            ("ScedServerGUI", None, _("Show Server GUI"), None,
+             _("Show GUI for default server"),
+             self.on_server_gui),
+
+            ("ScedServerMeter", None, _("Show level meters"), None,
+             _("Show level meters for default server"),
+             self.on_server_meter),
 
             ("ScedStartServer", None, _("Start Server"), None,
              _("Start the default server"),
@@ -235,7 +272,7 @@ class WindowHelper:
     def on_record(self, action):
         self.__lang.toggle_recording(action.get_active())
 
-    def on_find_help(self, action):
+    def get_selection(self):
         doc = self.__window.get_active_document()
 
         try:
@@ -245,48 +282,42 @@ class WindowHelper:
             i1, i2 = find_word(doc, i1)
             doc.select_range(i1, i2)
 
-        text = doc.get_text(i1, i2)
-        self.__lang.evaluate("""
-("gnome-open " ++ ((\"""" + text + "\").findHelpFile ? \"Help\".findHelpFile).escapeChar($ )).unixCmd;", silent=True)
+        return doc.get_text(i1, i2)
+
+    def on_find_help(self, action):
+        text = self.get_selection()
+        self.__lang.evaluate("HelpBrowser.openHelpFor(\"" + text + "\");")
+
+    def on_browse_help(self, action):
+        self.__lang.evaluate("HelpBrowser.openBrowser;")
+
+    def on_search_help(self, action):
+        text = self.get_selection()
+        self.__lang.evaluate("HelpBrowser.openSearch(\"" + text + "\");")
+
+    def on_method_args(self, action):
+        text = self.get_selection()
+        self.__lang.evaluate("Help.methodArgs(\"" + text + "\");")
 
     def on_find_definition(self, action):
-        doc = self.__window.get_active_document()
-
-        try:
-            i1, i2 = doc.get_selection_bounds()
-        except ValueError:
-            i1 = doc.get_iter_at_mark(doc.get_insert())
-            i1, i2 = find_word(doc, i1)
-            doc.select_range(i1, i2)
-
-        text = doc.get_text(i1, i2)
+        text = self.get_selection()
         self.__lang.evaluate("(\"gedit \" + (\"" + text + "\"" + ".interpret.filenameSymbol.asString)).systemCmd", silent=True)
 
     def on_browse_class(self, action):
-        doc = self.__window.get_active_document()
-
-        try:
-            i1, i2 = doc.get_selection_bounds()
-        except ValueError:
-            i1 = doc.get_iter_at_mark(doc.get_insert())
-            i1, i2 = find_word(doc, i1)
-            doc.select_range(i1, i2)
-
-        text = doc.get_text(i1, i2)
+        text = self.get_selection()
         self.__lang.evaluate("" + text + ".browse", silent=True)
 
-    def on_inspect_object(self, action):
+    def on_open_dev_file(self, action):
         doc = self.__window.get_active_document()
+        path = gio.File(doc.get_uri()).get_path() #get_location()
+        self.__lang.evaluate("(\"gedit\"+thisProcess.platform.devLoc(\""+path+"\")).systemCmd", silent=True);
 
-        try:
-            i1, i2 = doc.get_selection_bounds()
-        except ValueError:
-            i1 = doc.get_iter_at_mark(doc.get_insert())
-            i1, i2 = find_word(doc, i1)
-            doc.select_range(i1, i2)
-
-        text = doc.get_text(i1, i2)
+    def on_inspect_object(self, action):
+        text = self.get_selection()
         self.__lang.evaluate("" + text + ".inspect", silent=True)
+
+    def on_recompile(self, action):
+        self.__lang.stdin.write("\x18")
 
     def on_restart(self, action):
         if self.__lang.running():
@@ -296,6 +327,12 @@ class WindowHelper:
 
     def on_clear_log(self, action):
         self.__log_panel.buffer.set_text("")
+
+    def on_server_gui(self, action):
+        self.__lang.evaluate("Server.default.makeGui;", silent=True)
+
+    def on_server_meter(self, action):
+        self.__lang.evaluate("Server.default.meter;", silent=True)
 
     def on_start_server(self, action):
         # FIXME: make these actions possible only if interpreter is running and okay

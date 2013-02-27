@@ -1,4 +1,3 @@
-
 //watches a server address for node-related messages
 
 AbstractNodeWatcher {
@@ -20,9 +19,9 @@ AbstractNodeWatcher {
 				var method;
 				method = cmd.copyToEnd(1).asSymbol;
 				responders = responders.add(
-					OSCresponderNode(addrItem, cmd,
-						{ arg time, resp, msg; this.respond(method, msg) }
-					)
+					OSCFunc({ arg msg; this.respond(method, msg) }, cmd, addrItem)
+						.permanent_(true)
+						.disable
 				)
 			});
 		});
@@ -38,15 +37,15 @@ AbstractNodeWatcher {
 
 	start {
 		if(isWatching.not, {
-			responders.do({ arg item; item.add });
+			responders.do({ arg item; item.enable });
 			isWatching = true;
 		})
 	}
 	stop {
 		if(isWatching, {
-			responders.do({ arg item; item.remove });
+			responders.do({ arg item; item.free });
 			isWatching = false;
-			this.clear;
+			this.free;
 		})
 	}
 
@@ -131,7 +130,11 @@ NodeWatcher : BasicNodeWatcher {
 	}
 
 	clear {
-		nodes.do({ arg node;
+		// we must copy 'nodes'
+		// b/c a /n_end dependant might add or remove nodes
+		// from the collection
+		// NEVER iterate over a collection that might change
+		nodes.copy.do({ arg node;
 			node.isPlaying = false;
 			node.isRunning = false;
 			node.changed(\n_end);

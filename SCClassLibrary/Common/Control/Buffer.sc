@@ -1,4 +1,3 @@
-
 Buffer {
 	classvar	serverCaches;
 
@@ -227,12 +226,11 @@ Buffer {
 
 	// send a Collection to a buffer one UDP sized packet at a time
 	*sendCollection { arg server, collection, numChannels = 1, wait = 0.0, action;
-		var buffer = this.alloc(server, ceil(collection.size / numChannels), numChannels);
+		var buffer = this.new(server, ceil(collection.size / numChannels), numChannels);
 		forkIfNeeded {
-			buffer.alloc(collection.size, numChannels);
+			buffer.alloc;
 			server.sync;
 			buffer.sendCollection(collection, 0, wait, action);
-		
 		}
 		^buffer;
 	}
@@ -289,9 +287,9 @@ Buffer {
 				file.close;
 				if(File.delete(path).not) { ("Could not delete data file:" + path).warn };
 			};
-			
+
 			action.value(array, this);
-			
+
 		}.forkIfNeeded;
 	}
 
@@ -304,15 +302,15 @@ Buffer {
 		refcount = (count / 1633).roundUp;
 		count = count + pos;
 		//("refcount" + refcount).postln;
-		resp = OSCresponderNode(server.addr, '/b_setn', { arg time, responder, msg;
+		resp = OSCFunc({ arg msg;
 			if(msg[1] == bufnum, {
 				//("received" + msg).postln;
 				array = array.overWrite(FloatArray.newFrom(msg.copyToEnd(4)), msg[2] - index);
 				refcount = refcount - 1;
 				//("countDown" + refcount).postln;
-				if(refcount <= 0, {done = true; responder.remove; action.value(array, this); });
+				if(refcount <= 0, {done = true; resp.clear; action.value(array, this); });
 			});
-		}).add;
+		}, '/b_setn', server.addr);
 		{
 			while({pos < count}, {
 				// 1633 max size for getn under udp
@@ -326,7 +324,7 @@ Buffer {
 		}.forkIfNeeded;
 		// lose the responder if the network choked
 		SystemClock.sched(timeout,
-			{ done.not.if({ resp.remove; "Buffer-streamToFloatArray failed!".warn;
+			{ done.not.if({ resp.free; "Buffer-streamToFloatArray failed!".warn;
 				"Try increasing wait time".postln;});
 		});
 	}
@@ -505,15 +503,6 @@ Buffer {
 			++ amplitudes
 	}
 
-	copy { arg buf, dstStartAt = 0, srcStartAt = 0, numSamples = -1;
-		if(buf.notNil) {
-			this.deprecated(thisMethod, this.class.findRespondingMethodFor(\copyData));
-			this.copyData(buf, dstStartAt, srcStartAt, numSamples);
-		} {
-			^super.copy
-		}
-	}
-
 	copyData { arg buf, dstStartAt = 0, srcStartAt = 0, numSamples = -1;
 		server.listSendMsg(
 			this.copyMsg(buf, dstStartAt, srcStartAt, numSamples)
@@ -532,13 +521,12 @@ Buffer {
 	}
 
 	query {
-		OSCresponderNode(server.addr,'/b_info',{ arg time,responder,msg;
+		OSCFunc({ arg msg;
 			Post << "bufnum      :" << msg[1] << Char.nl
 				<< "numFrames   : " << msg[2] << Char.nl
 				<< "numChannels : " << msg[3] << Char.nl
 				<< "sampleRate  :" << msg[4] << Char.nl << Char.nl;
-			responder.remove;
-		}).add;
+		}, '/b_info', server.addr).oneShot;
 		server.sendMsg("/b_query",bufnum)
 	}
 
@@ -572,7 +560,7 @@ Buffer {
 	*initServerCache { |server|
 		serverCaches[server] ?? {
 			serverCaches[server] = IdentityDictionary.new;
-			serverCaches[server][\responder] = OSCresponderNode(server.addr, '/b_info', { |t, r, m|
+			serverCaches[server][\responder] = OSCFunc({ |m|
 				var	buffer = serverCaches[server][m[1]];
 				if(buffer.notNil) {
 					buffer.numFrames = m[2];
@@ -580,7 +568,7 @@ Buffer {
 					buffer.sampleRate = m[4];
 					buffer.queryDone;
 				};
-			}).add;
+			}, '/b_info', server.addr).fix;
 			NotificationCenter.register(server,\newAllocators,this,{
 				this.clearServerCaches(server);
 			});
@@ -588,7 +576,7 @@ Buffer {
 	}
 	*clearServerCaches { |server|
 		if(serverCaches[server].notNil) {
-			serverCaches[server][\responder].remove;
+			serverCaches[server][\responder].free;
 			serverCaches.removeAt(server);
 		}
 	}
@@ -647,4 +635,8 @@ Buffer {
 		^this
 	}
 
+	*readExample {|server, startFrame = 0, numFrames = -1, action, bufnum|
+		var file = Platform.exampleSoundFile;
+		^this.read(server, file, startFrame, numFrames, action, bufnum)
+	}
 }

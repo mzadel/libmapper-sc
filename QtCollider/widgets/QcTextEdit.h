@@ -32,7 +32,7 @@ class QcTextEdit : public QTextEdit, QcHelper
   Q_PROPERTY( QString document READ documentFilename WRITE setDocument );
   Q_PROPERTY( int selectionStart READ selectionStart );
   Q_PROPERTY( int selectionSize READ selectionSize );
-  Q_PROPERTY( QString selectedString READ selectedString );
+  Q_PROPERTY( QString selectedString READ selectedString WRITE replaceSelectedText );
   Q_PROPERTY( QFont textFont READ dummyFont WRITE setTextFont );
   Q_PROPERTY( QColor textColor READ dummyColor WRITE setTextColor );
   Q_PROPERTY( VariantList rangeColor
@@ -41,19 +41,36 @@ class QcTextEdit : public QTextEdit, QcHelper
               READ dummyVariantList WRITE setRangeFont );
   Q_PROPERTY( VariantList rangeText
               READ dummyVariantList WRITE setRangeText );
-  private:
+  Q_PROPERTY( bool enterInterpretsSelection
+              READ interpretSelection WRITE setInterpretSelection );
+
+  public:
+    QcTextEdit();
     QString documentFilename() const;
     void setDocument( const QString & );
-    int selectionStart();
-    int selectionSize();
-    QString selectedString();
+    int selectionStart() const;
+    int selectionSize() const;
+    Q_INVOKABLE void select( int start, int size );
+    QString selectedString() const;
+    void replaceSelectedText( const QString & );
+    bool interpretSelection() const { return _interpretSelection; }
+    void setInterpretSelection( bool b ) { _interpretSelection = b; }
     void setTextFont( const QFont & );
     void setTextColor( const QColor & );
     void setRangeColor( const VariantList & );
     void setRangeFont( const VariantList & );
     void setRangeText( const VariantList & );
 
+  Q_SIGNALS:
+    void interpret( const QString & code );
+
+  protected:
+    virtual void keyPressEvent( QKeyEvent * );
+
+  private:
+
     QString _document;
+    bool _interpretSelection;
 };
 
 #endif

@@ -1,7 +1,7 @@
 /*
  *  TestUGens.cpp
  *  Plugins
- *  Copyright (c) 2007 Scott Wilson. All rights reserved.
+ *  Copyright (c) 2007 Scott Wilson <i@scottwilson.ca>. All rights reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Visual C++ doesn't have fpclassify (C99), so define it here if needed
-#ifdef _WIN32
+#ifdef _MSC_VER
 #include <float.h>
 enum { FP_NORMAL, FP_NAN, FP_INFINITE, FP_SUBNORMAL };
 
@@ -83,8 +83,6 @@ struct CheckBadValues : public Unit
 // declare unit generator functions
 extern "C"
 {
-	void load(InterfaceTable *inTable);
-
 	void CheckBadValues_Ctor(CheckBadValues* unit);
 	void CheckBadValues_next(CheckBadValues* unit, int inNumSamples);
 };
@@ -99,6 +97,7 @@ void CheckBadValues_Ctor(CheckBadValues* unit)
 	unit->prevclass = FP_NORMAL;
 	unit->sameCount = 0;
 	SETCALC(CheckBadValues_next);
+	CheckBadValues_next(unit, 1);
 }
 
 

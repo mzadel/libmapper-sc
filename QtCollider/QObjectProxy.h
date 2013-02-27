@@ -27,17 +27,17 @@
 #include <QObject>
 #include <QString>
 #include <QVariant>
-#include <QMap>
+#include <QHash>
 #include <QEvent>
 
 #include <PyrObject.h>
 #include <PyrSlot.h>
 #include <PyrSymbol.h>
 
-#define qcProxyDebugMsg( LEVEL, MSG ) qcSCObjectDebugMsg( LEVEL, scObject, MSG )
+#define qcProxyDebugMsg( LEVEL, MSG ) \
+  qcDebugMsg( LEVEL, QString("[%1]: ").arg(_scClassName) + QString(MSG) )
 
 struct VariantList;
-struct ScMethodCallEvent;
 
 class QObjectProxy;
 class QcSignalSpy;
@@ -45,17 +45,9 @@ class QcMethodSignalHandler;
 class QcFunctionSignalHandler;
 
 namespace QtCollider {
-  struct SetParentEvent;
   struct SetPropertyEvent;
-  struct GetPropertyEvent;
-  struct SetEventHandlerEvent;
-  struct ConnectEvent;
-  struct DisconnectEvent;
-  struct InvokeMethodEvent;
   class DestroyEvent;
-  struct GetChildrenEvent;
-  struct GetParentEvent;
-  struct GetValidityEvent;
+  struct ScMethodCallEvent;
 
   class ProxyToken : public QObject {
     Q_OBJECT
@@ -87,35 +79,48 @@ class QObjectProxy : public QObject
       int type;
       PyrSymbol *method;
       QtCollider::Synchronicity sync;
+      bool enabled;
     };
 
     QObjectProxy( QObject *qObject, PyrObject *scObject );
 
     virtual ~QObjectProxy();
 
+    // compare current thread to proxy's thread
+    bool compareThread();
+
+    // WARNING: must be called with language locked!
+    void finalize() { _scObject = 0; }
+
     inline QObject *object() const { return qObject; }
+    inline PyrObject *scObject() const { return _scObject; }
 
     // Lock for usage of object() outside Qt thread.
-    // WARNING Do not post any sync events while locked!
     inline void lock() { mutex.lock(); }
     inline void unlock() { mutex.unlock(); }
 
-    const char *scClassName() const;
+    QString scClassName() const { return _scClassName; }
 
-    virtual bool setParentEvent( QtCollider::SetParentEvent * );
-    bool setPropertyEvent( QtCollider::SetPropertyEvent * );
-    bool getPropertyEvent( QtCollider::GetPropertyEvent * );
-    bool setEventHandlerEvent( QtCollider::SetEventHandlerEvent * );
-    bool connectEvent( QtCollider::ConnectEvent * );
-    bool disconnectEvent( QtCollider::DisconnectEvent * );
-    bool invokeMethodEvent( QtCollider::InvokeMethodEvent * );
-    bool destroyEvent( QtCollider::DestroyEvent * );
-    bool getChildrenEvent( QtCollider::GetChildrenEvent * );
-    bool getParentEvent( QtCollider::GetParentEvent * );
-    bool getValidityEvent( QtCollider::GetValidityEvent * );
+    QList<PyrObject*> children( PyrSymbol *className );
+    PyrObject *parent( PyrSymbol *className );
+    virtual bool setParent( QObjectProxy *parent );
 
-    // thread-safe (if connection == queued)
+    bool setProperty( const char *property, const QVariant & val );
+    QVariant property( const char *property );
+
+    bool connectObject( const char *signal, PyrObject *object, Qt::ConnectionType );
+    bool connectMethod( const char *signal, PyrSymbol *method, Qt::ConnectionType );
+    bool disconnectObject( const char *signal, PyrObject *object );
+    bool disconnectMethod( const char *signal, PyrSymbol *method);
+    bool setEventHandler( int eventType, PyrSymbol *method, QtCollider::Synchronicity, bool enabled = true );
+    bool setEventHandlerEnabled( int eventType, bool enabled );
+
+    // thread-safe if connection == queued
     bool invokeMethod( const char *method, PyrSlot *ret, PyrSlot *arg, Qt::ConnectionType );
+
+    void destroy( DestroyAction );
+
+    static QObjectProxy *fromObject( QObject * );
 
   protected:
 
@@ -125,7 +130,13 @@ class QObjectProxy : public QObject
 
     virtual bool eventFilter( QObject * watched, QEvent * event );
 
-    virtual bool interpretEvent( QObject *, QEvent *, QList<QVariant> & ) { return true; }
+    virtual void customEvent( QEvent * );
+
+    virtual bool filterEvent( QObject *, QEvent *, EventHandlerData &, QList<QVariant> & args );
+
+    bool invokeEventHandler( QEvent *e, EventHandlerData &, QList<QVariant> & args );
+
+    const QHash<int,EventHandlerData> & eventHandlers() { return _eventHandlers; }
 
   private Q_SLOTS:
 
@@ -133,13 +144,17 @@ class QObjectProxy : public QObject
 
   private:
 
-    inline void scMethodCallEvent( ScMethodCallEvent * );
-
-    void customEvent( QEvent * );
+    void scMethodCallEvent( QtCollider::ScMethodCallEvent * );
+    bool setPropertyEvent( QtCollider::SetPropertyEvent * );
+    bool destroyEvent( QtCollider::DestroyEvent * );
 
     QObject *qObject;
-    PyrObject *scObject;
-    QMap<int,EventHandlerData> eventHandlers;
+    // NOTE: scObject is protected by the language lock. Should not use it without it!
+    PyrObject *_scObject;
+    // NOTE: for the reason above we extract SC class name at construction
+    QString _scClassName;
+
+    QHash<int,EventHandlerData> _eventHandlers;
     QList<QcMethodSignalHandler*> methodSigHandlers;
     QList<QcFunctionSignalHandler*> funcSigHandlers;
     QMutex mutex;
@@ -147,121 +162,40 @@ class QObjectProxy : public QObject
 
 namespace QtCollider {
 
-class RequestEvent : public QcSyncEvent {
-  friend class QObjectProxy;
-
-public:
-  bool send( QObjectProxy *, Synchronicity );
-  inline bool perform( QObjectProxy *proxy ) {
-    bool done = execute( proxy );
-    if( p_done ) *p_done = done;
-    return done;
-  }
-
-protected:
-  RequestEvent() : QcSyncEvent( QcSyncEvent::ProxyRequest ), p_done(0) {}
-  virtual bool execute( QObjectProxy *proxy ) = 0;
-
-private:
-  bool *p_done;
-};
-
-template <class T, bool (QObjectProxy::*handler)( T* )>
-class RequestTemplate : public RequestEvent {
-protected:
-  RequestTemplate(){}
-private:
-  bool execute( QObjectProxy *proxy ) {
-    return (proxy->*handler)( static_cast<T*>( this ) );
-  }
-};
-
-struct SetParentEvent
-: public RequestTemplate<SetParentEvent, &QObjectProxy::setParentEvent>
+struct SetPropertyEvent : public QEvent
 {
-  QObjectProxy *parent;
-};
-
-struct SetPropertyEvent
-: public RequestTemplate<SetPropertyEvent, &QObjectProxy::setPropertyEvent>
-{
+  SetPropertyEvent() : QEvent( (QEvent::Type) QtCollider::Event_Proxy_SetProperty ) {}
   PyrSymbol *property;
   QVariant value;
 };
 
-struct GetPropertyEvent
-: public RequestTemplate<GetPropertyEvent, &QObjectProxy::getPropertyEvent>
-{
-  GetPropertyEvent( PyrSymbol *p, QVariant &v ) : property(p), value(v) {}
-  PyrSymbol *property;
-  QVariant &value;
-};
-
-struct SetEventHandlerEvent
-: public RequestTemplate<SetEventHandlerEvent, &QObjectProxy::setEventHandlerEvent>
-{
-  SetEventHandlerEvent( int t, PyrSymbol *m, Synchronicity s )
-  : type(t), method(m), sync(s) {}
-  int type;
-  PyrSymbol *method;
-  Synchronicity sync;
-};
-
-struct ConnectEvent
-: public RequestTemplate<ConnectEvent, &QObjectProxy::connectEvent>
-{
-  PyrSymbol *method;
-  PyrObject *function;
-  // QString is necessary, because signal signature can not be a valid PyrSymbol.
-  // Think of brackets and similar...
-  QString signal;
-  Synchronicity sync;
-};
-
-struct DisconnectEvent
-: public RequestTemplate<DisconnectEvent, &QObjectProxy::disconnectEvent>
-{
-  PyrSymbol *method;
-  PyrObject *function;
-  QString signal;
-};
-
-struct InvokeMethodEvent
-: public RequestTemplate<InvokeMethodEvent, &QObjectProxy::invokeMethodEvent>
-{
-  PyrSymbol *method;
-  PyrSlot *ret;
-  PyrSlot *arg;
-};
-
-class DestroyEvent
-: public RequestTemplate<DestroyEvent, &QObjectProxy::destroyEvent>
+class DestroyEvent : public QEvent
 {
 public:
-  DestroyEvent( QObjectProxy::DestroyAction act ) : _action( act ) {}
+  DestroyEvent( QObjectProxy::DestroyAction act ) :
+    QEvent( (QEvent::Type) QtCollider::Event_Proxy_Destroy ),
+    _action( act )
+  {}
   QObjectProxy::DestroyAction action() { return _action; }
 private:
   QObjectProxy::DestroyAction _action;
 };
 
-struct GetChildrenEvent
-: public RequestTemplate<GetChildrenEvent, &QObjectProxy::getChildrenEvent>
+struct ScMethodCallEvent : public QEvent
 {
-  GetChildrenEvent( PyrSymbol * cname, QList<PyrObject*> & ch )
-  : className( cname ), children( ch ) {}
-  PyrSymbol *className;
-  QList<PyrObject*> &children;
-};
+  ScMethodCallEvent( PyrSymbol *m,
+                     const QList<QVariant> &l = QList<QVariant>(),
+                     bool b_locked = false )
+  : QEvent( (QEvent::Type) QtCollider::Event_ScMethodCall ),
+    method( m ),
+    args( l ),
+    locked( b_locked )
+  {}
 
-struct GetParentEvent
-: public RequestTemplate<GetParentEvent, &QObjectProxy::getParentEvent>
-{
-  PyrObject ** parent;
+  PyrSymbol *method;
+  QList<QVariant> args;
+  bool locked;
 };
-
-struct GetValidityEvent
-: public RequestTemplate<GetValidityEvent, &QObjectProxy::getValidityEvent>
-{};
 
 } // namespace
 

@@ -6,11 +6,13 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 
 	var <platform, argv;
 	var <>recvOSCfunc;
+	var <customPorts;
 
 		// proof-of-concept: the interpreter can set this variable when executing code in a file
 		// should be nil most of the time
 
 	startup {
+	    var didWarnOverwrite = false;
 		// setup the platform first so that class initializers can call platform methods.
 		// create the platform, then intialize it so that initPlatform can call methods
 		// that depend on thisProcess.platform methods.
@@ -43,6 +45,16 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 			})
 		).postln;
 
+		Main.overwriteMsg.split(Char.nl).drop(-1).collect(_.split(Char.tab)).do {|x|
+			if(x[2].beginsWith(Platform.classLibraryDir) and: {x[1].contains("/SystemOverwrites/").not}
+			) {
+				warn("Extension in '%' overwrites % in main class library.".format(x[1],x[0]));
+				didWarnOverwrite = true;
+			}
+		};
+		if(didWarnOverwrite) {
+			inform("\nIntentional overwrites must be put in a 'SystemOverwrites' subfolder.")
+		}
 	}
 
 	shutdown { // at recompile, quit
@@ -63,19 +75,36 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 		CmdPeriod.hardRun;
 	}
 
-	recvOSCmessage { arg time, replyAddr, msg;
+	recvOSCmessage { arg time, replyAddr, recvPort, msg;
 		// this method is called when an OSC message is received.
-		recvOSCfunc.value(time, replyAddr, msg);
+		recvOSCfunc.value(time, replyAddr, recvPort, msg);
 		OSCresponder.respond(time, replyAddr, msg);
 	}
 
-	recvOSCbundle { arg time, replyAddr ... msgs;
+	recvOSCbundle { arg time, replyAddr, recvPort ... msgs;
 		// this method is called when an OSC bundle is received.
 		msgs.do({ arg msg;
-			this.recvOSCmessage(time, replyAddr, msg);
+			this.recvOSCmessage(time, replyAddr, recvPort, msg);
 		});
 	}
-
+	
+	addOSCFunc { |func| recvOSCfunc = recvOSCfunc.addFunc(func) }
+	
+	removeOSCFunc { |func| recvOSCfunc = recvOSCfunc.removeFunc(func) }
+	
+	replaceOSCFunc { |func, newFunc| recvOSCfunc = recvOSCfunc.replaceFunc(func, newFunc) }
+	
+	openUDPPort {|portNum|
+		var result;
+		result = this.prOpenUDPPort(portNum);
+		if(result, { customPorts = customPorts ++ [portNum]; });
+		^result;
+	}
+	
+	prOpenUDPPort {|portNum|
+		_OpenUDPPort
+	}
+	
 	newSCWindow {
 		var win, palette;
 		win = SCWindow("construction");
@@ -94,10 +123,13 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 	}
 
 	showHelpBrowser {
-		Help.gui
+		HelpBrowser.openBrowser;
 	}
 	showHelpSearch {
-		Help.searchGUI
+		HelpBrowser.openSearch(this.getCurrentSelection);
+	}
+	showHelp {
+		HelpBrowser.openHelpFor(this.getCurrentSelection);
 	}
 
 	showClassBrowser {
@@ -141,7 +173,7 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 	escapeWindow { platform.escapeWindow }
 
 	exitFullScreen { platform.exitFullScreen }
-	
+
 	setDeferredTaskInterval { |interval| platform.setDeferredTaskInterval(interval) }
 
 	*overwriteMsg { _MainOverwriteMsg ^this.primitiveFailed }
@@ -150,26 +182,26 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 
 MethodOverride {
 	var <ownerClass, <selector, <activePath, <overriddenPath;
-		
+
 	*new { arg ownerClass, selector, activePath, overriddenPath;
 		^super.newCopyArgs(ownerClass, selector, activePath, overriddenPath)
 	}
-	
+
 	*fromLine { arg string;
 		var parts = string.split(Char.tab);
 		var class, selector;
 		#class, selector = parts[0].split($:);
 		^this.new(class.asSymbol.asClass, selector, parts[1], parts[2])
 	}
-	
+
 	openFiles {
-		var path2 = if(overriddenPath.beginsWith("/Common")) { 
+		var path2 = if(overriddenPath.beginsWith("/Common")) {
 			Platform.classLibraryDir +/+ overriddenPath
 			} { overriddenPath };
 		activePath.openTextFile;
 		path2.openTextFile;
 	}
-	
+
 	*simplifyPath { arg path;
 		var extDir, sysExtDir, quarkDir;
 		extDir = Platform.userExtensionDir;
@@ -179,15 +211,15 @@ MethodOverride {
 		path = path.replace("'" ++ sysExtDir, "Platform.systemExtensionDir ++ '");
 		path = path.replace("'" ++ quarkDir, "LocalQuarks.globalPath ++ '");
 		^path
-		
+
 	}
-	
+
 	*all {
 		var msg = Main.overwriteMsg.drop(-1); // drop last newline
 		var lines = msg.split(Char.nl);
 		^lines.collect { |line| this.fromLine(line) };
 	}
-		
+
 	*printAll { arg simplifyPaths = true;
 		var all = this.all;
 		var classes = all.collect(_.ownerClass).as(Set);
@@ -198,7 +230,7 @@ MethodOverride {
 			all.select { |x| x.ownerClass == class }.do { |x|
 				var activePath = x.activePath;
 				var overriddenPath = x.overriddenPath;
-				if(simplifyPaths) { 
+				if(simplifyPaths) {
 					activePath = this.simplifyPath(x.activePath);
 					overriddenPath = this.simplifyPath(x.overriddenPath);
 				};
@@ -209,7 +241,7 @@ MethodOverride {
 			"\n".post;
 		}
 	}
-	
+
 	*printAllShort {
 		var all = this.all;
 		var classes = all.collect(_.ownerClass).as(Set);
@@ -219,8 +251,7 @@ MethodOverride {
 			all.select { |x| x.ownerClass == class }.collect { |x| x.selector }.as(Set).do { |x|
 				postf("\t%:%\n", class, x);
 			}
-		}		
+		}
 	}
-	
-}
 
+}

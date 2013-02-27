@@ -28,7 +28,7 @@
 #ifdef NOVA_SIMD
 #include "simd_memory.hpp"
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 #define inline_functions __attribute__ ((flatten))
 #else
 #define inline_functions
@@ -237,8 +237,6 @@ struct PauseSelfWhenDone : public Unit
 
 extern "C"
 {
-	void load(InterfaceTable *inTable);
-
 	void Trig1_Ctor(Trig1 *unit);
 	void Trig1_next(Trig1 *unit, int inNumSamples);
 	void Trig1_next_k(Trig1 *unit, int inNumSamples);

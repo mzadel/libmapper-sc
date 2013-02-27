@@ -1,4 +1,3 @@
-
 MIDIEndPoint {
 	var <>device, <>name, <>uid;
 	*new{ arg device, name, uid;
@@ -38,7 +37,7 @@ MIDIClient {
 
 		this.list;
 
-		UI.registerForShutdown( { this.disposeClient } );
+		ShutDown.add { this.disposeClient };
 
 		Post << "MIDI Sources:" << Char.nl;
 		sources.do({ |x| Post << Char.tab << x << Char.nl });
@@ -121,6 +120,18 @@ MIDIIn {
 	<> controlList, <> programList,
 	<> touchList, <> bendList;
 
+	// safer than global setters
+	*addFuncTo { |what, func|
+		this.perform(what.asSetter, this.perform(what).addFunc(func))
+	}
+
+	*removeFuncFrom { |what, func|
+		this.perform(what.asSetter, this.perform(what).removeFunc(func))
+	}
+
+	*replaceFuncTo { |what, func, newFunc|
+		this.perform(what.asSetter, this.perform(what).replaceFunc(func, newFunc))
+	}
 
 	*waitNoteOn { arg port, chan, note, veloc;
 		var event;

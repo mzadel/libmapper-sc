@@ -19,6 +19,7 @@
 #include "PyrKernel.h"
 #include "GC.h"
 #include "VMGlobals.h"
+#include "SCBase.h"
 #include "SC_DirUtils.h"
 #include "SC_LanguageClient.h"
 #include "SC_WorldOptions.h"
@@ -340,16 +341,9 @@ void AudioSessionAudioRouteChangeCbk(void *inClientData, AudioSessionPropertyID 
 		from = [s stringByAppendingString:@"/JITLib"];
 		dest = [dir stringByAppendingString:@"/JITLib"];
 		[manager copyItemAtPath:from toPath:dest error:&error];
-	}
-
-	dir = [support stringByAppendingString:@"/synthdefs"];
-	if (![manager fileExistsAtPath:dir])
-	{
-		NSString *from = [s stringByAppendingString:@"/synthdefs"];
-		if ([manager fileExistsAtPath:from])
-		{
-			[manager copyItemAtPath:from toPath:dir error:&error];
-		}
+		from = [s stringByAppendingString:@"/SCDoc"];
+		dest = [dir stringByAppendingString:@"/SCDoc"];
+		[manager copyItemAtPath:from toPath:dest error:&error];
 	}
 	dir = [support stringByAppendingString:@"/sounds"];
 	if (![manager fileExistsAtPath:dir])
@@ -390,6 +384,11 @@ void AudioSessionAudioRouteChangeCbk(void *inClientData, AudioSessionPropertyID 
 		[manager copyItemAtPath:origin toPath:destination error:&error];
 	}
 	dir = [support stringByAppendingString:@"/Recordings"];
+	if (![manager fileExistsAtPath:dir])
+	{
+		[manager createDirectoryAtPath:dir attributes:nil];
+	}
+	dir = [support stringByAppendingString:@"/synthdefs"];
 	if (![manager fileExistsAtPath:dir])
 	{
 		[manager createDirectoryAtPath:dir attributes:nil];

@@ -36,13 +36,19 @@ class queue_node_data
     typedef boost::uint_fast8_t thread_count_type;
 
 public:
-    queue_node_data(abstract_synth * node):
+    explicit queue_node_data(abstract_synth * node):
         node(static_cast<sc_synth*>(node))
     {}
 
     queue_node_data(queue_node_data const & rhs):
         node(rhs.node)
     {}
+
+#ifdef BOOST_HAS_RVALUE_REFS
+    queue_node_data(queue_node_data const && rhs):
+        node(std::move(rhs.node))
+    {}
+#endif
 
     void operator()(thread_count_type index)
     {
@@ -61,7 +67,7 @@ private:
 template <typename Alloc = std::allocator<queue_node_data> >
 class dsp_queue_node
 {
-    typedef std::vector<queue_node_data, Alloc> node_container;
+    typedef std::vector<queue_node_data, typename Alloc::template rebind<queue_node_data>::other> node_container;
 
     typedef boost::uint_fast16_t node_count_type;
     typedef boost::uint_fast8_t thread_count_type;
@@ -73,9 +79,21 @@ public:
         nodes.reserve(container_size-1);
     }
 
-    dsp_queue_node(queue_node_data const & node):
+    explicit dsp_queue_node(queue_node_data const & node):
         first(node), node_count(0)
     {}
+
+#ifdef BOOST_HAS_RVALUE_REFS
+    explicit dsp_queue_node(queue_node_data && node):
+        first(std::move(node)), node_count(0)
+    {}
+
+    dsp_queue_node(queue_node_data && node, std::size_t container_size):
+        first(std::move(node)), node_count(0)
+    {
+        nodes.reserve(container_size-1);
+    }
+#endif
 
     void operator()(thread_count_type thread_index)
     {
@@ -85,7 +103,11 @@ public:
         if (remaining == 0)
             return; //fast-path
 
+#ifdef __PATHCC__
+        queue_node_data * data = &nodes.front();
+#else
         queue_node_data * data = nodes.data();
+#endif
 
         if (remaining & 1) {
             (*data)(thread_index);
@@ -141,7 +163,11 @@ public:
 
     void add_node(abstract_synth * node)
     {
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+        nodes.emplace_back(std::move(queue_node_data(node)));
+#else
         nodes.push_back(queue_node_data(node));
+#endif
         ++node_count;
     }
 

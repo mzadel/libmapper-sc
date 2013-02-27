@@ -19,35 +19,10 @@
 *
 ************************************************************************/
 
-
 #ifndef _SC_QT_COMMON_H
 #define _SC_QT_COMMON_H
 
-#include <cstdarg>
-
-namespace QtCollider {
-  int debugLevel();
-  void setDebugLevel( int );
-}
-
-#include <iostream>
-#include <QString>
-
-#ifdef QC_DEBUG
-  #define qcDebugMsg( LEVEL, MSG ) \
-    if( LEVEL <= QtCollider::debugLevel() ) { \
-      std::cout << "Qt: " << QString(MSG).toStdString() << "\n"; \
-    }
-#else
-  #define qcDebugMsg( LEVEL, MSG )
-#endif
-
-#define qcSCObjectDebugMsg( LEVEL, OBJ, MSG ) \
-  qcDebugMsg( LEVEL, QString("[%1] %2") \
-                    .arg( OBJ ? slotRawSymbol( &OBJ->classptr->name )->name : "null" ) \
-                    .arg(MSG) )
-
-#define qcErrorMsg( MSG ) { std::cout << "Qt: ERROR: " << QString(MSG).toStdString() << "\n"; }
+#include "debug.h"
 
 #include <QList>
 #include <QVariant>
@@ -58,6 +33,8 @@ namespace QtCollider {
 #include <PyrSymbol.h>
 #include <PyrObject.h>
 
+#include <pthread.h>
+
 extern pthread_mutex_t gLangMutex;
 
 struct VariantList {
@@ -65,11 +42,7 @@ struct VariantList {
 };
 
 Q_DECLARE_METATYPE( VariantList );
-
-
-struct QcSyncEvent;
-
-typedef void (*EventHandlerFn) ( QcSyncEvent * );
+Q_DECLARE_METATYPE( PyrObject * );
 
 namespace QtCollider {
 
@@ -79,102 +52,48 @@ namespace QtCollider {
   };
 
   enum EventType {
-    Event_Sync = QEvent::User,
+    Event_SCRequest_Input = QEvent::User,
+    Event_SCRequest_Sched,
+    Event_SCRequest_Quit,
+    Event_SCRequest_Recompile,
     Event_ScMethodCall,
-    Event_Refresh
+    Event_Refresh,
+    Event_Proxy_SetProperty,
+    Event_Proxy_Destroy,
+    Event_Proxy_BringFront,
+    Event_Proxy_SetFocus,
+    Event_Proxy_SetAlwaysOnTop,
+    Event_Proxy_StartDrag
   };
 
   enum Synchronicity {
     Synchronous,
     Asynchronous
   };
-}
 
-struct QcSyncEvent : public QEvent
-{
-  friend class QcApplication;
-
-  enum Type {
-    ProxyRequest,
-    Generic,
-    CreateQObject
-  };
-
-  QcSyncEvent( Type type )
-    : QEvent( (QEvent::Type) QtCollider::Event_Sync ),
-    _cond( 0 ),
-    _mutex( 0 ),
-    _handler( 0 ),
-    _type( type )
-  { }
-
-  ~QcSyncEvent()
+  inline void lockLang()
   {
-    if( _cond && _mutex ) {
-      _mutex->lock();
-      _cond->wakeAll();
-      _mutex->unlock();
-    }
+    qcDebugMsg(2,"locking lang!");
+    pthread_mutex_lock (&gLangMutex);
+    qcDebugMsg(2,"locked");
   }
 
-  Type syncEventType() { return _type; }
-
-  private:
-
-    QWaitCondition *_cond;
-    QMutex *_mutex;
-    EventHandlerFn _handler;
-    Type _type;
-};
-
-struct QcGenericEvent : public QcSyncEvent
-{
-  QcGenericEvent( int type, const QVariant& data = QVariant(), QVariant *ret = 0 )
-    : QcSyncEvent( QcSyncEvent::Generic ),
-    _data( data ),
-    _return( ret ),
-    _type( type )
-  {}
-
-  template <class T> void returnThis( T arg ) {
-    *_return = QVariant::fromValue<T>( arg );
-  }
-
-  int genericEventType() { return _type; }
-
-  QVariant _data;
-  QVariant *_return;
-
-  private:
-    int _type;
-};
-
-struct ScMethodCallEvent : public QEvent
-{
-  ScMethodCallEvent( PyrSymbol *m,
-                     const QList<QVariant> &l = QList<QVariant>(),
-                     bool b_locked = false )
-  : QEvent( (QEvent::Type) QtCollider::Event_ScMethodCall ),
-    method( m ),
-    args( l ),
-    locked( b_locked )
-  {}
-
-  PyrSymbol *method;
-  QList<QVariant> args;
-  bool locked;
-};
-
-namespace QtCollider {
-
-  void lockLang();
-
-  inline static void unlockLang()
+  inline void unlockLang()
   {
     pthread_mutex_unlock(&gLangMutex);
-    //printf("UNLOCKED\n");
+    qcDebugMsg(2,"unlocked");
   }
 
+  void runLang (
+    PyrObjectHdr *receiver,
+    PyrSymbol *method,
+    const QList<QVariant> & args = QList<QVariant>(),
+    PyrSlot *result = 0 );
+
+  int wrongThreadError ();
+
+  extern PyrSymbol *s_interpretCmdLine;
+  extern PyrSymbol *s_interpretPrintCmdLine;
   extern PyrSymbol *s_doFunction;
   extern PyrSymbol *s_doDrawFunc;
   extern PyrSymbol *s_Rect;
@@ -189,6 +108,7 @@ namespace QtCollider {
   extern PyrSymbol *s_QFont;
   extern PyrSymbol *s_QObject;
   extern PyrSymbol *s_QLayout;
+  extern PyrSymbol *s_QTreeViewItem;
 
 #define class_Rect s_Rect->u.classobj
 #define class_Point s_Point->u.classobj
@@ -202,6 +122,8 @@ namespace QtCollider {
 #define class_QFont s_QFont->u.classobj
 #define class_QObject s_QObject->u.classobj
 #define class_QLayout s_QLayout->u.classobj
+#define class_QTreeViewItem s_QTreeViewItem->u.classobj
+
 }
 
 #endif //_SC_QT_COMMON_H

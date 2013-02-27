@@ -6,7 +6,8 @@ Nil {
 	? { arg obj; ^obj }
 	?? { arg obj; ^obj.value }
 	!? {}
-	booleanValue { ^false }
+	asBoolean    { ^false }
+	booleanValue { ^false } // TODO in the long-run, deprecate for asBoolean
 
 	// support a nil Environment
 	push { arg function; ^function.value }
@@ -90,6 +91,8 @@ Nil {
 		^if(functions.size <= 1) {functions[0] } { FunctionList(functions) }
 	}
 	removeFunc { ^this }
+	
+	replaceFunc { }
 
 	// if Main-startup fails then AppClock scheduler may be nil. If that happens an
 	// endless cascade of doesNotUnderstand messages gets printed in response to each clock tick
@@ -118,4 +121,3 @@ Nil {
 
 	superclassesDo {}
 }
-

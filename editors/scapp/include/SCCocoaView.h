@@ -30,6 +30,8 @@
 #import "SCVirtualMachine.h"
 #include "QTKit/QTKit.h"
 #include <Quartz/Quartz.h>
+#include <WebKit/WebView.h>
+#import <WebKit/WebEditingDelegate.h>
 
 @interface SCCocoaTextViewResponder : NSResponder
 {
@@ -91,7 +93,7 @@
 	BOOL drawPeak, isVertical, criticalAboveWarning;
 	float peakSubtract, peakLevel, peakY, peakHeight;
 	double value, peakValue;
-	float warning, critical;
+	double warning, critical;
 }
 
 - (void)setDrawPeak:(BOOL)flag;
@@ -101,6 +103,46 @@
 - (void)prepPeakBounds;
 - (void)setUpWarning:(double)val;
 - (void)setUpCritical:(double)val;
+
+@end
+
+@interface SCNSFlippedView : NSView {
+
+}
+
+@end
+
+@interface SCNSWebView : WebView {
+	struct SCWebView *mSCWebView;
+	int loadCount;
+	bool handleLinks;
+	BOOL enterExecutesSelection;
+}
+
+- (void)initVars;
+- (void) setHandleLinks: (bool)handle;
+- (void)resetLoadCount;
+- (void)setSCObject: (struct SCWebView*)inObject;
+- (struct SCWebView*)getSCObject;
+- (void)webView:(WebView *)sender didStartProvisionalLoadForFrame:(WebFrame *)frame;
+- (void)webView:(WebView *)sender didFailProvisionalLoadWithError:(NSError *)error forFrame:(WebFrame *)frame;
+- (void)doFailAction;
+- (void)doLoadAction;
+- (void)webView:(WebView *)sender didFailLoadWithError:(NSError *)error;
+- (BOOL)webView:(WebView *)webView shouldInsertText:(NSString *)text replacingDOMRange:(DOMRange *)range givenAction:(WebViewInsertAction)action;
+- (void)webView:(WebView *)webView decidePolicyForNavigationAction:(NSDictionary *)actionInformation request:(NSURLRequest *)request frame:(WebFrame *)frame decisionListener:(id )listener;
+- (void)webView:(WebView *)webView unableToImplementPolicyWithError:(NSError *)error frame:(WebFrame *)frame;
+- (void)doLinkAction:(NSString *)urlString;
+- (void) setEnterExecutesSelection: (BOOL) flag;
+- (void)sendSelection: (char*) methodName;
+- (void)setSelection;
+- (IBAction)openCode:(id)sender;
+- (IBAction) showHelpFor: (id) sender;
+- (IBAction)showHelpSearch:(id)sender;
+
+- (IBAction)methodTemplates: (id)sender;
+- (IBAction)methodReferences: (id)sender;
+- (IBAction)executeSelection: (id) sender;
 
 @end
 
@@ -152,6 +194,30 @@ protected:
 	QTMovieView *mMovieView;
 	QTTime mTime;
 	QTMovie *mMovie;
+};
+
+class SCWebView : public SCView
+{
+public:
+	SCWebView(SCContainerView *inParent, PyrObject* inObj, SCRect inBounds);
+	virtual ~SCWebView();
+	virtual void setBounds(SCRect inBounds);
+	virtual int setProperty(PyrSymbol *symbol, PyrSlot *slot);
+	virtual int getProperty(PyrSymbol *symbol, PyrSlot *slot);
+	virtual void setVisibleFromParent();
+	//virtual void keyDown(int character, int modifiers, unsigned short keycode);
+	void tabPrevFocus();
+	void tabNextFocus();
+	virtual void doOnLoadAction();
+	virtual void doLoadFailedAction();
+	virtual void doLinkClickedAction(PyrString* pstring);
+	virtual NSView* focusResponder() { return mWebView; }
+	SCTopView* getTop() { return mTop; }
+	virtual void mouseTrack(SCPoint where, int modifiers, NSEvent *theEvent);
+	
+protected:
+	SCNSWebView *mWebView;
+	SCNSFlippedView *flipView;
 };
 
 //class SCTextField : public SCStaticText

@@ -25,19 +25,45 @@
 #include "Common.h"
 
 #include <QApplication>
+#include <QEventLoop>
 #include <QMutex>
+
+namespace QtCollider {
+
+class EventProcessor : public QObject {
+public:
+  void work() {
+    QApplication::postEvent( this, new QEvent(QEvent::User) );
+    _loop.exec();
+  }
+  void customEvent( QEvent *e ) {
+    _loop.exit();
+  }
+private:
+  QEventLoop _loop;
+};
+
+} // namespace QtCollider
 
 class QcApplication : public QApplication
 {
+  Q_OBJECT
+
   public:
     QcApplication( int & argc, char ** argv );
     virtual ~QcApplication();
-    static void postSyncEvent( QcSyncEvent *e, QObject *rcv );
-    static void postSyncEvent( QcSyncEvent *e, EventHandlerFn handler );
+    static bool compareThread();
+    static void processEvents() {
+      if( _instance ) _instance->_eventProc.work();
+    }
+
+  public Q_SLOTS:
+    void interpret( const QString & code, bool printResult = true );
 
   private:
     bool event( QEvent * );
-    void customEvent( QEvent * );
+
+    QtCollider::EventProcessor _eventProc;
 
     static QMutex _mutex;
     static QcApplication *_instance;

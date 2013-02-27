@@ -27,6 +27,7 @@
 #  include <time.h>
 #  include <X11/Intrinsic.h>
 # else
+# include <windows.h>
 # endif
 #endif
 
@@ -49,8 +50,6 @@ struct MouseInputUGen : public Unit
 
 extern "C"
 {
-	void load(InterfaceTable *inTable);
-
 	void MouseX_next(MouseInputUGen *unit, int inNumSamples);
 	void MouseY_next(MouseInputUGen *unit, int inNumSamples);
 	void MouseButton_next(MouseInputUGen *unit, int inNumSamples);
@@ -162,6 +161,8 @@ void* gstate_update_func(void* arg)
 
 	requested_time.tv_sec = 0;
 	requested_time.tv_nsec = 17000 * 1000;
+
+	XInitThreads(); // x api is called by both mouse and keyboard ugens
 
 	d = XOpenDisplay ( NULL );
 	if (!d) return 0;

@@ -31,6 +31,7 @@
 #include <math.h>
 #include <stdexcept>
 #include <new>
+#include <vector>
 
 #ifdef SC_WIN32
 # include <winsock2.h>
@@ -56,6 +57,8 @@ typedef int socklen_t;
 # endif
 #endif
 
+#include "../../../common/server_shm.hpp"
+
 struct InternalSynthServerGlobals
 {
 	struct World *mWorld;
@@ -77,7 +80,7 @@ PyrSymbol *s_call, *s_write, *s_recvoscmsg, *s_recvoscbndl, *s_netaddr;
 const char* gPassword;
 extern bool compiledOK;
 
-#define USE_SCHEDULER 1
+std::vector<SC_UdpCustomInPort *> gCustomUdpPorts;
 
 
 ///////////
@@ -97,11 +100,10 @@ const int ivxNetAddr_Socket = 3;
 void makeSockAddr(struct sockaddr_in &toaddr, int32 addr, int32 port);
 int sendallto(int socket, const void *msg, size_t len, struct sockaddr *toaddr, int addrlen);
 int sendall(int socket, const void *msg, size_t len);
-int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size);
+static int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size);
 int makeSynthBundle(big_scpacket *packet, PyrSlot *slots, int size, bool useElapsed);
 
-void addMsgSlot(big_scpacket *packet, PyrSlot *slot);
-void addMsgSlot(big_scpacket *packet, PyrSlot *slot)
+static int addMsgSlot(big_scpacket *packet, PyrSlot *slot)
 {
 	switch (GetTag(slot)) {
 		case tagInt :
@@ -123,7 +125,9 @@ void addMsgSlot(big_scpacket *packet, PyrSlot *slot)
 				if (arrayObj->size > 1 && isKindOfSlot(arrayObj->slots+1, class_array)) {
 					makeSynthBundle(&packet2, arrayObj->slots, arrayObj->size, true);
 				} else {
-					makeSynthMsgWithTags(&packet2, arrayObj->slots, arrayObj->size);
+					int error = makeSynthMsgWithTags(&packet2, arrayObj->slots, arrayObj->size);
+					if (error != errNone)
+						return error;
 				}
 				packet->addb((uint8*)packet2.data(), packet2.size());
 			}
@@ -139,10 +143,10 @@ void addMsgSlot(big_scpacket *packet, PyrSlot *slot)
 			else packet->addf(slotRawFloat(slot));
 			break;
 	}
+	return errNone;
 }
 
-void addMsgSlotWithTags(big_scpacket *packet, PyrSlot *slot);
-void addMsgSlotWithTags(big_scpacket *packet, PyrSlot *slot)
+static int addMsgSlotWithTags(big_scpacket *packet, PyrSlot *slot)
 {
 	switch (GetTag(slot)) {
 		case tagInt :
@@ -170,7 +174,9 @@ void addMsgSlotWithTags(big_scpacket *packet, PyrSlot *slot)
 					if (arrayObj->size > 1 && isKindOfSlot(arrayObj->slots+1, class_array)) {
 						makeSynthBundle(&packet2, arrayObj->slots, arrayObj->size, true);
 					} else {
-						makeSynthMsgWithTags(&packet2, arrayObj->slots, arrayObj->size);
+						int error = makeSynthMsgWithTags(&packet2, arrayObj->slots, arrayObj->size);
+						if (error != errNone)
+							return error;
 					}
 					packet->addb((uint8*)packet2.data(), packet2.size());
 				} else {
@@ -202,23 +208,24 @@ void addMsgSlotWithTags(big_scpacket *packet, PyrSlot *slot)
 			}
 			break;
 	}
+	return errNone;
 }
 
-int makeSynthMsg(big_scpacket *packet, PyrSlot *slots, int size);
-int makeSynthMsg(big_scpacket *packet, PyrSlot *slots, int size)
+static int makeSynthMsg(big_scpacket *packet, PyrSlot *slots, int size)
 {
 	packet->BeginMsg();
 
 	for (int i=0; i<size; ++i) {
-		addMsgSlot(packet, slots+i);
+		int error = addMsgSlot(packet, slots+i);
+		if (error != errNone)
+			return error;
 	}
 
 	packet->EndMsg();
 	return errNone;
 }
 
-int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size);
-int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size)
+static int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size)
 {
 	packet->BeginMsg();
 
@@ -227,8 +234,10 @@ int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size)
 	//  expressing it as a symbol (e.g. \g_new) - we add it back on here, for OSC compliance.
 	if(GetTag(slots) == tagSym && slotRawSymbol(slots)->name[0]!='/'){
 		packet->adds_slpre(slotRawSymbol(slots)->name);
-	}else{
-		addMsgSlot(packet, slots);
+	} else {
+		int error = addMsgSlot(packet, slots);
+		if (error != errNone)
+			return error;
 	}
 
 	// skip space for tags
@@ -236,8 +245,15 @@ int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size)
 
 	packet->addtag(',');
 
-	for (int i=1; i<size; ++i) {
-		addMsgSlotWithTags(packet, slots+i);
+	try {
+		for (int i=1; i<size; ++i) {
+			int error = addMsgSlotWithTags(packet, slots+i);
+			if (error != errNone)
+				return error;
+		}
+	} catch (std::runtime_error & e) {
+		error("makeSynthMsgWithTags: %s\n", e.what());
+		return errFailed;
 	}
 
 	packet->EndMsg();
@@ -245,8 +261,8 @@ int makeSynthMsgWithTags(big_scpacket *packet, PyrSlot *slots, int size)
 	return errNone;
 }
 
-void PerformOSCBundle(int inSize, char *inData, PyrObject *inReply);
-void PerformOSCMessage(int inSize, char *inData, PyrObject *inReply);
+void PerformOSCBundle(int inSize, char *inData, PyrObject *inReply, int inPortNum);
+void PerformOSCMessage(int inSize, char *inData, PyrObject *inReply, int inPortNum);
 PyrObject* ConvertReplyAddress(ReplyAddress *inReply);
 
 void localServerReplyFunc(struct ReplyAddress *inReplyAddr, char* inBuf, int inSize);
@@ -258,9 +274,9 @@ void localServerReplyFunc(struct ReplyAddress *inReplyAddr, char* inBuf, int inS
 	if (compiledOK) {
 		PyrObject *replyObj = ConvertReplyAddress(inReplyAddr);
 		if (isBundle) {
-			PerformOSCBundle(inSize, inBuf, replyObj);
+			PerformOSCBundle(inSize, inBuf, replyObj, gUDPport->RealPortNum());
 		} else {
-			PerformOSCMessage(inSize, inBuf, replyObj);
+			PerformOSCMessage(inSize, inBuf, replyObj, gUDPport->RealPortNum());
 		}
 	}
     pthread_mutex_unlock (&gLangMutex);
@@ -288,7 +304,9 @@ int makeSynthBundle(big_scpacket *packet, PyrSlot *slots, int size, bool useElap
 	for (int i=1; i<size; ++i) {
 		if (isKindOfSlot(slots+i, class_array)) {
 			PyrObject *obj = slotRawObject(&slots[i]);
-			makeSynthMsgWithTags(packet, obj->slots, obj->size);
+			int error = makeSynthMsgWithTags(packet, obj->slots, obj->size);
+			if (error != errNone)
+				return error;
 		}
 	}
 	packet->CloseBundle();
@@ -322,9 +340,7 @@ int netAddrSend(PyrObject *netAddrObj, int msglen, char *bufptr, bool sendMsgLen
 		if (err) return err;
 
 		if (addr == 0) {
-#ifdef NO_INTERNAL_SERVER
-      // no internal server under SC_WIN32 yet
-#else
+#ifndef NO_INTERNAL_SERVER
 			if (gInternalSynthServer.mWorld) {
 				World_SendPacket(gInternalSynthServer.mWorld, msglen, bufptr, &localServerReplyFunc);
 			}
@@ -449,7 +465,9 @@ int prNetAddr_SendMsg(VMGlobals *g, int numArgsPushed)
 	big_scpacket packet;
 
 	int numargs = numArgsPushed - 1;
-	makeSynthMsgWithTags(&packet, args, numargs);
+	int error = makeSynthMsgWithTags(&packet, args, numargs);
+	if (error != errNone)
+		return error;
 
 	//for (int i=0; i<packet.size()/4; i++) post("%d %p\n", i, packet.buf[i]);
 
@@ -547,7 +565,10 @@ int prNetAddr_MsgSize(VMGlobals *g, int numArgsPushed)
 
 	int numargs = slotRawObject(args)->size;
 	if (numargs < 1) return errFailed;
-	makeSynthMsgWithTags(&packet, slotRawObject(args)->slots, numargs);
+	int error = makeSynthMsgWithTags(&packet, slotRawObject(args)->slots, numargs);
+	if (error != errNone)
+		return error;
+
 	SetInt(args, packet.size());
 	return errNone;
 }
@@ -577,7 +598,9 @@ int prArray_OSCBytes(VMGlobals *g, int numArgsPushed)
 	if (IsFloat(args) || IsNil(args) || IsInt(args)) {
 		makeSynthBundle(&packet, args, numargs, false);
 	} else if (IsSym(args) || isKindOfSlot(args, class_string)) {
-		makeSynthMsgWithTags(&packet, args, numargs);
+		int error = makeSynthMsgWithTags(&packet, args, numargs);
+		if (error != errNone)
+			return error;
 	} else {
 		return errWrongType;
 	}
@@ -674,7 +697,7 @@ PyrObject* ConvertReplyAddress(ReplyAddress *inReply)
     return obj;
 }
 
-void PerformOSCBundle(int inSize, char* inData, PyrObject *replyObj)
+void PerformOSCBundle(int inSize, char* inData, PyrObject *replyObj, int inPortNum)
 {
     // convert all data to arrays
 
@@ -685,6 +708,7 @@ void PerformOSCBundle(int inSize, char* inData, PyrObject *replyObj)
     ++g->sp; SetObject(g->sp, g->process);
     ++g->sp; SetFloat(g->sp, seconds);
     ++g->sp; SetObject(g->sp, replyObj);
+	++g->sp; SetInt(g->sp, inPortNum);
 
     PyrSlot *stackBase = g->sp;
     char *data = inData + 16;
@@ -699,7 +723,7 @@ void PerformOSCBundle(int inSize, char* inData, PyrObject *replyObj)
 
 	int numMsgs = g->sp - stackBase;
 
-    runInterpreter(g, s_recvoscbndl, 3+numMsgs);
+    runInterpreter(g, s_recvoscbndl, 4+numMsgs);
 }
 
 void ConvertOSCBundle(int inSize, char* inData, PyrObject *replyObj)
@@ -724,7 +748,7 @@ void ConvertOSCBundle(int inSize, char* inData, PyrObject *replyObj)
     }
 }
 
-void PerformOSCMessage(int inSize, char *inData, PyrObject *replyObj)
+void PerformOSCMessage(int inSize, char *inData, PyrObject *replyObj, int inPortNum)
 {
 
     PyrObject *arrayObj = ConvertOSCMessage(inSize, inData);
@@ -734,9 +758,10 @@ void PerformOSCMessage(int inSize, char *inData, PyrObject *replyObj)
     ++g->sp; SetObject(g->sp, g->process);
     ++g->sp; SetFloat(g->sp, elapsedTime());	// time
     ++g->sp; SetObject(g->sp, replyObj);
+	++g->sp; SetInt(g->sp, inPortNum);
     ++g->sp; SetObject(g->sp, arrayObj);
 
-    runInterpreter(g, s_recvoscmsg, 4);
+    runInterpreter(g, s_recvoscmsg, 5);
 
 
 }
@@ -750,7 +775,7 @@ void FreeOSCPacket(OSC_Packet *inPacket)
     }
 }
 
-void ProcessOSCPacket(OSC_Packet* inPacket)
+void ProcessOSCPacket(OSC_Packet* inPacket, int inPortNum)
 {
     //post("recv '%s' %d\n", inPacket->mData, inPacket->mSize);
 	inPacket->mIsBundle = IsBundle(inPacket->mData);
@@ -760,9 +785,9 @@ void ProcessOSCPacket(OSC_Packet* inPacket)
 		PyrObject *replyObj = ConvertReplyAddress(&inPacket->mReplyAddr);
 		if (compiledOK) {
 			if (inPacket->mIsBundle) {
-				PerformOSCBundle(inPacket->mSize, inPacket->mData, replyObj);
+				PerformOSCBundle(inPacket->mSize, inPacket->mData, replyObj, inPortNum);
 			} else {
-				PerformOSCMessage(inPacket->mSize, inPacket->mData, replyObj);
+				PerformOSCMessage(inPacket->mSize, inPacket->mData, replyObj, inPortNum);
 			}
 		}
 	}
@@ -775,11 +800,61 @@ void init_OSC(int port);
 void init_OSC(int port)
 {
     postfl("init_OSC\n");
+
+#ifdef _WIN32
+	WSAData wsaData;
+	int nCode;
+	if ((nCode = WSAStartup(MAKEWORD(1, 1), &wsaData)) != 0) {
+		error( "sclang: init_OSC: WSAStartup() failed with error code %d.\n", nCode );
+	}
+#endif
+
     try {
         gUDPport = new SC_UdpInPort(port);
     } catch (...) {
         postfl("No networking.");
     }
+}
+
+int prOpenUDPPort(VMGlobals *g, int numArgsPushed);
+int prOpenUDPPort(VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+	int port;
+	int err = slotIntVal(b, &port);
+	if (err) return err;
+
+	SC_UdpCustomInPort* newUDPport;
+
+	try {
+		SetTrue(a);
+		newUDPport = new SC_UdpCustomInPort(port);
+		gCustomUdpPorts.push_back(newUDPport);
+    } catch (...) {
+		SetFalse(a);
+        postfl("Could not bind to requested port. This may mean it is in use already by another application.\n");
+    }
+	return errNone;
+}
+
+void closeAllCustomPorts();
+void closeAllCustomPorts()
+{
+	// close all custom sockets
+	if(gCustomUdpPorts.empty()) postfl("empty\n");
+	for(int i=0; i<gCustomUdpPorts.size(); i++){
+		delete gCustomUdpPorts[i];
+	}
+	gCustomUdpPorts.clear();
+}
+
+void cleanup_OSC()
+{
+	postfl( "cleaning up OSC\n");
+#ifdef _WIN32
+	WSACleanup();
+#endif
 }
 
 int prGetHostByName(VMGlobals *g, int numArgsPushed);
@@ -792,7 +867,14 @@ int prGetHostByName(VMGlobals *g, int numArgsPushed)
 	if (err) return err;
 
 	struct hostent *he = gethostbyname(hostname);
-	if (!he) return errFailed;
+	if (!he) {
+#ifdef _WIN32
+		int err = WSAGetLastError();
+		error("gethostbyname(\"%s\") failed with error code %i.\n",
+			hostname, err);
+#endif
+		return errFailed;
+	}
 
 	SetInt(a, ntohl(*(int*)he->h_addr));
 
@@ -901,6 +983,15 @@ int prBootInProcessServer(VMGlobals *g, int numArgsPushed)
 
 		options.mNumSharedControls = gInternalSynthServer.mNumSharedControls;
 		options.mSharedControls = gInternalSynthServer.mSharedControls;
+
+		// internal servers use the PID to identify the shared memory region
+#if defined(SC_IPHONE)
+		options.mSharedMemoryID = 0;
+#elif !defined(_WIN32)
+		options.mSharedMemoryID = getpid();
+#else
+		options.mSharedMemoryID = GetCurrentProcessId()
+#endif
 
 		gInternalSynthServer.mWorld = World_New(&options);
 	}
@@ -1026,6 +1117,192 @@ int prSetSharedControl(VMGlobals *g, int numArgsPushed)
 	return errNone;
 }
 
+static int disconnectSharedMem(VMGlobals *g, PyrObject * object)
+{
+	int ptrIndex       = 0;
+	PyrSlot * ptrSlot = object->slots + ptrIndex;
+
+	if (IsNil(ptrSlot))
+		// already disconnected
+		return errNone;
+
+	assert(IsPtr(ptrSlot));
+
+	server_shared_memory_client * client = (server_shared_memory_client*)slotRawPtr(ptrSlot);
+	delete client;
+	SetNil(ptrSlot);
+	return errNone;
+}
+
+int prConnectSharedMem(VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	assert(IsObj(a));
+
+	PyrObject * self = slotRawObject(a);
+	int portNumber = slotRawInt(b);
+
+	int ptrIndex       = 0;
+	int finalizerIndex = 1;
+
+	try {
+		server_shared_memory_client * client = new server_shared_memory_client(portNumber);
+		SetPtr(self->slots + ptrIndex, client);
+
+		InstallFinalizer(g, self, finalizerIndex, disconnectSharedMem);
+
+		postfl("Shared memory server interface initialized\n");
+	} catch (std::exception & e) {
+		postfl("Cannot connect to shared memory: %s\n", e.what());
+		return errFailed;
+	}
+
+	return errNone;
+}
+
+int prDisconnectSharedMem(VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+
+	assert(IsObj(a));
+	PyrObject * self = slotRawObject(a);
+	return disconnectSharedMem(g, self);
+}
+
+int prGetControlBusValue(VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 1;
+	PyrSlot *b = g->sp;
+
+	assert(IsObj(a));
+	PyrObject * self = slotRawObject(a);
+	int ptrIndex       = 0;
+	PyrSlot * ptrSlot = self->slots + ptrIndex;
+	if (NotPtr(ptrSlot))
+		return errFailed;
+
+	if (!IsInt(b))
+		return errFailed;
+
+	int busIndex = slotRawInt(b);
+
+	if (NotPtr(ptrSlot))
+		return errFailed;
+
+	server_shared_memory_client * client = (server_shared_memory_client*)slotRawPtr(ptrSlot);
+
+	float value = client->get_control_busses()[busIndex];
+	SetFloat(a, value);
+	return errNone;
+}
+
+int prGetControlBusValues(VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 2;
+	PyrSlot *b = g->sp - 1;
+	PyrSlot *c = g->sp;
+
+	assert(IsObj(a));
+	PyrObject * self = slotRawObject(a);
+	int ptrIndex       = 0;
+	PyrSlot * ptrSlot = self->slots + ptrIndex;
+	if (NotPtr(ptrSlot))
+		return errFailed;
+
+	if (!IsInt(b))
+		return errFailed;
+
+	int busIndex = slotRawInt(b);
+
+	if (!IsInt(c))
+		return errFailed;
+
+	int numberOfChannels = slotRawInt(c);
+
+	server_shared_memory_client * client = (server_shared_memory_client*)slotRawPtr(ptrSlot);
+
+	PyrObject * ret = newPyrArray(g->gc, numberOfChannels, 0, 1);
+	ret->size = numberOfChannels;
+
+	for (int i = 0; i != numberOfChannels; ++i) {
+		float value = client->get_control_busses()[busIndex + i];
+		SetFloat(ret->slots+i, value);
+	}
+
+	SetObject(a, ret);
+	return errNone;
+}
+
+int prSetControlBusValue(VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 2;
+	PyrSlot *b = g->sp - 1;
+	PyrSlot *c = g->sp;
+
+	assert(IsObj(a));
+	PyrObject * self = slotRawObject(a);
+	int ptrIndex       = 0;
+	PyrSlot * ptrSlot = self->slots + ptrIndex;
+	if (NotPtr(ptrSlot))
+		return errFailed;
+
+	if (!IsInt(b))
+		return errFailed;
+
+	int busIndex = slotRawInt(b);
+
+	if (NotPtr(ptrSlot))
+		return errFailed;
+
+	float value;
+	int error = slotFloatVal(c, &value);
+	if (error != errNone)
+		return error;
+
+	server_shared_memory_client * client = (server_shared_memory_client*)slotRawPtr(ptrSlot);
+
+	client->get_control_busses()[busIndex] = value;
+	return errNone;
+}
+
+int prSetControlBusValues(VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp - 2;
+	PyrSlot *b = g->sp - 1;
+	PyrSlot *c = g->sp;
+
+	assert(IsObj(a));
+	PyrObject * self = slotRawObject(a);
+	int ptrIndex       = 0;
+	PyrSlot * ptrSlot = self->slots + ptrIndex;
+	if (NotPtr(ptrSlot))
+		return errFailed;
+
+	if (!IsInt(b))
+		return errFailed;
+
+	int busIndex = slotRawInt(b);
+
+	if (!IsObj(c))
+		return errFailed;
+
+	PyrObject * values = slotRawObject(c);
+	server_shared_memory_client * client = (server_shared_memory_client*)slotRawPtr(ptrSlot);
+	float * control_busses = client->get_control_busses() + busIndex;
+
+	for (int i = 0; i != values->size; ++i) {
+		float value;
+		int error = slotFloatVal(values->slots + i, &value);
+		if (error != errNone)
+			return error;
+
+		control_busses[i] = value;
+	}
+	return errNone;
+}
+
 void init_OSC_primitives();
 void init_OSC_primitives()
 {
@@ -1056,6 +1333,16 @@ void init_OSC_primitives()
 	definePrimitive(base, index++, "_AllocSharedControls", prAllocSharedControls, 2, 0);
 	definePrimitive(base, index++, "_SetSharedControl", prSetSharedControl, 3, 0);
 	definePrimitive(base, index++, "_GetSharedControl", prGetSharedControl, 2, 0);
+	definePrimitive(base, index++, "_OpenUDPPort", prOpenUDPPort, 2, 0);
+
+	// server shared memory interface
+	definePrimitive(base, index++, "_ServerShmInterface_connectSharedMem", prConnectSharedMem, 2, 0);
+	definePrimitive(base, index++, "_ServerShmInterface_disconnectSharedMem", prDisconnectSharedMem, 1, 0);
+	definePrimitive(base, index++, "_ServerShmInterface_getControlBusValue", prGetControlBusValue, 2, 0);
+	definePrimitive(base, index++, "_ServerShmInterface_getControlBusValues", prGetControlBusValues, 3, 0);
+
+	definePrimitive(base, index++, "_ServerShmInterface_setControlBusValue", prSetControlBusValue, 2, 0);
+	definePrimitive(base, index++, "_ServerShmInterface_setControlBusValues", prSetControlBusValues, 3, 0);
 
 	//post("initOSCRecs###############\n");
 	s_call = getsym("call");

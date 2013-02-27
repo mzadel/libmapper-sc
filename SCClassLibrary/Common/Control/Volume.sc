@@ -39,6 +39,12 @@ Volume {
 		isPlaying = false;
 		isPrepping = false;
 		gui = false;
+		ServerBoot.add {|aServer|
+			if (aServer == server) {
+				isPlaying = false;
+				ampSynth = nil;
+			}
+		}
 	}
 
 	sendDef {
@@ -233,4 +239,3 @@ VolumeGui{
 				})
 	}
 }
-

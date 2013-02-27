@@ -10,12 +10,18 @@ include_directories(
 	${CMAKE_SOURCE_DIR}/include/common
 	${CMAKE_SOURCE_DIR}/include/lang
 	${CMAKE_SOURCE_DIR}/include/plugin_interface
+	${CMAKE_SOURCE_DIR}/include/server
 	${CMAKE_SOURCE_DIR}/editors/scapp/include
 	${CMAKE_SOURCE_DIR}/editors/scapp/include/SMLAdvancedFind
 	${CMAKE_SOURCE_DIR}/editors/scapp/include/SMLAdvancedFind/ICU
 	${CMAKE_SOURCE_DIR}/external_libraries/icu/
 	${CMAKE_SOURCE_DIR}/external_libraries/icu/unicode/
-	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}"
+	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}
+	${CMAKE_SOURCE_DIR}/external_libraries/boost_lockfree
+	${CMAKE_SOURCE_DIR}/external_libraries/boost
+	${CMAKE_SOURCE_DIR}/external_libraries/threadpool
+	${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.2.6/include
+	${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src
 	)
 
 find_package(Sndfile)
@@ -37,7 +43,6 @@ set(scapp_sources
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/PyrPlatformPrim.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/PyrSerialPrim.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/PyrStringPrim.cpp
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/PyrUStringPrim.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/PyrSymbolPrim.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/PyrUnixPrim.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_Speech.M
@@ -63,10 +68,10 @@ set(scapp_sources
 	${CMAKE_SOURCE_DIR}/lang/LangSource/dumpByteCodes.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/WiiMote_OSX/wiiremote.c
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_HID.cpp
-	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Utilities.c"
-	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Name_Lookup.c"
-	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Queue_Utilities.c"
-	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Error_Handler.c"
+	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Utilities.c
+	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Name_Lookup.c
+	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Queue_Utilities.c
+	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Error_Handler.c
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_CoreMIDI.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_CoreAudioPrim.cpp
 
@@ -103,7 +108,7 @@ set(scapp_sources
 	${CMAKE_SOURCE_DIR}/editors/scapp/TabletEvents.m
 	${CMAKE_SOURCE_DIR}/editors/scapp/TextFinder.m
 	${CMAKE_SOURCE_DIR}/editors/scapp/UserPanel.M
-	${CMAKE_SOURCE_DIR}/editors/scapp/main.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/main.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/post_queue.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/syntaxColorize.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/SMLAdvancedFindController.m
@@ -113,7 +118,63 @@ set(scapp_sources
 	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/ICU/NSStringICUAdditions.m
 	)
 
-if(MAC_OSX_SDK_VERSION GREATER 4)
+file(GLOB boost_system_sources ${CMAKE_SOURCE_DIR}/external_libraries/boost/libs/system/src/*cpp)
+file(GLOB boost_fs_sources ${CMAKE_SOURCE_DIR}/external_libraries/boost/libs/filesystem/v3/src/*cpp)
+file(GLOB boost_regex_sources ${CMAKE_SOURCE_DIR}/external_libraries/boost/libs/regex/src/*cpp)
+list(APPEND scapp_sources ${boost_fs_sources} ${boost_system_sources} ${boost_regex_sources})
+
+file(GLOB yaml_sources ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.2.6/src/*cpp)
+list(APPEND scapp_sources ${yaml_sources})
+
+if(SC_QT)
+	include(${CMAKE_SOURCE_DIR}/QtCollider/CMakeLists.txt)
+	list(APPEND scapp_sources ${QT_COLLIDER_SRCS})
+endif()
+
+set(objcpp_sources
+	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_Speech.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/main.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/CocoaBridgePrimitives.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/CocoaFilePrimitives.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/DrawBackground.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/GUIPrimitives.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/GoToPanel.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/MyDocument.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/RendezvousClient.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCCocoaView.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCGraphView.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCImage.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCService.mm
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCSoundFileView.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCTextView.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCView.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCVirtualMachine.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/UserPanel.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/post_queue.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/syntaxColorize.M
+	)
+
+set(objc_sources
+	${CMAKE_SOURCE_DIR}/editors/scapp/GetStringFromUser.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/HTMLRenderer.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCNSWindow.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/TabletEvents.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/TextFinder.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/SMLAdvancedFindController.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/SMLStatusBarTextFieldCell.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/ICU/ICUMatcher.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/ICU/ICUPattern.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/ICU/NSStringICUAdditions.m
+)
+
+if (CMAKE_COMPILER_IS_GNUCXX)
+	set_source_files_properties(${objcpp_sources}
+								PROPERTIES COMPILE_FLAGS "-x objective-c++ -fobjc-exceptions")
+	set_source_files_properties(${objc_sources}
+								PROPERTIES COMPILE_FLAGS "-fobjc-exceptions")
+endif()
+
+if(NOT (HID_UTIL_DIR MATCHES "HID_Utilities_10_4"))
 	list(APPEND scapp_sources
 		"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/IOHIDElement_.c"
 		"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/IOHIDDevice_.c"
@@ -151,13 +212,8 @@ else()
 		)
 endif()
 
-if (SC_QT)
-	include_directories(${CMAKE_SOURCE_DIR}/include/QtCollider)
-	target_link_libraries(${scappbundlename} QtCollider)
-	set_property(TARGET ${scappbundlename}
-		APPEND
-		PROPERTY COMPILE_DEFINITIONS SC_QT
-		)
+if(SC_QT)
+	target_link_libraries(${scappbundlename} ${QT_COLLIDER_LIBS})
 endif()
 
 # for processing into the plist:
@@ -166,12 +222,13 @@ set_property(TARGET ${scappbundlename}
 # also TODO, separate gui name? (currently using MACOSX_BUNDLE_BUNDLE_NAME twice)
 
 target_link_libraries(${scappbundlename} icucore)
+target_link_libraries(${scappbundlename} boost_thread)
 
 target_link_libraries(${scappbundlename} "-framework ApplicationServices")
 target_link_libraries(${scappbundlename} "-framework Carbon")
 target_link_libraries(${scappbundlename} "-framework Cocoa")
 target_link_libraries(${scappbundlename} "-framework CoreAudio")
-target_link_libraries(${scappbundlename} "-framework CoreMidi")
+target_link_libraries(${scappbundlename} "-framework CoreMIDI")
 target_link_libraries(${scappbundlename} "-framework CoreServices")
 target_link_libraries(${scappbundlename} "-framework IOBluetooth")
 target_link_libraries(${scappbundlename} "-framework IOKit")
@@ -220,9 +277,12 @@ if (NOT ("${standalone}" STREQUAL ""))
 endif()
 
 # fixup_bundle will fix the dll referencing so the .app can be sent to other people:
-INSTALL(CODE "
-   include(BundleUtilities)
-   set(BU_CHMOD_BUNDLE_ITEMS TRUE) # allow cmake>=2.8.3 to chmod libs it's including, rather than choking on readonly
-   fixup_bundle(\"${CMAKE_CURRENT_BINARY_DIR}/${scappbundlename}.app\"   \"\"   \"${CMAKE_CURRENT_BINARY_DIR}\")
-   "
-COMPONENT Runtime)
+option(SC_APP_BUNDLE_LIBS "Bundle frameworks and libraries in app" OFF)
+if (SC_APP_BUNDLE_LIBS)
+    INSTALL(CODE "
+       include(BundleUtilities)
+       set(BU_CHMOD_BUNDLE_ITEMS TRUE) # allow cmake>=2.8.3 to chmod libs it's including, rather than choking on readonly
+       fixup_bundle(\"${scappdir}/${scappbundlename}.app\"   \"\"   \"${CMAKE_CURRENT_BINARY_DIR}\")
+       "
+    COMPONENT Runtime)
+endif()

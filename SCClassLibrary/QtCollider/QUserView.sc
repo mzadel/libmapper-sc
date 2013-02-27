@@ -1,5 +1,5 @@
 QUserView : QView {
-  var <drawFunc, <background;
+  var <drawFunc, <drawingEnabled=true, <background;
 
   *qtClass { ^"QcCustomPainted" }
 
@@ -13,8 +13,12 @@ QUserView : QView {
     ^Point(150,150);
   }
 
-  drawingEnabled { ^this.getProperty( \drawingEnabled ); }
-  drawingEnabled_ { arg boolean; this.setProperty( \drawingEnabled, boolean ); }
+  drawingEnabled_ { arg boolean;
+    // Allow setting the property apart from the instance variable
+    // to optimize when drawFunc is nil. See drawFunc_ implementation.
+    drawingEnabled = boolean;
+    this.setProperty( \drawingEnabled, boolean );
+  }
 
   clearOnRefresh { ^this.getProperty( \clearOnRefresh ); }
   clearOnRefresh_ { arg boolean; this.setProperty( \clearOnRefresh, boolean ); }
@@ -22,40 +26,31 @@ QUserView : QView {
   clearDrawing { this.invokeMethod( \clear ); }
 
   drawFunc_ { arg aFunction;
-    if( drawFunc.isNil ) { this.drawingEnabled = true };
-    if( aFunction.isNil ) { this.drawingEnabled = false };
+    this.setProperty( \drawingEnabled, aFunction.notNil );
     drawFunc = aFunction;
   }
+
+  draw {
+    // NOTE: it is only allowed to call this while a QPaintEvent is being
+    // processed by this QWidget, or an error will be thrown.
+    drawFunc.value(this);
+  }
+
+  animate_ { arg bool; this.invokeMethod( \animate, bool ); }
+
+  frameRate_ { arg fps; this.setProperty( \frameRate, fps.asFloat ); }
+  frameRate { ^this.getProperty( \frameRate ); }
+
+  frame { ^this.getProperty( \frameCount ); }
 
   background_ { arg aColor;
     background = aColor;
     this.setProperty( \background, aColor, true );
   }
 
-  // reimplement mouse and key response to do nothing if enabled = false;
-
-  keyDownEvent { arg char, modifiers, unicode, keycode;
-    if( this.enabled ) { ^this.keyDown( char, modifiers, unicode, keycode ) };
-  }
-
-  keyUpEvent { arg char, modifiers, unicode, keycode;
-    if( this.enabled ) { ^this.keyUp( char, modifiers, unicode, keycode ) };
-  }
-
-  mouseDownEvent { arg x, y, modifiers, buttonNumber, clickCount;
-    if( this.enabled ) { ^this.mouseDown( x, y, modifiers, buttonNumber, clickCount ) };
-  }
-
-  mouseUpEvent { arg x, y, modifiers, buttonNumber;
-    if( this.enabled ) { ^this.mouseUp( x, y, modifiers, buttonNumber ) };
-  }
-
-  mouseMoveEvent { arg x, y, modifiers;
-    if( this.enabled ) { ^this.mouseMove( x, y, modifiers ) };
-  }
-
-  mouseOverEvent { arg x, y;
-    if( this.enabled ) { ^this.mouseOver( x, y ) };
+  // override QView's action_ to not connect to 'action()' signal
+  action_ { arg func;
+    action = func;
   }
 
   doDrawFunc { drawFunc.value(this) }

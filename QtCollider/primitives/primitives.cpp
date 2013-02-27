@@ -19,8 +19,8 @@
 *
 ************************************************************************/
 
-#include "primitives/primitives.h"
-#include "Common.h"
+#include "primitives.h"
+#include "../Common.h"
 #include "QC_Export.h"
 #include "QtCollider.h"
 
@@ -35,6 +35,8 @@ LangPrimitiveList& QtCollider::langPrimitives() {
 
 namespace QtCollider {
 
+PyrSymbol *s_interpretCmdLine;
+PyrSymbol *s_interpretPrintCmdLine;
 PyrSymbol *s_doFunction;
 PyrSymbol *s_doDrawFunc;
 PyrSymbol *s_Rect;
@@ -49,6 +51,7 @@ PyrSymbol *s_QPalette;
 PyrSymbol *s_QFont;
 PyrSymbol *s_QObject;
 PyrSymbol *s_QLayout;
+PyrSymbol *s_QTreeViewItem;
 
 QC_PUBLIC
 void initPrimitives () {
@@ -65,6 +68,9 @@ void initPrimitives () {
     definePrimitive( base, index++, p.name, p.mediator, p.argc + 1, 0 );
   }
 
+  s_interpretCmdLine = getsym("interpretCmdLine");
+  s_interpretPrintCmdLine = getsym("interpretPrintCmdLine");
+
   s_doFunction = getsym("doFunction");
   s_doDrawFunc = getsym("doDrawFunc");
 
@@ -80,6 +86,7 @@ void initPrimitives () {
   s_QLayout = getsym("QLayout");
   s_QFont = getsym("QFont");
   s_QPalette = getsym("QPalette");
+  s_QTreeViewItem = getsym("QTreeViewItem");
 }
 
 } // namespace QtCollider
