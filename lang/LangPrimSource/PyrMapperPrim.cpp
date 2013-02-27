@@ -1,8 +1,9 @@
 
 #include "PyrObject.h"
 #include "PyrPrimitive.h"
-#include "VMGlobals.h"
+#include "PyrSymbol.h"
 #include "PyrSched.h"
+#include "SCBase.h"
 
 #include <mapper/mapper.h>
 
