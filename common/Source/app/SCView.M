@@ -66,9 +66,9 @@ PyrSymbol* s_toggleEditMode;
 
 extern pthread_mutex_t gLangMutex;
 
-int stringDrawCenteredInRect(char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor);
-int stringDrawLeftInRect(char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor);
-int stringDrawRightInRect(char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor);
+int stringDrawCenteredInRect(const char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor);
+int stringDrawLeftInRect(const char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor);
+int stringDrawRightInRect(const char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor);
 
 int nsStringDrawInRectAlign(NSString *nsstring, SCRect screct, char *cFontName, float fontSize, SCColor sccolor, int hAlign, int vAlign, NSSize *outSize);
 
@@ -323,7 +323,7 @@ SCView::SCView(SCContainerView *inParent, PyrObject* inObj, SCRect inBounds)
 	mBounds = inBounds;
 	if (inParent){
 		inParent->add(this);
-		if(inParent->relativeOrigin()){
+		if(!(inParent->isSubViewScroller())){
 			SCRect pbounds = inParent->getLayout().bounds;
 			mLayout.bounds.x = mBounds.x + pbounds.x;
 			mLayout.bounds.y = mBounds.y + pbounds.y;
@@ -332,6 +332,7 @@ SCView::SCView(SCContainerView *inParent, PyrObject* inObj, SCRect inBounds)
 		} else {
 			mLayout.bounds = mBounds;
        }
+		
 	}
 	// store myself into sc object.
 	if (mObj) SetPtr(mObj->slots+0, this);
@@ -438,11 +439,6 @@ void SCView::mouseDownAction(SCPoint where, int modifiers, NSEvent *theEvent)
 	if (mObj) {
 		VMGlobals *g = gMainVMGlobals;
 		g->canCallOS = true;
-//		if(mParent->relativeOrigin()){
-//			SCRect tbounds = mParent->getDrawBounds();
-//			where.x = where.x - tbounds.x;
-//			where.y = where.y - tbounds.y;
-//		}
 		SCRect tbounds = getDrawBounds();
 		where.x = where.x - tbounds.x;
 		where.y = where.y - tbounds.y;
@@ -464,11 +460,6 @@ void SCView::mouseMoveAction(SCPoint where, int modifiers, NSEvent *theEvent)
 	if (mObj) {
 		VMGlobals *g = gMainVMGlobals;
 		g->canCallOS = true;
-//		if(mParent->relativeOrigin()){
-//			SCRect tbounds = mParent->getDrawBounds();
-//			where.x = where.x - tbounds.x;
-//			where.y = where.y - tbounds.y;
-//		}
 		SCRect tbounds = getDrawBounds();
 		where.x = where.x - tbounds.x;
 		where.y = where.y - tbounds.y;
@@ -488,11 +479,6 @@ void SCView::mouseUpAction(SCPoint where, int modifiers, NSEvent *theEvent)
 	if (mObj) {
 		VMGlobals *g = gMainVMGlobals;
 		g->canCallOS = true;
-//		if(mParent->relativeOrigin()){
-//			SCRect tbounds = mParent->getDrawBounds();
-//			where.x = where.x - tbounds.x;
-//			where.y = where.y - tbounds.y;
-//		}
 		SCRect tbounds = getDrawBounds();
 		where.x = where.x - tbounds.x;
 		where.y = where.y - tbounds.y;
@@ -561,11 +547,6 @@ void SCView::mouseOver(SCPoint where, int modifiers, NSEvent *theEvent )
 	if (mObj) {
 		VMGlobals *g = gMainVMGlobals;
 		g->canCallOS = true;
-//		if(mParent->relativeOrigin()){
-//			SCRect tbounds = mParent->getDrawBounds();
-//			where.x = where.x - tbounds.x;
-//			where.y = where.y - tbounds.y;
-//		}
 		SCRect tbounds = getDrawBounds();
 		where.x = where.x - tbounds.x;
 		where.y = where.y - tbounds.y;
@@ -614,6 +595,7 @@ void SCView::draw(SCRect inDamage)
 	if ( mBackground || mBackgroundImage ) {
 		SCRect bounds;
 		bounds = getDrawBounds();
+		// NSLog(@"back bounds: %f, %f, %f, %f", bounds.x, bounds.y, bounds.width, bounds.height);
 		cgc = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
 		rect = SCtoCGRect(bounds);
 	}
@@ -738,7 +720,7 @@ NSRect SCtoNSRect(SCRect screct);
 void SCView::setBounds(SCRect inBounds)
 {
     mBounds = inBounds;
-	if(mParent->relativeOrigin()){
+	if(!(mParent->isSubViewScroller())){
 		SCRect pbounds = mParent->getLayout().bounds;
 		mLayout.bounds.x = mBounds.x + pbounds.x;
 		mLayout.bounds.y = mBounds.y + pbounds.y;
@@ -758,15 +740,6 @@ SCRect SCView::getBounds()
 
 SCRect SCView::getDrawBounds() //relative to ContainerView
 {
-//	if(mParent->relativeOrigin()){
-//		SCRect pbounds = mParent->getBounds();
-//		mLayout.bounds.x = mBounds.x + pbounds.x;
-//		mLayout.bounds.y = mBounds.y + pbounds.y;
-//		mLayout.bounds.width = mBounds.width;
-//		mLayout.bounds.height = mBounds.height;
-//	} else {
-//		mLayout.bounds = mBounds;
-//	}
 	return mLayout.bounds;
 }
 
@@ -1069,15 +1042,13 @@ void SCView::beginDrag(SCPoint where)
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 SCContainerView::SCContainerView(SCContainerView *inParent, PyrObject* inObj, SCRect inBounds)
-	: SCView(inParent, inObj, inBounds), mChildren(0), mNumChildren(0), mRelativeOrigin(false)
+	: SCView(inParent, inObj, inBounds), mChildren(0), mNumChildren(0)
 {
 	mLayout.bounds = mBounds;
 	if(mParent ){
-		if(mParent->relativeOrigin()){
-			SCRect pBounds = mParent->getDrawBounds(); // or jsut absolute frame bounds ?
-			mLayout.bounds.x = inBounds.x + pBounds.x;
-			mLayout.bounds.y = inBounds.y + pBounds.y;
-		}
+		SCRect pBounds = mParent->getDrawBounds(); // or jsut absolute frame bounds ?
+		mLayout.bounds.x = inBounds.x + pBounds.x;
+		mLayout.bounds.y = inBounds.y + pBounds.y;
 	}
 }
 
@@ -1114,11 +1085,6 @@ int SCContainerView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 		}
 		return errNone;
 	}
-
-	if (strcmp(name, "relativeOrigin")==0) {
-		mRelativeOrigin = IsTrue(slot);
-		return errNone;
-    }
 
 	return SCView::setProperty(symbol, slot);
 }
@@ -1280,8 +1246,8 @@ void SCCompositeView::setBounds(SCRect inBounds)
 //		post("in x:%f, y:%f\n", inBounds.x, inBounds.y);
 //	}
 
-	if(mParent ){
-		if(mParent->relativeOrigin()){
+	if(mParent){
+		if(!(mParent->isSubViewScroller())){
 			SCRect pBounds = mParent->getDrawBounds();
 			mLayout.bounds.x = inBounds.x + pBounds.x;
 			mLayout.bounds.y = inBounds.y + pBounds.y;
@@ -1290,6 +1256,7 @@ void SCCompositeView::setBounds(SCRect inBounds)
 			mLayout.bounds.y = inBounds.y;
 		}
 	}
+
     while (child) {
         SCRect bounds = child->getBounds();
         Layout layout = child->getLayout();
@@ -1305,20 +1272,11 @@ void SCCompositeView::setBounds(SCRect inBounds)
 				if(child->parent()->isTopContainer() || (inBounds.width != child->parent()->getBounds().width)){
 					offset = (mBounds.x + mBounds.width) - (bounds.x + bounds.width);
 					bounds.x = (inBounds.x + inBounds.width) - (bounds.width + offset);
-				}else{
-					if(!child->parent()->relativeOrigin()){ //absolute
-						offset = (topBounds.x + topBounds.width) - (bounds.x + bounds.width);
-						bounds.x = (topPBounds.x + topPBounds.width) - (bounds.width + offset);
-					}
 				}
 
                 break;
 
             case layout_HElastic :
-				if(!child->parent()->relativeOrigin() && !child->parent()->isTopContainer()){
-					offset = topBounds.width - (bounds.x + bounds.width);
-					bounds.width = topPBounds.width - (bounds.x + offset); //absolute
-				}else{
                 offset = (mBounds.x + mBounds.width) - (bounds.x + bounds.width);
                /* bounds.width = sc_clip(
                                     (inBounds.width) - (bounds.x + offset),
@@ -1326,7 +1284,7 @@ void SCCompositeView::setBounds(SCRect inBounds)
                                     sc_min(layout.mMaxWidth,right - bounds.x)
                                 );*/
                 bounds.width = (inBounds.width) - ((bounds.x - mBounds.x) + offset);
-				}
+//				}
         }
         switch (layout.mVResize) {
             case layout_FixedTop :
@@ -1338,23 +1296,11 @@ void SCCompositeView::setBounds(SCRect inBounds)
 				if(child->parent()->isTopContainer() || (inBounds.height != child->parent()->getBounds().height)){
 							offset = (mBounds.y + mBounds.height) - (bounds.y + bounds.height);
 							bounds.y = (inBounds.y + inBounds.height) - (bounds.height + offset);
-				}else{
-
-					if(!child->parent()->relativeOrigin()){
-						offset = (topBounds.y + topBounds.height) - (bounds.y + bounds.height);
-						bounds.y = (topPBounds.y + topPBounds.height) - (bounds.height + offset);
-					}
 				}
 
 				break;
 
             case layout_VElastic :
-
-
-				if(!child->parent()->relativeOrigin() && !child->parent()->isTopContainer()){
-					offset = topBounds.height - (bounds.y + bounds.height);
-					bounds.height = topPBounds.height - (bounds.y + offset); //absolute
-				}else{
 
                 offset = (mBounds.y + mBounds.height) - (bounds.y + bounds.height);
                 /*bounds.height = sc_clip(
@@ -1363,7 +1309,7 @@ void SCCompositeView::setBounds(SCRect inBounds)
                                     sc_min(layout.mMaxHeight,bottom - bounds.y)
                                 );*/
                 bounds.height = (inBounds.height) - ((bounds.y - mBounds.y) + offset);
-				}
+//				}
         }
 
         child->setBounds(bounds);
@@ -1452,7 +1398,7 @@ void SCHLayoutView::setBounds(SCRect inBounds)
     float totalWeight = 0.0;
 	//if reativeOrigin is true, the inBounds need to be moved to absolute bounds
     mBounds = inBounds;
-	if(mParent->relativeOrigin()){
+	if(!(mParent->isSubViewScroller())){
 		SCRect pbounds = mParent->getLayout().bounds;
 		mLayout.bounds.x = mBounds.x + pbounds.x;
 		mLayout.bounds.y = mBounds.y + pbounds.y;
@@ -1509,9 +1455,10 @@ void SCHLayoutView::setBounds(SCRect inBounds)
     //totalWidth is now the remaining flexible width
 
     // now layout the views
-    float left = absBounds.x;
-    float top = absBounds.y;
+    float left = 0.f;  // subviews will automatically offset from window origin
+    float top = 0.f;
     float height = absBounds.height;
+	// NSLog(@"view bounds: %f, %f, %f, %f", absBounds.x, absBounds.y, absBounds.width, absBounds.height);
     scaleWeight = totalWidth * (1.0/totalWeight);
     child = mChildren;
     int i=0;
@@ -1559,7 +1506,7 @@ void SCVLayoutView::setBounds(SCRect inBounds)
     }
 	//if reativeOrigin is true, the inBounds need to be moved to absolute bounds
     mBounds = inBounds;
-	if(mParent->relativeOrigin()){
+	if(!(mParent->isSubViewScroller())){
 		SCRect pbounds = mParent->getLayout().bounds;
 		mLayout.bounds.x = mBounds.x + pbounds.x;
 		mLayout.bounds.y = mBounds.y + pbounds.y;
@@ -1610,8 +1557,8 @@ void SCVLayoutView::setBounds(SCRect inBounds)
     //totalHeight is now the remaining flexible height
 
     // now layout the views
-    float left = absBounds.x;
-    float top = absBounds.y;
+    float left = 0.f;  // subviews will automatically offset from window origin
+    float top = 0.f;
     float width = absBounds.width;
     scaleWeight = totalHeight * (1.0/totalWeight);
     child = mChildren;
@@ -1942,7 +1889,7 @@ SCScrollView::SCScrollView(SCContainerView *inParent, PyrObject* inObj, SCRect i
 
 	if (inParent){
 		inParent->add(this);
-		if(inParent->relativeOrigin()){
+		if(!(inParent->isSubViewScroller())){
 			SCRect pbounds = inParent->getLayout().bounds;
 			mLayout.bounds.x = mBounds.x + pbounds.x;
 			mLayout.bounds.y = mBounds.y + pbounds.y;
@@ -2061,11 +2008,10 @@ int SCScrollView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 		err = slotGetSCRect(slot, &screct);
 		if (err) return err;
 		refreshFocus();
-		if(mParent->relativeOrigin()){
-			SCRect pbounds = mParent->getLayout().bounds; 	// relative origin fix
-			screct.x += pbounds.x;
-			screct.y += pbounds.y;
-		}
+		SCRect pbounds = mParent->getLayout().bounds; 	// relative origin fix
+		screct.x += pbounds.x;
+		screct.y += pbounds.y;
+
 		setBounds(screct);
 		refreshFocus();
 		return errNone;
@@ -3330,6 +3276,28 @@ void SCButton::receiveDrag()
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
+@implementation SCNSMenu
+- (id) init
+{
+	if ([super init])
+	{
+		current = 0;
+	}
+
+	return self;
+}
+
+- (void) selectedItem:(id)item
+{
+	NSMenuItem *s = (NSMenuItem *) item;
+	current = [s tag];
+}
+
+- (int) current
+{
+	return current;
+}
+@end
 
 SCView* NewSCPopUpMenu(SCContainerView *inParent, PyrObject* inObj, SCRect inBounds)
 {
@@ -3337,7 +3305,7 @@ SCView* NewSCPopUpMenu(SCContainerView *inParent, PyrObject* inObj, SCRect inBou
 }
 
 SCPopUpMenu::SCPopUpMenu(SCContainerView *inParent, PyrObject* inObj, SCRect inBounds)
-	: SCView(inParent, inObj, inBounds), mValue(0), mMenuH(0)
+	: SCView(inParent, inObj, inBounds), mValue(0), mMenu(0)
 {
 	mStringColor = SCMakeColor(0,0,0,1);
 	//mArrowColor = SCMakeColor(0,0,0,0);
@@ -3347,7 +3315,7 @@ SCPopUpMenu::SCPopUpMenu(SCContainerView *inParent, PyrObject* inObj, SCRect inB
 
 SCPopUpMenu::~SCPopUpMenu()
 {
-    if (mMenuH) DisposeMenu(mMenuH);
+    if (mMenu) [mMenu release];
 }
 
 void SCPopUpMenu::draw(SCRect inDamage)
@@ -3378,30 +3346,39 @@ void SCPopUpMenu::draw(SCRect inDamage)
 
     CGContextRestoreGState(cgc);
 
-    if (mMenuH) {
-		int numberOfItems = CountMenuItems(mMenuH);
+    if (mMenu) {
+		int numberOfItems = [mMenu numberOfItems];
 		if (numberOfItems) {
-			Str255 name;
-			GetMenuItemText(mMenuH, mValue+1, name);
-			char cstring[256];
-			p2cstrcpy(cstring, name);
+			char *cstring = NULL;
+			NSMenuItem *item = [mMenu itemAtIndex:mValue];
+			if (item)
+			{
+				NSString *title = [item title];
+				if (title)
+				{
+					int length = [title lengthOfBytesUsingEncoding:NSMacOSRomanStringEncoding];
+					cstring = (char *) malloc(length+1);
+					[title getCString:cstring maxLength:length+1 encoding:NSMacOSRomanStringEncoding];
+				}
+			}
 			SCRect innerBounds = dbounds;
 			int inset = 2;
 			innerBounds.x += inset + 10;
 			innerBounds.y += inset;
 			innerBounds.width -= inset * 2 + 10;
 			innerBounds.height -= inset * 2;
-			stringDrawCenteredInRect(cstring, innerBounds, mFontName, mFontSize, mStringColor);
+			stringDrawCenteredInRect((const char *) (cstring ? cstring : "[text not retrieved]"), innerBounds, mFontName, mFontSize, mStringColor);
+			if (cstring) free(cstring);
 		}
     }
 }
 
 bool SCPopUpMenu::setValue(int inValue, bool send)
 {
-	if (!mMenuH) return false;
+	if (!mMenu) return false;
 
     bool changed = inValue != mValue;
-	int numberOfItems = CountMenuItems(mMenuH);
+	int numberOfItems = [mMenu numberOfItems];
 	inValue = sc_mod(inValue, numberOfItems);
     if (inValue != mValue || numberOfItems < 2) {
         mValue = inValue;
@@ -3417,29 +3394,20 @@ void SCPopUpMenu::mouseBeginTrack(SCPoint where, int modifiers, NSEvent *theEven
 	if (modifiers & NSCommandKeyMask) {
         beginDrag(where);
     } else {
-		if (!mMenuH) return;
+		if (!mMenu) return;
 		SCRect bounds = getDrawBounds();
 
 		[(SCGraphView*)mTop->GetNSView() startMenuTracking: this];
 
-		int numberOfItems = CountMenuItems(mMenuH);
+		int numberOfItems = [mMenu numberOfItems];
 		for (int i=0; i<numberOfItems; ++i) {
-			MacCheckMenuItem(mMenuH, i+1, mValue == i);
+			[[mMenu itemAtIndex:i] setState:mValue==i];
 		}
 
 		NSPoint p = NSMakePoint(bounds.x, bounds.y);
 		NSView *view = mTop->GetNSView();
-		p = [view convertPoint: p toView: nil];
-		p = [[view window] convertBaseToScreen: p];
-
-		// cocoa to carbon y flip
-		float screenHeight = [[NSScreen mainScreen] frame].size.height;
-		p.y = screenHeight - p.y;
-
-		int val = PopUpMenuSelect(mMenuH, (short)p.y, (short)p.x, mValue + 1);
-		if (val == 0) return;
-		val = (val & 0xFFFF) - 1;
-		setValue(val, true);
+		[NSMenu popUpContextMenu:mMenu withEvent:theEvent forView:view];
+		setValue([mMenu current], true);
 	}
 }
 
@@ -3473,21 +3441,24 @@ int SCPopUpMenu::setProperty(PyrSymbol *symbol, PyrSlot *slot)
             if (!isKindOfSlot(slot, class_array)) return errWrongType;
 
             // wipe out old
-            if (mMenuH) DisposeMenu(mMenuH);
+            if (mMenu) [mMenu release];
 
             PyrObject *array = slotRawObject(slot);
             int numItems = array->size;
 
-			mMenuH = NewMenu(1, "\p");
+            mMenu = [[SCNSMenu alloc] init];
 
             for (int i=0; i<numItems; ++i) {
                 PyrSlot *slot = array->slots + i;
 
-				Str255 pstr;
-				int err = slotPStrVal(slot, pstr);
+				char title[256];
+				int err = slotStrVal(slot, title, 255);
 				if (err) return err;
 
-				AppendMenu(mMenuH, pstr);
+				NSString *t = [NSString stringWithCString:(const char *)title encoding:NSMacOSRomanStringEncoding];
+				NSMenuItem *item = [mMenu addItemWithTitle:t action:@selector(selectedItem:) keyEquivalent:@""];
+				[item setTarget:mMenu];
+				[item setTag:i];
             }
 			refresh();
             return errNone;
@@ -3528,7 +3499,6 @@ void SCPopUpMenu::receiveDrag()
 {
     sendMessage(s_receiveDrag, 0, 0, 0);
 }
-
 
 /////////////////////////////////////////////////////////////////
 //SCMultiSliderView by jan trutzschler jan.21.03 //jan.23.03 changed draw added more prop.//jan.28.03 debug
@@ -4119,7 +4089,6 @@ SCUserView::SCUserView(SCContainerView *inParent, PyrObject* inObj, SCRect inBou
 	: SCView(inParent, inObj, inBounds)
 {
 	mClearOnRefresh = true;
-	mRelativeOrigin = false;
 	mDrawingEnabled = true;
 	mNSImageForLayering =  nil;
 	for(char i = 0; i<kFrameLastTimes; i++) {
@@ -4232,15 +4201,14 @@ void SCUserView::draw(SCRect inDamage)
 
 void SCUserView::clearDrawing()
 {
-	if( !mNSImageForLayering ) 
+	if( mClearOnRefresh ) 
 		return;
 
 	//SCRect bounds = getDrawBounds();
 	//CGContextClearRect ( mNSImageForLayering ,  CGRectMake( 0, 0, bounds.width, bounds.height));
 	[ mNSImageForLayering lockFocus ];
 	CGContextRef cgc = (CGContextRef)[[NSGraphicsContext currentContext]graphicsPort];
-	if(mClearOnRefresh) 
-		CGContextClearRect( cgc, CGRectMake( 0.f, 0.f, [mNSImageForLayering size].width, [mNSImageForLayering size].height ) );
+	CGContextClearRect( cgc, CGRectMake( 0.f, 0.f, [mNSImageForLayering size].width, [mNSImageForLayering size].height ) );
 	[ mNSImageForLayering unlockFocus ];
 	
 }
@@ -4293,14 +4261,7 @@ void SCUserView::mouseDownAction(SCPoint where, int modifiers, NSEvent *theEvent
 		mRealtiveMousePoint.x = where.x - mBounds.x;
 		mRealtiveMousePoint.y = where.y - mBounds.y;
 	}
-//
-//	SCView::mouseDownAction( (mRelativeOrigin ? mRealtiveMousePoint : where), modifiers, theEvent);
 
-	if(!mRelativeOrigin) {
-		SCRect tbounds = getDrawBounds();
-		where.x = where.x + tbounds.x;
-		where.y = where.y + tbounds.y;
-	}
 	SCView::mouseDownAction(where, modifiers, theEvent);
 
 	if (modifiers & NSCommandKeyMask) {
@@ -4320,12 +4281,6 @@ void SCUserView::mouseMoveAction(SCPoint where, int modifiers, NSEvent *theEvent
 		mRealtiveMousePoint.y = where.y - mBounds.y;
 	}
 
-	if(!mRelativeOrigin) {
-		SCRect tbounds = getDrawBounds();
-		where.x = where.x + tbounds.x;
-		where.y = where.y + tbounds.y;
-	}
-
 	SCView::mouseMoveAction( where, modifiers, theEvent);
 
 }
@@ -4342,12 +4297,6 @@ void SCUserView::mouseUpAction(SCPoint where, int modifiers, NSEvent *theEvent)
 		mRealtiveMousePoint.y = where.y - mBounds.y;
 	}
 
-	if(!mRelativeOrigin) {
-		SCRect tbounds = getDrawBounds();
-		where.x = where.x + tbounds.x;
-		where.y = where.y + tbounds.y;
-	}
-
 	SCView::mouseUpAction( where, modifiers, theEvent);
 
 }
@@ -4362,12 +4311,6 @@ void SCUserView::mouseOver(SCPoint where, int modifiers, NSEvent *theEvent )
 	}else{
 		mRealtiveMousePoint.x = where.x - mBounds.x;
 		mRealtiveMousePoint.y = where.y - mBounds.y;
-	}
-
-	if(!mRelativeOrigin) {
-		SCRect tbounds = getDrawBounds();
-		where.x = where.x + tbounds.x;
-		where.y = where.y + tbounds.y;
 	}
 
 	SCView::mouseOver( where, modifiers, theEvent);
@@ -4395,7 +4338,10 @@ bool SCUserView::canReceiveDrag()
 
 void SCUserView::receiveDrag()
 {
-	sendMessage(s_receiveDrag, 0, 0, 0);
+	PyrSlot args[2];
+	SetFloat(args+0, mRealtiveMousePoint.x);
+	SetFloat(args+1, mRealtiveMousePoint.y); 
+	sendMessage(s_receiveDrag, 2, args, 0);
 }
 
 int SCUserView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
@@ -4404,10 +4350,6 @@ int SCUserView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 
     if (strcmp(name, "clearOnRefresh")==0) {
 		mClearOnRefresh = IsTrue(slot);
-		return errNone;
-    }
-	if (strcmp(name, "relativeOrigin")==0) {
-		mRelativeOrigin = IsTrue(slot);
 		return errNone;
     }
 	if (strcmp(name, "clearDrawing")==0) {
@@ -4457,10 +4399,8 @@ int SCUserView::getProperty(PyrSymbol *symbol, PyrSlot *slot)
 
 void SCUserView::refreshInRect(SCRect b)
 {
-	if(mRelativeOrigin) {
-		b.x += mLayout.bounds.x;
-		b.y += mLayout.bounds.y;
-	}
+	b.x += mLayout.bounds.x;
+	b.y += mLayout.bounds.y;
 	SCView::refreshInRect(b);
 }
 

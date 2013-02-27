@@ -25,7 +25,7 @@
 #include "MsgFifo.h"
 #include "SC_SyncCondition.h"
 #include "SC_PlugIn.h"
-#ifdef SC_WIN32
+#ifdef _WIN32
 	#include <sndfile-win.h>
 #else
 	#include <sndfile.h>
@@ -197,7 +197,7 @@ void DiskIn_Ctor(DiskIn* unit)
 
 void DiskIn_next(DiskIn *unit, int inNumSamples)
 {
-	GET_BUF
+	GET_BUF_SHARED
 	if (!bufData || ((bufFrames & ((unit->mWorld->mBufLength<<1) - 1)) != 0)) {
 		unit->m_framepos = 0;
 		ClearUnitOutputs(unit, inNumSamples);
@@ -364,7 +364,7 @@ void VDiskIn_Ctor(VDiskIn* unit)
 	unit->m_buf = unit->mWorld->mSndBufs;
 	unit->m_framePos = 0.;
 	unit->m_bufPos = 0.;
-	unit->m_pchRatio = IN0(1);
+	unit->m_pchRatio = sc_max(IN0(1), 0.f);
 	unit->m_count = 0;
 
 	SETCALC(VDiskIn_first); // should be first
@@ -381,7 +381,7 @@ void VDiskIn_first(VDiskIn *unit, int inNumSamples)
 	float a, b, c, d, oldBufPos;
 	bool test = false;
 
-	GET_BUF
+	GET_BUF_SHARED
 
 	if (!bufData || ((bufFrames & ((unit->mWorld->mBufLength<<1) - 1)) != 0)) {
 		unit->m_framePos = 0.;
@@ -399,7 +399,7 @@ void VDiskIn_first(VDiskIn *unit, int inNumSamples)
 
 	float framePos = unit->m_framePos;
 	float bufPos = unit->m_bufPos; // where we are in the DiskIn buffer
-	float newPchRatio = IN0(1);
+	float newPchRatio = sc_max(IN0(1), 0.f);
 
 	if ((newPchRatio * inNumSamples * unit->m_rBufSize) >= 0.5) {
 		printf("pitch ratio is greater then max allowed (see VDiskIn help)\n");
@@ -411,7 +411,7 @@ void VDiskIn_first(VDiskIn *unit, int inNumSamples)
 	float pchRatio = unit->m_pchRatio;
 	float pchSlope = CALCSLOPE(newPchRatio, pchRatio);
 
-	float* tableInit = bufData;
+	const float* tableInit = bufData;
 
 	for (uint32 i = 0; i < bufChannels; i++){
 	    out[i][0] = bufData[0 + i];
@@ -511,7 +511,7 @@ void VDiskIn_next(VDiskIn *unit, int inNumSamples)
 	bool test = false;
 	double oldBufPos;
 
-	GET_BUF
+	GET_BUF_SHARED
 	if (!bufData || ((bufFrames & ((unit->mWorld->mBufLength<<1) - 1)) != 0)) {
 		unit->m_framePos = 0.;
 		unit->m_count = 0;
@@ -523,7 +523,7 @@ void VDiskIn_next(VDiskIn *unit, int inNumSamples)
 
 	double framePos = unit->m_framePos;
 	double bufPos = unit->m_bufPos; // where we are in the DiskIn buffer
-	float newPchRatio = IN0(1);
+	float newPchRatio = sc_max(IN0(1), 0.f);
 	if ((newPchRatio * inNumSamples * unit->m_rBufSize) >= 0.5) {
 		printf("pitch ratio is greater then max allowed (see VDiskIn help)\n");
 		ClearUnitOutputs(unit, inNumSamples);
@@ -629,7 +629,7 @@ PluginLoad(DiskIO)
 {
 	ft = inTable;
 
-#ifdef SC_WIN32
+#ifdef _WIN32
 	new(&gDiskFifo) MsgFifoNoFree<DiskIOMsg, 256>();
 	new(&gDiskFifoHasData)  SC_SyncCondition();
 #endif

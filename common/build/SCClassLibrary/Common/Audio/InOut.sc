@@ -208,10 +208,12 @@ AbstractOut : UGen {
  	}
 
  	*isOutputUGen { ^true }
-
+	*numFixedArgs { ^this.subclassResponsibility(thisMethod) }
+	
  	numAudioChannels {
  		^inputs.size - this.class.numFixedArgs
  	}
+ 	
  	writesToBus { ^this.subclassResponsibility(thisMethod) }
 }
 
@@ -280,6 +282,7 @@ SharedOut : AbstractOut {
 		this.multiNewList(['control', bus] ++ channelsArray.asArray)
 		^0.0		// Out has no output
 	}
+	*numFixedArgs { ^1 }
 	writesToBus { ^false }
 }
 

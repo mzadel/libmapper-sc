@@ -77,11 +77,11 @@ SequenceableCollection : Collection {
 
 	// fill with interpolation of values between start and end
 	 *interpolation { arg size, start=0.0, end=1.0;
-		var obj = this.new(size);
+		var obj = this.new(size), step;
 		if(size == 1) { ^obj.add(start) };
+		step = (end - start) / (size - 1);
 		size.do {|i|
-			var t = i / (size-1);
-			obj.add(start + (t * (end - start)));
+			obj.add(start + (i * step));
 		};
 		^obj
  	}
@@ -215,8 +215,9 @@ SequenceableCollection : Collection {
 	}
 
 	indexInBetween { arg val; // collection is sorted, returns linearly interpolated index
-		var a, b, div;
-		var i = this.indexOfGreaterThan(val);
+		var a, b, div, i;
+		if(this.isEmpty) { ^nil };
+		i = this.indexOfGreaterThan(val);
 		if(i.isNil) { ^this.size - 1 };
 		if(i == 0) { ^i };
 		a = this[i-1]; b = this[i];
@@ -289,6 +290,10 @@ SequenceableCollection : Collection {
 			function.value(this[i], this[i+1], i);
 		}
 	}
+	keysValuesDo { arg function;
+		^this.pairsDo(function)
+	}
+	
 	doAdjacentPairs { arg function;
 		(this.size - 1).do({ arg i;
 			function.value(this.at(i), this.at(i+1), i);
@@ -304,7 +309,7 @@ SequenceableCollection : Collection {
 				sublist = this.species.new;
 			});
 		});
-		sublist = sublist.add(this.last);
+		if(this.notEmpty) { sublist = sublist.add(this.last) };
 		list = list.add(sublist);
 		^list
 	}
@@ -423,18 +428,18 @@ SequenceableCollection : Collection {
 		});
 		^list
 	}
-	
+
 	flopTogether { arg ... moreArrays;
 		var standIn, maxSize = 0, array;
 		array = [this] ++ moreArrays;
-		array.do { |sublist| 
-			sublist.do { |each| 
-				maxSize = max(maxSize, each.size) 
-			} 
+		array.do { |sublist|
+			sublist.do { |each|
+				maxSize = max(maxSize, each.size)
+			}
 		};
 		standIn = 0.dup(maxSize);
 		array = array.collect { |sublist| sublist.add(standIn) };
-		^array.collect { |sublist| 
+		^array.collect { |sublist|
 			sublist.flop.collect { |each| each.drop(-1) } // remove stand-in
 		};
 	}
@@ -537,7 +542,47 @@ SequenceableCollection : Collection {
 		^key.nearestInList(this) + root
 	}
 
-	// supports a variation of Mikael Laurson's rhythm list RTM-notation.	convertRhythm {		var list, tie;		list = List.new;		tie = this.convertOneRhythm(list);		if (tie > 0.0, { list.add(tie) });  // check for tie at end of rhythm		^list	}	sumRhythmDivisions {		var sum = 0;		this.do {|beats|			sum = sum + abs(if (beats.isSequenceableCollection) {				beats[0];			}{				beats			});		};		^sum	}	convertOneRhythm { arg list, tie = 0.0, stretch = 1.0;		var beats, divisions, repeats;		#beats, divisions, repeats = this;		repeats = repeats ? 1;		stretch = stretch * beats / divisions.sumRhythmDivisions;		repeats.do({			divisions.do { |val|				if (val.isSequenceableCollection) {					tie = val.convertOneRhythm(list, tie, stretch)				}{										val = val * stretch;					if (val > 0.0) {						list.add(val + tie);						tie = 0.0;					}{						tie = tie - val					};				};			};		});		^tie	}
+	// supports a variation of Mikael Laurson's rhythm list RTM-notation.
+	convertRhythm {
+		var list, tie;
+		list = List.new;
+		tie = this.convertOneRhythm(list);
+		if (tie > 0.0, { list.add(tie) });  // check for tie at end of rhythm
+		^list
+	}
+	sumRhythmDivisions {
+		var sum = 0;
+		this.do {|beats|
+			sum = sum + abs(if (beats.isSequenceableCollection) {
+				beats[0];
+			}{
+				beats
+			});
+		};
+		^sum
+	}
+	convertOneRhythm { arg list, tie = 0.0, stretch = 1.0;
+		var beats, divisions, repeats;
+		#beats, divisions, repeats = this;
+		repeats = repeats ? 1;
+		stretch = stretch * beats / divisions.sumRhythmDivisions;
+		repeats.do({
+			divisions.do { |val|
+				if (val.isSequenceableCollection) {
+					tie = val.convertOneRhythm(list, tie, stretch)
+				}{
+					val = val * stretch;
+					if (val > 0.0) {
+						list.add(val + tie);
+						tie = 0.0;
+					}{
+						tie = tie - val
+					};
+				};
+			};
+		});
+		^tie
+	}
 
 	isSequenceableCollection { ^true }
 	containsSeqColl { ^this.any(_.isSequenceableCollection) }
@@ -616,10 +661,10 @@ SequenceableCollection : Collection {
 
 	rho { ^this.performUnaryOp('rho') }
 	theta { ^this.performUnaryOp('theta') }
-	
+
 	degrad { ^this.performUnaryOp('degrad') }
 	raddeg { ^this.performUnaryOp('raddeg') }
-	
+
 	// binary math ops
 	+ { arg aNumber, adverb; ^this.performBinaryOp('+', aNumber, adverb) }
 	- { arg aNumber, adverb; ^this.performBinaryOp('-', aNumber, adverb) }
@@ -861,6 +906,7 @@ SequenceableCollection : Collection {
 	order { arg function;
 		var array, orderFunc;
 		// returns an array of indices that would sort the collection into order.
+		if(this.isEmpty) { ^[] };
 		if (function.isNil) { function = { arg a, b; a <= b }; };
 		array = [this, (0..this.lastIndex)].flop;
 		orderFunc = {|a,b| function.value(a[0], b[0]) };
@@ -1010,6 +1056,7 @@ SequenceableCollection : Collection {
 
 	// Finds the median efficiently, by rearranging the array IN-PLACE.
 	hoareMedian { |function|
+		if(this.isEmpty) { ^nil };
 		^if(this.size.even, {
 			[this.hoareFind(this.size/ 2 - 1, function),
 			 this.hoareFind(this.size/ 2,     function)].mean;
@@ -1104,6 +1151,7 @@ SequenceableCollection : Collection {
 	}
 	reduce { arg operator;
 		var once = true, result;
+		if(this.size==1){ ^this[0] };
 		this.doAdjacentPairs {|a, b|
 			if (once) {
 				once = false;
@@ -1128,7 +1176,7 @@ SequenceableCollection : Collection {
 			}
 		}
 	}
-	
+
 
 	// TempoClock play quantization
 	nextTimeOnGrid { arg clock;
@@ -1146,7 +1194,7 @@ SequenceableCollection : Collection {
 			lag = lag.asArray;
 			this.do { |time, i|
 				clock.sched(time, {
-						SystemClock.sched(lag.wrapAt(i), { 
+						SystemClock.sched(lag.wrapAt(i), {
 							server.sendBundle(latency, bundleArray.wrapAt(i)) })
 				})
 			}

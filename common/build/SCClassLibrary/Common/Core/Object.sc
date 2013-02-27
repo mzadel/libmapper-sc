@@ -146,7 +146,7 @@ Object  {
 			properties.every { |selector| this.perform(selector) == that.perform(selector) }
 		}
 	}
-	compareObject { arg that,instVarNames;
+	compareObject { arg that, instVarNames;
 		if(this === that,{ ^true });
 		// possibly ok if one of us isKindOf the other
 		if(this.class !== that.class,{ ^false });
@@ -162,6 +162,19 @@ Object  {
 			});
 		});
 		^true
+	}
+	instVarHash { arg instVarNames;
+		var res = this.class.hash;
+		var indices = if(instVarNames.notNil) {
+			instVarNames.collect(this.slotIndex(_))
+		} {
+			(0..this.instVarSize-1) 
+		};
+		indices.do { |i|
+			var obj = this.instVarAt(i);
+			res = res bitXor: obj.hash;
+		};
+		^res
 	}
 
 	basicHash { _ObjectHash; ^this.primitiveFailed }
@@ -231,6 +244,10 @@ Object  {
 	isFunction { ^false }
 
 	matchItem {|item| ^this === item }
+	trueAt { ^false }
+	falseAt { arg key;
+		^this.trueAt(key).not
+	}
 
 	pointsTo { arg obj; _ObjectPointsTo; ^this.primitiveFailed }
 	mutable { _ObjectIsMutable; ^this.primitiveFailed }
@@ -301,6 +318,8 @@ Object  {
 		_ObjectCompileString
 		^String.streamContents({ arg stream; this.storeOn(stream); });
 	}
+	
+	cs { ^this.asCompileString }
 
 	printClassNameOn { arg stream;
 		var title;
@@ -316,11 +335,23 @@ Object  {
 		this.storeModifiersOn(stream);
 	}
 	storeParamsOn { arg stream;
-		var args;
-		args = this.storeArgs;
+		var args = this.storeArgs;
 		if(args.notEmpty) {
-			stream << "(" <<<* args << ")";
-		} { stream << ".new" }
+			stream << "(" <<<* this.simplifyStoreArgs(args) << ")";
+		} { 
+			stream << ".new" 
+		}
+	}
+	simplifyStoreArgs { arg args;
+		var res = Array.new, newMethod, methodArgs;
+		newMethod = this.class.class.findRespondingMethodFor(\new);
+		methodArgs = newMethod.prototypeFrame.drop(1);
+		args.size.reverseDo { |i|
+			if(methodArgs[i] != args[i]) {
+				^args.keep(i + 1)	
+			}
+		}
+		^[]
 	}
 	storeArgs { ^#[] }
 	storeModifiersOn { arg stream;}
@@ -444,7 +475,10 @@ Object  {
 	// instance specific method support
 	addUniqueMethod { arg selector, function;
 		var methodDict;
-		if (uniqueMethods.isNil, { uniqueMethods = IdentityDictionary.new });
+		if(function.isKindOf(Function).not) { 
+			Error("A method must be defined using a function").throw 
+		};
+		if(uniqueMethods.isNil, { uniqueMethods = IdentityDictionary.new });
 		methodDict = uniqueMethods.at(this);
 		if (methodDict.isNil, {
 			methodDict = IdentityDictionary.new;
@@ -581,7 +615,7 @@ Object  {
 			var file;
 			dir = dir ? SynthDef.synthDefDir;
 			if (name.isNil) { error("missing SynthDef file name") } {
-				name = dir ++ name ++ ".scsyndef";
+				name = dir +/+ name ++ ".scsyndef";
 				if(overwrite or: { pathMatch(name).isEmpty })
 					{
 					file = File(name, "w");

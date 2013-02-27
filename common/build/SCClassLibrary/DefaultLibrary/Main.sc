@@ -1,7 +1,7 @@
 Main : Process {
 	// do not change the next lines manually:
 	//==== replace with new version from bash script ====
-classvar scVersionMajor=3, scVersionMinor=3, scVersionPostfix=1;
+classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 	//==== end replace ====
 
 	var <platform, argv;
@@ -143,4 +143,84 @@ classvar scVersionMajor=3, scVersionMinor=3, scVersionPostfix=1;
 	exitFullScreen { platform.exitFullScreen }
 	
 	setDeferredTaskInterval { |interval| platform.setDeferredTaskInterval(interval) }
+
+	*overwriteMsg { _MainOverwriteMsg ^this.primitiveFailed }
 }
+
+
+MethodOverride {
+	var <ownerClass, <selector, <activePath, <overriddenPath;
+		
+	*new { arg ownerClass, selector, activePath, overriddenPath;
+		^super.newCopyArgs(ownerClass, selector, activePath, overriddenPath)
+	}
+	
+	*fromLine { arg string;
+		var parts = string.split(Char.tab);
+		var class, selector;
+		#class, selector = parts[0].split($:);
+		^this.new(class.asSymbol.asClass, selector, parts[1], parts[2])
+	}
+	
+	openFiles {
+		var path2 = if(overriddenPath.beginsWith("/Common")) { 
+			Platform.classLibraryDir +/+ overriddenPath
+			} { overriddenPath };
+		activePath.openTextFile;
+		path2.openTextFile;
+	}
+	
+	*simplifyPath { arg path;
+		var extDir, sysExtDir, quarkDir;
+		extDir = Platform.userExtensionDir;
+		sysExtDir = Platform.systemExtensionDir;
+		quarkDir = LocalQuarks.globalPath;
+		path = path.replace("'" ++ extDir, "Platform.userExtensionDir ++ '");
+		path = path.replace("'" ++ sysExtDir, "Platform.systemExtensionDir ++ '");
+		path = path.replace("'" ++ quarkDir, "LocalQuarks.globalPath ++ '");
+		^path
+		
+	}
+	
+	*all {
+		var msg = Main.overwriteMsg.drop(-1); // drop last newline
+		var lines = msg.split(Char.nl);
+		^lines.collect { |line| this.fromLine(line) };
+	}
+		
+	*printAll { arg simplifyPaths = true;
+		var all = this.all;
+		var classes = all.collect(_.ownerClass).as(Set);
+		if(all.isEmpty) { "There are no overwritten methods in class library".postln; ^this };
+		("Overwritten methods in class library:".underlined ++ "\n\n").post;
+		classes.do { |class|
+			class.asString.underlined.postln;
+			all.select { |x| x.ownerClass == class }.do { |x|
+				var activePath = x.activePath;
+				var overriddenPath = x.overriddenPath;
+				if(simplifyPaths) { 
+					activePath = this.simplifyPath(x.activePath);
+					overriddenPath = this.simplifyPath(x.overriddenPath);
+				};
+				("\t" ++ x.ownerClass.name ++ ":" ++ x.selector).postln;
+				("\t\t" ++ activePath).postln;
+				("\t\t" ++ overriddenPath).postln;
+			};
+			"\n".post;
+		}
+	}
+	
+	*printAllShort {
+		var all = this.all;
+		var classes = all.collect(_.ownerClass).as(Set);
+		if(all.isEmpty) { "There are no overwritten methods in class library".postln; ^this };
+		("Overwritten methods in class library:".underlined ++ "\n").post;
+		classes.do { |class|
+			all.select { |x| x.ownerClass == class }.collect { |x| x.selector }.as(Set).do { |x|
+				postf("\t%:%\n", class, x);
+			}
+		}		
+	}
+	
+}
+

@@ -215,8 +215,9 @@
 					~group = { proxy.group.asNodeID };
 					~finish = {
 						finish.value;
-						~out = ~out.value;
+						proxy.nodeMap.addToEvent(currentEnvironment);
 						~group = ~group.value;
+						~out = ~out.value;
 					}
 				});
 				this
@@ -247,6 +248,7 @@
 	*initClass {
 		proxyControlClasses = (
 			filter: SynthDefControl,
+			xset: StreamControl,
 			set: StreamControl,
 			stream: PatternControl,
 			setbus: StreamControl,
@@ -281,6 +283,12 @@
 				\type, \set,
 				\id, Pfunc { proxy.group.nodeID },
 				\args, args
+			).buildForProxy( proxy, channelOffset, index )
+		},
+		xset: #{ arg pattern, proxy, channelOffset=0, index;
+			Pbindf(
+				pattern,
+				\play, { proxy.xset(*proxy.controlNames.collect(_.name).envirPairs) }
 			).buildForProxy( proxy, channelOffset, index )
 		},
 		setbus: #{ arg pattern, proxy, channelOffset=0, index;

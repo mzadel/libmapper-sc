@@ -227,6 +227,7 @@ extern "C"
 	void LFNoise2_Ctor(LFNoise2 *unit);
 
 	void RandSeed_next(RandSeed *unit, int inNumSamples);
+	void RandSeed_next_k(RandSeed *unit, int inNumSamples);
 	void RandSeed_Ctor(RandSeed *unit);
 
 	void RandID_next(RandID *unit, int inNumSamples);
@@ -771,21 +772,45 @@ void CoinGate_next(CoinGate* unit, int inNumSamples)
 void RandSeed_Ctor(RandSeed* unit)
 {
 	unit->m_trig = 0.;
-	SETCALC(RandSeed_next);
+	if(unit->mCalcRate == calc_FullRate){ SETCALC(RandSeed_next); } else { SETCALC(RandSeed_next_k); }
 	RandSeed_next(unit, 1);
 }
 
-void RandSeed_next(RandSeed* unit, int inNumSamples)
+void RandSeed_next_k(RandSeed* unit, int inNumSamples)
 {
 	float trig = ZIN0(0);
 
 	if (trig > 0.f && unit->m_trig <= 0.f) {
 		RGen& rgen = *unit->mParent->mRGen;
-		int seed = (int)ZIN0(1);
+		int seed = (int)DEMANDINPUT_A(1, inNumSamples);
 		rgen.init(seed);
 	}
 	unit->m_trig = trig;
 	ZOUT0(0) = 0.f;
+}
+
+void RandSeed_next(RandSeed* unit, int inNumSamples)
+{
+	float *trig = ZIN(0);
+	float *out = ZOUT(0);
+	
+	float prevtrig = unit->m_trig;
+	float curtrig;
+	
+	LOOP1(inNumSamples,
+	
+		curtrig = ZXP(trig);
+		if (curtrig > 0.f && prevtrig <= 0.f) {
+			RGen& rgen = *unit->mParent->mRGen;
+			int seed = (int)DEMANDINPUT_A(1, inNumSamples);
+			rgen.init(seed);
+		}
+		prevtrig = curtrig;
+		ZXP(out) = 0.f;
+		
+	)
+	
+	unit->m_trig = curtrig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1078,14 +1103,16 @@ void WrapBufRd_next0(Unit *unit, int inNumSamples)
 	int bufnum = (int)ZIN0(0);
 	float *pos = ZIN(1);
 
-	SndBuf *buf = unit->mWorld->mSndBufs + bufnum;
+	const SndBuf *buf = unit->mWorld->mSndBufs + bufnum;
 	int numchan = buf->channels;
 
+	LOCK_SNDBUF_SHARED(buf);
 	if (numchan != unit->mNumOutputs) {
 		ClearUnitOutputs(unit, inNumSamples);
 		return;
 	}
-	float *data = buf->data;
+
+	const float *data = buf->data;
 	int numframes = buf->frames;
 
 	float *out[16];
@@ -1109,14 +1136,16 @@ void ClipBufRd_next0(Unit *unit, int inNumSamples)
 	int bufnum = (int)ZIN0(0);
 	float *pos = ZIN(1);
 
-	SndBuf *buf = unit->mWorld->mSndBufs + bufnum;
+	const SndBuf *buf = unit->mWorld->mSndBufs + bufnum;
+	LOCK_SNDBUF_SHARED(buf);
 	int numchan = buf->channels;
 
 	if (numchan != unit->mNumOutputs) {
 		ClearUnitOutputs(unit, inNumSamples);
 		return;
 	}
-	float *data = buf->data;
+
+	const float *data = buf->data;
 	int numframes = buf->frames;
 	int maxframe = numframes - 2;
 

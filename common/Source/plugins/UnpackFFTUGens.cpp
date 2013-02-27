@@ -21,7 +21,7 @@ Copyright (c) 2007 Dan Stowell. All rights reserved.
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 
 */
-#ifdef SC_WIN32
+#ifdef _WIN32
 #define hypotf _hypotf
 #endif
 
@@ -63,23 +63,7 @@ extern "C"
 	void PackFFT_next(PackFFT *unit, int inNumSamples);
 }
 
-SCComplexBuf* ToComplexApx(SndBuf *buf)
-{
-	if (buf->coord == coord_Polar) {
-		SCPolarBuf* p = (SCPolarBuf*)buf->data;
-		int numbins = buf->samples - 2 >> 1;
-		for (int i=0; i<numbins; ++i) {
-			p->bin[i].ToComplexApxInPlace();
-		}
-		buf->coord = coord_Complex;
-	}
-	return (SCComplexBuf*)buf->data;
-}
-
 InterfaceTable *ft;
-
-void init_SCComplex(InterfaceTable *inTable);
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -142,6 +126,7 @@ void Unpack1FFT_Ctor(Unpack1FFT* unit)
 		buf = world->mSndBufs + ibufnum; \
 	} \
 	int binindex = unit->binindex; \
+	LOCK_SNDBUF(buf); \
 	SCComplexBuf *p = ToComplexApx(buf); \
 
 
@@ -255,6 +240,7 @@ void PackFFT_next(PackFFT *unit, int inNumSamples)
 	} else {
 		buf = world->mSndBufs + ibufnum;
 	}
+	LOCK_SNDBUF(buf);
 
 	int numbins = buf->samples - 2 >> 1;
 	/////////////////// cf PV_GET_BUF
@@ -320,8 +306,6 @@ void PackFFT_next(PackFFT *unit, int inNumSamples)
 void load(InterfaceTable *inTable)
 {
 	ft= inTable;
-
-	init_SCComplex(inTable);
 
 	DefineSimpleUnit(Unpack1FFT);
 	DefineSimpleUnit(PackFFT);

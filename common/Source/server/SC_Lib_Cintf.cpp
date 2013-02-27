@@ -34,18 +34,18 @@
 #include <dirent.h>
 #endif //_MSC_VER
 
-#ifndef SC_WIN32
+#ifndef _WIN32
 #include <dlfcn.h>
 #endif
 
-#ifdef SC_WIN32
+#ifdef _WIN32
 #include "SC_Win32Utils.h"
 #else
 #include <libgen.h>
 #endif
 
 // Plugin directory in resource directory
-#if defined(SC_WIN32) && defined(_DEBUG)
+#if defined(_WIN32) && defined(_DEBUG)
 # define SC_PLUGIN_DIR_NAME "plugins_debug"
 #else
 # define SC_PLUGIN_DIR_NAME "plugins"
@@ -59,7 +59,7 @@
 // Symbol of initialization routine when loading plugins
 #ifndef SC_PLUGIN_LOAD_SYM
 
-# if defined(SC_DARWIN) || defined(SC_IPHONE)
+# if defined(__APPLE__) || defined(SC_IPHONE) || defined(SC_ANDROID)
 #  define SC_PLUGIN_LOAD_SYM "load"
 # else
 #  define SC_PLUGIN_LOAD_SYM "_load"
@@ -67,11 +67,11 @@
 
 #endif
 
-#ifndef SC_WIN32
+#ifndef _WIN32
 # include <sys/param.h>
 #endif
 
-#ifdef SC_DARWIN
+#ifdef __APPLE__
 extern "C" {
 #include <mach-o/dyld.h>
 #include <mach-o/getsect.h>
@@ -88,9 +88,9 @@ extern struct InterfaceTable gInterfaceTable;
 SC_LibCmd* gCmdArray[NUMBER_OF_COMMANDS];
 
 void initMiscCommands();
-bool PlugIn_LoadDir(const char *dirname, bool reportError);
+static bool PlugIn_LoadDir(const char *dirname, bool reportError);
 
-#ifdef SC_DARWIN
+#ifdef __APPLE__
 void read_section(const struct mach_header *mhp, unsigned long slide, const char *segname, const char *sectname)
 {
 	u_int32_t size;
@@ -180,7 +180,6 @@ void initialize_library(const char *uGensPluginPath)
 			PlugIn_LoadDir(SC_PLUGIN_DIR, true);
 		}
 #endif
-
 		// load default plugin directory
 		char pluginDir[MAXPATHLEN];
 		sc_GetResourceDirectory(pluginDir, MAXPATHLEN);
@@ -208,7 +207,7 @@ void initialize_library(const char *uGensPluginPath)
 			PlugIn_LoadDir(const_cast<char *>(sp.NextToken()), true);
 		}
 	}
-#ifdef SC_DARWIN
+#ifdef __APPLE__
 	/* on darwin plugins are lazily loaded (dlopen uses mmap internally), which can produce audible
 		glitches when UGens have to be paged-in. to work around this we preload all the plugins by
 		iterating through their memory space. */
@@ -247,38 +246,37 @@ void initialize_library(const char *uGensPluginPath)
 #endif
 }
 
-bool PlugIn_Load(const char *filename);
-bool PlugIn_Load(const char *filename)
+static bool PlugIn_Load(const char *filename)
 {
-#ifdef SC_WIN32
+#ifdef _WIN32
 
-    HINSTANCE hinstance = LoadLibrary( filename );
-    if (!hinstance) {
-        char *s;
-        DWORD lastErr = GetLastError();
-        FormatMessage( FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-                0, lastErr , 0, (char*)&s, 1, 0 );
-        scprintf("*** ERROR: LoadLibrary '%s' err '%s'\n", filename, s);
-        LocalFree( s );
+	HINSTANCE hinstance = LoadLibrary( filename );
+	if (!hinstance) {
+		char *s;
+		DWORD lastErr = GetLastError();
+		FormatMessage( FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+				0, lastErr , 0, (char*)&s, 1, 0 );
+		scprintf("*** ERROR: LoadLibrary '%s' err '%s'\n", filename, s);
+		LocalFree( s );
 		return false;
 	}
 
-    void *ptr = (void *)GetProcAddress( hinstance, SC_PLUGIN_LOAD_SYM );
-    if (!ptr) {
-        char *s;
-        FormatMessage( FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-                0, GetLastError(), 0, (char*)&s, 1, 0 );
-        scprintf("*** ERROR: GetProcAddress %s err '%s'\n", SC_PLUGIN_LOAD_SYM, s);
-        LocalFree( s );
+	void *ptr = (void *)GetProcAddress( hinstance, SC_PLUGIN_LOAD_SYM );
+	if (!ptr) {
+		char *s;
+		FormatMessage( FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+				0, GetLastError(), 0, (char*)&s, 1, 0 );
+		scprintf("*** ERROR: GetProcAddress %s err '%s'\n", SC_PLUGIN_LOAD_SYM, s);
+		LocalFree( s );
 
 		FreeLibrary(hinstance);
 		return false;
 	}
 
-    LoadPlugInFunc loadFunc = (LoadPlugInFunc)ptr;
+	LoadPlugInFunc loadFunc = (LoadPlugInFunc)ptr;
 	(*loadFunc)(&gInterfaceTable);
 
-    // FIXME: at the moment we never call FreeLibrary() on a loaded plugin
+	// FIXME: at the moment we never call FreeLibrary() on a loaded plugin
 
 	return true;
 
@@ -309,7 +307,7 @@ bool PlugIn_Load(const char *filename)
 #endif
 }
 
-bool PlugIn_LoadDir(const char *dirname, bool reportError)
+static bool PlugIn_LoadDir(const char *dirname, bool reportError)
 {
 	bool success = true;
 

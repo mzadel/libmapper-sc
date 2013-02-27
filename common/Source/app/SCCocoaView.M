@@ -39,7 +39,7 @@
 
 
 #include "SCCocoaView.h"
-#include "QuickTime/Movies.h"
+#include "QTKit/QTKit.h"
 #import "HTMLRenderer.h"
 #import "MyDocument.h"
 #import "SCImage.h"
@@ -240,8 +240,6 @@ extern PyrSymbol *s_scview;
 			// it's a bad file:// URL, post a warning and search
 			post("WARNING:\nInvalid hyperlink: '%s' Please repair this.\nSearching help directories for alternative.\n", [[desiredURL path] cString]);
 			// delete extension twice in case something.help.rtf
-			if(!desiredURL) NSLog(@"foo");
-			NSLog(@"url path %@", [desiredURL path]);
 			NSString *desiredHelpName = [[[[desiredURL path] lastPathComponent] stringByDeletingPathExtension] stringByDeletingPathExtension];
 			NSString *helpPath = pathOfHelpFileFor(desiredHelpName);
 			if(!helpPath) {
@@ -887,6 +885,8 @@ void QDDrawBevelRect(CGContextRef cgc, CGRect bounds, float width, bool inout);
 	[mFormatter setAlwaysShowsDecimalSeparator:NO];
 	[mFormatter setExponentSymbol:@"e"];
 	[mFormatter setMaximumFractionDigits:20];
+	[mFormatter setDecimalSeparator:@"."];
+	[mFormatter setUsesGroupingSeparator:NO];
 	[[self cell] setFormatter:mFormatter];
 }
 
@@ -1164,8 +1164,8 @@ void SCCocoaTextView::setBounds(SCRect inBounds)
 {
 		mBounds = inBounds;
 		[[mScrollView superview] setNeedsDisplayInRect:[mScrollView frame]];
-		if(mParent->relativeOrigin()){
-			SCRect pbounds = mParent->getLayout().bounds; 	// relative origin fix
+		if(!(mParent->isSubViewScroller())){
+			SCRect pbounds = mParent->getLayout().bounds;
 			mLayout.bounds.x = mBounds.x + pbounds.x;
 			mLayout.bounds.y = mBounds.y + pbounds.y;
 			mLayout.bounds.width = mBounds.width;
@@ -1594,12 +1594,12 @@ SCMovieView::SCMovieView(SCContainerView *inParent, PyrObject* inObj, SCRect inB
 	: SCView(inParent, inObj, inBounds)
 {
 		NSRect matrect = SCtoNSRect(getDrawBounds());
-		mMovieView = [[NSMovieView alloc] initWithFrame:matrect];
+		mMovieView = [[QTMovieView alloc] initWithFrame:matrect];
+		[mMovieView setStepButtonsVisible:YES];
+		[mMovieView setTranslateButtonVisible:YES];
 		NSView *view = mTop->GetNSView();
 		[view addSubview: mMovieView];
 
-		//need to call EnterMovies for other qt c calls
-		EnterMovies();
 		setVisibleFromParent();
 }
 
@@ -1613,8 +1613,8 @@ void SCMovieView::setBounds(SCRect screct)
 {
 	[[mMovieView superview] setNeedsDisplayInRect:[mMovieView frame]];
 	mBounds = screct;
-	if(mParent->relativeOrigin()){
-		SCRect pbounds = mParent->getLayout().bounds; 	// relative origin fix
+	if(!(mParent->isSubViewScroller())){
+		SCRect pbounds = mParent->getLayout().bounds;
 		mLayout.bounds.x = mBounds.x + pbounds.x;
 		mLayout.bounds.y = mBounds.y + pbounds.y;
 		mLayout.bounds.width = mBounds.width;
@@ -1641,22 +1641,23 @@ int SCMovieView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 	}
 
 	if (strcmp(name, "stop")==0) {
-		[mMovieView stop: nil];
+		[mMovie stop];
 		return errNone;
 	}
 
 	if (strcmp(name, "start")==0) {
-		[mMovieView start: nil];
+		[mMovie play];
 		return errNone;
 	}
 	if (strcmp(name, "stepForward")==0) {
-		[mMovieView stepForward: nil];
+		[mMovie stepForward];
 		return errNone;
 	}
 	if (strcmp(name, "stepBack")==0) {
-		[mMovieView stepBack: nil];
+		[mMovie stepBackward];
 		return errNone;
 	}
+/*
 	if (strcmp(name, "resizeWithMagnification")==0) {
 		float mag;
 		err = slotFloatVal(slot, &mag);
@@ -1667,6 +1668,7 @@ int SCMovieView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 		mBounds.height = size.height;
 		return errNone;
 	}
+*/
 	if (strcmp(name, "bounds")==0) {
 		SCRect screct;
 		err = slotGetSCRect(slot, &screct);
@@ -1681,28 +1683,26 @@ int SCMovieView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 		if(!pstring) return errNone;
 		NSString *string = [[NSString alloc] initWithCString: pstring->s length: pstring->size];
 		NSURL * url = [[NSURL alloc] initFileURLWithPath: string];
-		NSMovie *movie = [[NSMovie alloc] initWithURL: url byReference: YES];
+		QTMovie *movie = [[QTMovie alloc] initWithURL: url error:nil];
 		if(!movie) return errFailed;
 		//check for current movie:
-		NSMovie *nsmovie = [mMovieView movie];
+		QTMovie *old_movie = [mMovieView movie];
 		[mMovieView setMovie: movie];
-		if(nsmovie){
-			[nsmovie release];
+		if(old_movie){
+			[old_movie release];
 		}
 		[string release];
 		[url release];
 		/* QT: */
-		mMovie = (Movie) [[mMovieView movie] QTMovie];
-		mTimeBase = GetMovieTimeBase (mMovie);
-		mTimeRecord.base = mTimeBase;
-		GetMovieTime(mMovie, &mTimeRecord);
+		mMovie = movie;
+		mTime = [movie currentTime];
 
 		return errNone;
 	}
 
 	if (strcmp(name, "setMuted")==0) {
-		if(IsTrue(slot))[mMovieView setMuted: YES];
-		else [mMovieView setMuted: NO];
+		if(IsTrue(slot))[mMovie setMuted: YES];
+		else [mMovie setMuted: NO];
 		return errNone;
 	}
 
@@ -1713,8 +1713,7 @@ int SCMovieView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 	}
 
 	if (strcmp(name, "setPlaysSelectionOnly")==0) {
-		if(IsTrue(slot))[mMovieView setPlaysSelectionOnly: YES];
-		else [mMovieView setPlaysSelectionOnly: NO];
+		[mMovie setAttribute:[NSNumber numberWithBool:IsTrue(slot)] forKey:QTMoviePlaysSelectionOnlyAttribute];
 		return errNone;
 	}
 
@@ -1722,38 +1721,41 @@ int SCMovieView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 		float rate;
 		err = slotFloatVal(slot, &rate);
 		if(err) return err;
-		[mMovieView setRate:rate];
+		[mMovie setRate:rate];
 		return errNone;
 	}
 	if (strcmp(name, "setVolume")==0) {
 		float vol;
 		err = slotFloatVal(slot, &vol);
 		if(err) return err;
-		[mMovieView setVolume:vol];
+		[mMovie setVolume:vol];
 		return errNone;
 	}
 	if (strcmp(name, "setLoopMode")==0) {
 		int mode;
 		err = slotIntVal(slot, &mode);
 		if(err) return err;
-		switch(mode){
-				case 0: [mMovieView setLoopMode:NSQTMovieLoopingBackAndForthPlayback]; break;
-				case 1: [mMovieView setLoopMode:NSQTMovieLoopingPlayback]; break;
-				case 2: [mMovieView setLoopMode:NSQTMovieNormalPlayback]; break;
+		NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithObjectsAndKeys: [NSNumber numberWithBool:NO], QTMovieLoopsBackAndForthAttribute, [NSNumber numberWithBool:NO], QTMovieLoopsAttribute, nil];
+		switch(mode)
+		{
+				case 0: [dict setObject:[NSNumber numberWithBool:YES] forKey:QTMovieLoopsBackAndForthAttribute]; break;
+				case 1: [dict setObject:[NSNumber numberWithBool:YES] forKey:QTMovieLoopsAttribute]; break;
+				case 2:
+				default: break;
 		}
+		[mMovie setMovieAttributes:dict];
 		return errNone;
 	}
-
 	if (strcmp(name, "gotoEnd")==0) {
-		[mMovieView gotoEnd: NULL];
+		[mMovie gotoEnd];
 		return errNone;
 	}
 
 	if (strcmp(name, "gotoBeginning")==0) {
-		[mMovieView gotoBeginning: NULL];
+		[mMovie gotoBeginning];
 		return errNone;
 	}
-
+/*
 	if (strcmp(name, "showControllerAndAdjustSize")==0) {
 		if(!isKindOfSlot(slot, class_array)) return errWrongType;
 		PyrSlot *slots = slotRawObject(slot)->slots;
@@ -1762,15 +1764,17 @@ int SCMovieView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 		else showC = NO;
 		if(IsTrue(slots+1)) adjust=YES;
 		else adjust = NO;
-		[mMovieView showController: showC adjustingSize: adjust];
+		[mMovieView setControllerVisible:showC];
+		//[mMovieView showController: showC adjustingSize: adjust];
 		return errNone;
 	}
+*/
 	if (strcmp(name, "copy")==0) {
 		[mMovieView copy: NULL];
 		return errNone;
 	}
 	if (strcmp(name, "clear")==0) {
-		[mMovieView clear: NULL];
+		[mMovieView delete: NULL];
 		return errNone;
 	}
 	if (strcmp(name, "cut")==0) {
@@ -1786,7 +1790,9 @@ int SCMovieView::setProperty(PyrSymbol *symbol, PyrSlot *slot)
 		float time;
 		err = slotFloatVal(slot, &time);
 		if(err) return err;
-		SetMovieTimeValue(mMovie, (TimeValue) (time *  mTimeRecord.scale));
+		QTTime qttime = mTime;
+		qttime.timeValue = time * qttime.timeScale;
+		[mMovie setCurrentTime:qttime];
 		return errNone;
 	}
 
@@ -1800,7 +1806,8 @@ int SCMovieView::getProperty(PyrSymbol *symbol, PyrSlot *slot)
 	if (strcmp(name, "getCurrentTime")==0) {
 		float time;
 		//post("timescale: %d  \n",  mTimeRecord.scale);
-		time = (float) ((float)GetMovieTime(mMovie, NULL) / mTimeRecord.scale);
+		QTTime qt_time = [mMovie currentTime];
+		time = (float) ((float)qt_time.timeValue / qt_time.timeScale);
 		SetFloat(slot, time);
 		return errNone;
 	}
@@ -1826,7 +1833,6 @@ extern PyrSymbol *s_proto, *s_parent;
 extern int ivxIdentDict_array, ivxIdentDict_size, ivxIdentDict_parent, ivxIdentDict_proto, ivxIdentDict_know;
 int identDictPut(struct VMGlobals *g, PyrObject *dict, PyrSlot *key, PyrSlot *value);
 extern PyrClass *class_identdict;
-
 ///////////
 /*
 SCQuartzComposerView by Scott Wilson
@@ -1862,8 +1868,8 @@ void SCQuartzComposerView::setBounds(SCRect screct)
 {
 	[[mQCView superview] setNeedsDisplayInRect:[mQCView frame]];
 	mBounds = screct;
-	if(mParent->relativeOrigin()){
-		SCRect pbounds = mParent->getLayout().bounds; 	// relative origin fix
+	if(!(mParent->isSubViewScroller())){
+		SCRect pbounds = mParent->getLayout().bounds;
 		mLayout.bounds.x = mBounds.x + pbounds.x;
 		mLayout.bounds.y = mBounds.y + pbounds.y;
 		mLayout.bounds.width = mBounds.width;
@@ -2346,8 +2352,8 @@ void SCTextField::setBounds(SCRect screct)
 
 	//[[mTextField superview] setNeedsDisplayInRect:[mTextField frame]];
 	mBounds = screct;
-	if(mParent->relativeOrigin()){
-		SCRect pbounds = mParent->getLayout().bounds; 	// relative origin fix
+	if(!(mParent->isSubViewScroller())){
+		SCRect pbounds = mParent->getLayout().bounds;
 		mLayout.bounds.x = mBounds.x + pbounds.x;
 		mLayout.bounds.y = mBounds.y + pbounds.y;
 		mLayout.bounds.width = mBounds.width;
@@ -2744,8 +2750,8 @@ SCLevelIndicator::~SCLevelIndicator()
 void SCLevelIndicator::setBounds(SCRect screct)
 {
 	mBounds = screct;
-	if(mParent->relativeOrigin()){
-		SCRect pbounds = mParent->getLayout().bounds; 	// relative origin fix
+	if(!(mParent->isSubViewScroller())){
+		SCRect pbounds = mParent->getLayout().bounds;
 		mLayout.bounds.x = mBounds.x + pbounds.x;
 		mLayout.bounds.y = mBounds.y + pbounds.y;
 		mLayout.bounds.width = mBounds.width;

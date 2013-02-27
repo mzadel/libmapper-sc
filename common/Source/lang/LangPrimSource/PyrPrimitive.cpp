@@ -2452,7 +2452,7 @@ int prObjectPointsTo(struct VMGlobals *g, int numArgsPushed)
 		obj = slotRawObject(a);
 		for (i=0; i<obj->size; ++i) {
 			getIndexedSlot(obj, &temp, i);
-			if (GetTag(&temp) == GetTag(b) && slotRawInt(&temp) == slotRawInt(b)) {
+			if (SlotEq(&temp, b)) {
 				slotCopy(a,&o_true);
 				return errNone;
 			}
@@ -2948,7 +2948,7 @@ void initPyrThread(VMGlobals *g, PyrThread *thread, PyrSlot *func, int stacksize
 	PyrSlot* currentEnvironmentSlot = &g->classvars->slots[1];
 	slotCopy(&thread->environment,currentEnvironmentSlot);
 	gc->GCWrite(thread, currentEnvironmentSlot);
-	
+
 	if(g->process) { // check we're not just starting up
 		PyrSlot* executingPath = &g->process->nowExecutingPath;
 		slotCopy(&thread->executingPath,&g->process->nowExecutingPath);
@@ -3175,7 +3175,7 @@ int prRoutineResume(struct VMGlobals *g, int numArgsPushed)
 	thread = slotRawThread(a);
 	state = slotRawInt(&thread->state);
 	//postfl("->prRoutineResume %d\n", state);
-	
+
 	slotCopy(&thread->oldExecutingPath,&g->process->nowExecutingPath);
 	slotCopy(&g->process->nowExecutingPath, &thread->executingPath);
 	if (state == tInit) {
@@ -3186,7 +3186,7 @@ int prRoutineResume(struct VMGlobals *g, int numArgsPushed)
 		//post("thread %08X\n", thread);
 		SetObject(&thread->parent, g->thread);
 		g->gc->GCWrite(thread, g->thread);
-		
+
 		SetRaw(&thread->beats, slotRawFloat(&g->thread->beats));
 		SetRaw(&thread->seconds, slotRawFloat(&g->thread->seconds));
 		slotCopy(&thread->clock, &g->thread->clock);
@@ -3347,7 +3347,7 @@ int prRoutineYieldAndReset(struct VMGlobals *g, int numArgsPushed)
 	switchToThread(g, parent, state, &numArgsPushed);
 	// on the other side of the looking glass, put the yielded value on the stack as the result..
 	slotCopy((g->sp - numArgsPushed + 1),&value);
-	
+
 	//slotCopy(&g->process->nowExecutingPath, &g->thread->oldExecutingPath);
 
 	//post("<-prRoutineYieldAndReset\n");
@@ -3370,6 +3370,16 @@ int prBlork(struct VMGlobals *g, int numArgsPushed)
 
 	return errNone;
 }
+
+int prOverwriteMsg(struct VMGlobals *g, int numArgsPushed);
+int prOverwriteMsg(struct VMGlobals *g, int numArgsPushed)
+{
+	PyrSlot *a = g->sp;
+	PyrString* string = newPyrString(g->gc, overwriteMsg, 0, false);
+	SetObject(a, string);
+	return errNone;
+}
+
 
 
 #define PRIMGROWSIZE 480
@@ -3923,6 +3933,7 @@ void initPrimitives()
 //	definePrimitive(base, index++, "_IsDemo", prIsDemo, 1, 0);
 	definePrimitive(base, index++, "_Blork", prBlork, 1, 0);
 	definePrimitive(base, index++, "_UGenCodeString", prUGenCodeString, 5, 0);
+	definePrimitive(base, index++, "_MainOverwriteMsg", prOverwriteMsg, 1, 0);
 
 	//void initOscilPrimitives();
 	//void initControllerPrimitives();
@@ -3981,7 +3992,7 @@ void initSCViewPrimitives();
 void initSchedPrimitives();
 	initSchedPrimitives();
 
-#ifndef SC_IPHONE
+#if (defined(__APPLE__) && !defined(SC_IPHONE)) || defined(HAVE_ALSA)
 void initMIDIPrimitives();
 	initMIDIPrimitives();
 #endif

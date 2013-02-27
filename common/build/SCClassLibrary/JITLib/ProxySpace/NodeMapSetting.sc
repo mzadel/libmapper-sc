@@ -34,6 +34,17 @@ NodeMapSetting {
 	getValue { // unmapped, single channel only
 		^if(this.isMapped.not and: { this.isMultiChannel.not }) { value } { nil }
 	}
+	
+	addToEvent { arg event;
+		var mapPrefix;
+		if(isMapped) {
+			mapPrefix = if(mappedRate === \audio) { "a" } { "c" };
+			event.put(key, { |i| mapPrefix ++ (i + this.index) }.dup(busNumChannels))
+		} {
+			event.put(key, value)
+		}
+		
+	}
 
 	updateNodeMap { arg nodeMap;
 		if(isMapped) {
@@ -72,7 +83,7 @@ NodeMapSetting {
 	isNeutral { ^false }
 	updateBusNumChannels {}
 
-	storeArgs { ^[value, busNumChannels] }
+	storeArgs { ^[key, value, busNumChannels] }
 
 	printOn { arg stream;
 		stream << this.storeArgs
@@ -95,6 +106,8 @@ ProxyNodeMapSetting : NodeMapSetting {
 	map { arg proxy;
 		value = proxy;
 		isMapped = true;
+		// stays neutral if both mappedRate, busNumChannels are nil
+		if(proxy.isNeutral) { proxy.initBus(mappedRate, busNumChannels) }; // could add a test
 		busNumChannels = proxy.numChannels;
 		busNumChannels !? { isMultiChannel = busNumChannels > 1 };
 		mappedRate = proxy.rate; // here we determine the rate simply from the input proxy

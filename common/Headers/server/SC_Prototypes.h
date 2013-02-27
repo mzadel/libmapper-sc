@@ -37,10 +37,10 @@ void* zalloc(size_t n, size_t size);
 
 void World_Run(struct World *inWorld);
 void World_Start(World *inWorld);
-void World_Cleanup(World *inWorld);
 void World_SetSampleRate(struct World *inWorld, double inSampleRate);
 
 extern "C" {
+void World_Cleanup(World *inWorld);
 void* World_Alloc(struct World *inWorld, size_t inByteSize);
 void* World_Realloc(struct World *inWorld, void *inPtr, size_t inByteSize);
 void World_Free(struct World *inWorld, void *inPtr);
@@ -98,8 +98,6 @@ SCErr bufAlloc(struct SndBuf* buf, int numChannels, int numFrames, double sample
 ////////////////////////////////////////////////////////////////////////
 
 void Rate_Init(struct Rate *inRate, double inSampleRate, int inBufLength);
-
-void Dimension_Init(struct SC_Dimension *inDimension, int inWidth, int inHeight);
 
 ////////////////////////////////////////////////////////////////////////
 
@@ -193,6 +191,7 @@ void Unit_ZeroOutputs(struct Unit *inUnit, int inNumSamples);
 void SendDone(struct ReplyAddress *inReply, const char *inCommandName);
 void SendDoneWithIntValue(struct ReplyAddress *inReply, const char *inCommandName, int value);
 void SendFailure(struct ReplyAddress *inReply, const char *inCommandName, const char *errString);
+void SendFailureWithBufnum(struct ReplyAddress *inReply, const char *inCommandName, const char *errString, uint32 index);
 void ReportLateness(struct ReplyAddress *inReply, float32 seconds);
 void DumpReplyAddress(struct ReplyAddress *inReplyAddress);
 int32 Hash(struct ReplyAddress *inReplyAddress);

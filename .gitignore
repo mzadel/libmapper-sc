@@ -1,0 +1,29 @@
+# mac related files
+.DS_Store
+mac/Intermediate Build Files
+common/build/SuperCollider.app
+common/build/SuperColliderAU.component
+common/build/libscsynth.a
+common/build/plugins
+common/build/sclang
+common/build/scsynth
+common/build/*.app/
+mac/*.xcodeproj/*.mode1
+mac/*.xcodeproj/*.pbxuser
+mac/*.xcodeproj/*.mode1v3
+
+# scons specific files
+config.log
+scache.conf
+.sconsign.dblite
+.sconf_temp
+*.os
+*.o
+
+# working files made by packager script
+common/Packager/LinuxExclusions.txt
+common/Packager/SuperCollider*.tar.gz
+common/Packager/SuperCollider*.dmg
+
+#build directory
+/build*

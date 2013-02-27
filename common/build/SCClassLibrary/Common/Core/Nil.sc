@@ -79,6 +79,7 @@ Nil {
 	addAll { arg array; ^array.asArray }
 	++ { arg array; ^array }
 	asCollection { ^[] }
+	remove {}
 
 	// ControlView support
 	set {}
@@ -110,4 +111,10 @@ Nil {
 	}
 
 	archiveAsCompileString { ^true }
+
+	asSpec {
+		^ControlSpec.new;
+	}
+
 }
+

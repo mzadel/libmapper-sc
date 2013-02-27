@@ -23,10 +23,12 @@ Document {
 	var <envir, savedEnvir;
 	var <editable;
 
+	  *initClass{
+		allDocuments = [];
+	  }
 
 	*startup {
 		var num, doc;
-		allDocuments = [];
 		num = this.numberOfOpen;
 		num.do { | i |
 			doc = this.newFromIndex(i);
@@ -483,6 +485,10 @@ Document {
 		^if(this.path.isNil or: { doc.path.isNil }) { doc === this } {
 			this.path == doc.path
 		}
+	}
+	
+	hash {
+		^(this.path ? this).hash 	
 	}
 	
 	*defaultUsesAutoInOutdent_ {|bool|

@@ -1473,7 +1473,7 @@ int prObjcAllocInit(struct VMGlobals *g, int numArgsPushed)
 		return errFailed;
 	}
 
-	[anInvocation setTarget: isInstanceMethod ? [nsclass alloc] : nsclass];
+	[anInvocation setTarget: isInstanceMethod ? [nsclass alloc] : (id)nsclass];
 	[anInvocation setSelector: sel];
 
 	if(IsTrue(defer))
@@ -2216,7 +2216,7 @@ void initCocoaBridgePrimitives()
 		id nsobj;
 		NSEnumerator* e = [nsobjects objectEnumerator];
 		while((nsobj = [e nextObject])) {
-			if(strcmp(nsobj->isa->isa->name, "FREED(id)") == 0) { // may happen so add verbosity
+			if(strcmp(class_getName(nsobj->isa->isa), "FREED(id)") == 0) { // may happen so add verbosity
 				NSLog(@"Already FREED NSObject in POOL -> will cause crash");
 				continue;
 			}

@@ -61,10 +61,16 @@ ServerOptions
 
 	// prevent buffer conflicts in Server-prepareForRecord and Server-scope by
 	// ensuring reserved buffers
-	numBuffers { ^(numBuffers -2) }
-	numBuffers_ { | argNumBuffers | numBuffers = argNumBuffers + 2; }
+	
+	numBuffers {
+		^numBuffers - 2
+	}
+	
+	numBuffers_ { | argNumBuffers |
+		numBuffers = argNumBuffers + 2
+	}
 
-	asOptionsString { arg port=57110;
+	asOptionsString { | port = 57110 |
 		var o;
 		o = if (protocol == \tcp, " -t ", " -u ");
 		o = o ++ port;
@@ -190,7 +196,7 @@ Server : Model {
 	var <name, <>addr, <clientID=0;
 	var <isLocal, <inProcess, <>sendQuit, <>remoteControlled;
 	var <serverRunning = false, <serverBooting = false, bootNotifyFirst = false;
-	var <>options, <>latency = 0.2, <dumpMode = 0, <notified=true;
+	var <>options, <>latency = 0.2, <dumpMode = 0, <notify = true, <notified=false;
 	var <nodeAllocator;
 	var <controlBusAllocator;
 	var <audioBusAllocator;
@@ -349,7 +355,7 @@ Server : Model {
 		addr.sendMsg(*msg);
 	}
  	listSendBundle { arg time, msgs;
-		addr.sendBundle(time, *msgs);
+		addr.sendBundle(time, *(msgs.asArray));
 	}
 
 	// load from disk locally, send remote
@@ -397,6 +403,7 @@ Server : Model {
 								NotificationCenter.notify(this,\didQuit);
 							};
 							recordNode = nil;
+							notified = false;
 						})
 
 					}{
@@ -478,6 +485,12 @@ Server : Model {
 		statusWatcher =
 			OSCresponderNode(addr, '/status.reply', { arg time, resp, msg;
 				var cmd, one;
+				if(notify){
+					if(notified.not){
+						this.sendNotifyRequest;
+						"Receiving notification messages from server %\n".postf(this.name);
+					}
+				};
 				alive = true;
 				#cmd, one, numUGens, numSynths, numGroups, numSynthDefs,
 					avgCPU, peakCPU, sampleRate, actualSampleRate = msg;
@@ -562,12 +575,6 @@ Server : Model {
 		if(recover) { this.newNodeAllocators } { this.newAllocators };
 		bootNotifyFirst = true;
 		this.doWhenBooted({
-			if(notified, {
-				this.notify;
-				"notification is on".inform;
-			}, {
-				"notification is off".inform;
-			});
 			serverBooting = false;
 			this.initTree;
 			(volume.volume != 0.0).if({
@@ -614,10 +621,27 @@ Server : Model {
 	status {
 		addr.sendStatusMsg
 	}
-	notify { arg flag=true;
+
+	notify_ { |flag = true|
+		notify = flag;
+		if(flag){
+			if(serverRunning){
+				this.sendNotifyRequest(true);
+				notified = true;
+				"Receiving notification messages from server %\n".postf(this.name);
+			}
+		}{
+			this.sendNotifyRequest(false);
+			notified = false;
+			"Switched off notification messages from server %\n".postf(this.name);
+		}
+	}
+
+	sendNotifyRequest { arg flag=true;
 		notified = flag;
 		addr.sendMsg("/notify", flag.binaryValue);
 	}
+
 	dumpOSC { arg code=1;
 		/*
 			0 - turn dumping OFF.
@@ -697,6 +721,10 @@ Server : Model {
 				if (server.isLocal) { server.freeAll }
 			}
 		}
+	}
+	
+	*allRunningServers {
+		^this.all.select(_.serverRunning)
 	}
 
 	// bundling support
@@ -887,8 +915,15 @@ Server : Model {
 		stream << name;
 	}
 	storeOn { arg stream;
-		stream << "Server.fromName(" << name.asCompileString << ")"
+		var codeStr = this.switch (
+			Server.default, 			{ if (sync_s) { "s" } { "Server.default" } },
+			Server.local,				{ "Server.local" },
+			Server.internal,			{ "Server.internal" },
+			{ "Server.fromName(" + name.asCompileString + ")" }
+		);
+		stream << codeStr;
 	}
+	
 	archiveAsCompileString { ^true }
 	archiveAsObject { ^true }
 

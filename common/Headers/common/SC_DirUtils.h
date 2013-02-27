@@ -25,7 +25,7 @@
 #include <limits.h>
 #include <stdio.h>
 
-#ifdef SC_WIN32
+#ifdef _WIN32
 # include <stdio.h>
 # ifndef PATH_MAX
 #  define PATH_MAX _MAX_PATH
@@ -58,7 +58,7 @@ bool sc_IsNonHostPlatformDir(const char *name);
 // Returns TRUE iff 'name' is to be ignored during compilation.
 bool sc_SkipDirectory(const char *name);
 
-void sc_ResolveIfAlias(const char *path, char *returnPath, bool &isAlias, int length);
+int sc_ResolveIfAlias(const char *path, char *returnPath, bool &isAlias, int length);
 
 extern char *gIdeName; // string used for conditional compilation according to which IDE is in use this session.
 // for example, if the value is "scapp" then folders "scide_scapp" will be included, all other "scide_*" excluded.

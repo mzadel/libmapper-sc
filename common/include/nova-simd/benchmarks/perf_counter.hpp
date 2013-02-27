@@ -539,13 +539,17 @@ static inline unsigned long long rdclock(void)
 
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 
+#ifndef __NR_perf_event_open
+#define __NR_perf_event_open __NR_perf_counter_open
+#endif
+
 static inline int
 sys_perf_counter_open(struct perf_counter_attr *attr,
                       pid_t pid, int cpu, int group_fd,
                       unsigned long flags)
 {
         attr->size = sizeof(*attr);
-        return syscall(__NR_perf_counter_open, attr, pid, cpu,
+        return syscall(__NR_perf_event_open, attr, pid, cpu,
                        group_fd, flags);
 }
 
@@ -642,7 +646,6 @@ public:
                  << setw(5)  << setfill(' ') << count[3] << " "
                  << setw(10) << setfill(' ') << count[4] << " "
                  << setw(8)  << setfill(' ') << count[5] << " "
-                 << setw(12)  << setfill(' ') << count[6] << " "
                  << setw(12)  << setfill(' ') << count[6] << " "
 /*                  << setw(8)  << setfill(' ') << soft_count[0] << " " */
 /*                  << setw(8)  << setfill(' ') << soft_count[1] */

@@ -12,21 +12,21 @@ EventStreamCleanup {
 	}
 
 	addFunction { |event, function |
-		if(event.respondsTo(\keysValuesDo)) {
+		if(event.isKindOf(Dictionary)) {
 			functions = functions.add(function);
 			event[\addToCleanup] = event[\addToCleanup].add(function);
 		};
 	}
 
 	addNodeCleanup { |event, function |
-		if(event.respondsTo(\keysValuesDo)) {
+		if(event.isKindOf(Dictionary)) {
 			functions = functions.add(function);
 			event[\addToNodeCleanup] = event[\addToNodeCleanup].add(function);
 		};
 	}
 
 	update { | event |
-		if(event.respondsTo(\keysValuesDo)) {
+		if(event.isKindOf(Dictionary)) {
 			functions = functions.addAll(event[\addToNodeCleanup]);
 			functions = functions.addAll(event[\addToCleanup]);
 			functions = functions.removeAll(event[\removeFromCleanup]);
@@ -35,7 +35,7 @@ EventStreamCleanup {
 	}
 
 	exit { | event, freeNodes = true |
-		if(event.respondsTo(\keysValuesDo)) {
+		if(event.isKindOf(Dictionary)) {
 			this.update(event);
 			functions.do(_.value(freeNodes) );
 			event[\removeFromCleanup] = event[\removeFromCleanup].addAll(functions);

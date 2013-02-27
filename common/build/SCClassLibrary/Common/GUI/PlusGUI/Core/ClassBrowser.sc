@@ -140,7 +140,7 @@ ClassBrowser {
 				~svnButton.action = {
 					var filename, svnAddr;
 					if(currentState.currentMethod.notNil) {
-						svnAddr = "http://supercollider.svn.sourceforge.net/viewvc/supercollider/trunk/build/";
+						svnAddr = "http://supercollider.svn.sourceforge.net/viewvc/supercollider/trunk/common/build/";
 						filename = currentState.currentClass.filenameSymbol.asString;
 						svnAddr = svnAddr ++ filename.drop(filename.find("SCClassLibrary"));
 						svnAddr = svnAddr ++ "?view=log";
@@ -409,10 +409,27 @@ ClassBrowser {
 					},
 					methodTitle: { |v| v.string_("methods") },
 					methodView: { |v|
-						~methodView.items_(~classMethodNames ++ ~methodNames)
+						var colorFunc = { |class, name|
+							if(class.findOverriddenMethod(name.asSymbol).isNil) {
+								Color.clear
+							} {
+								Color.grey(0.8)
+							}
+						};
+						var classMethodColors = ~classMethodNames.collect { |name|
+							colorFunc.value(~currentClass.class, name)
+						};
+						var methodColors = ~methodNames.collect { |name|
+							colorFunc.value(~currentClass, name)
+						};
+						var methodNames = ~classMethodNames ++ ~methodNames;
+						var colors = classMethodColors ++ methodColors;
+
+						~methodView.items_(methodNames)
 							.value_(~methodViewIndex ? 0)
 							.action_(~displayCurrentMethodArgsAction)
-							.mouseDownAction_(~listViewDoubleClickAction);
+							.mouseDownAction_(~listViewDoubleClickAction)
+							.colors_(colors)
 					},
 					argView: { |v|
 						if (~currentMethod.isNil or: { ~currentMethod.argNames.isNil }) {

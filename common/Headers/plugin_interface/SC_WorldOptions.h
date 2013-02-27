@@ -23,11 +23,8 @@
 #define _SC_WorldOptions_
 
 #include <stdarg.h>
+#include "SC_Reply.h"
 #include "SC_Types.h"
-
-#if defined(SC_DARWIN) || defined(SC_IPHONE)
-#include <CoreFoundation/CFString.h>
-#endif
 
 typedef int (*PrintFunc)(const char *format, va_list ap);
 
@@ -65,12 +62,8 @@ struct WorldOptions
 
 	uint32 mLoadGraphDefs;
 
-#ifdef SC_DARWIN
 	const char *mInputStreamsEnabled;
 	const char *mOutputStreamsEnabled;
-    CFStringRef mServerPortName;
-    CFStringRef mReplyPortName;
-#endif
 	const char *mInDeviceName;
 
 	int mVerbosity;
@@ -84,19 +77,16 @@ struct WorldOptions
 	const char *mRestrictedPath;
 };
 
-const WorldOptions kDefaultWorldOptions =
+const struct WorldOptions kDefaultWorldOptions =
 {
-	0,1024,64,1024,1024,64,128,8,8,4096,64,8192, 0,0, 1, 0, 0,0,0,0,0,
-#ifdef SC_WIN32
-	44100,
+	0,1024,64,1024,1024,64,128,8,8,4096,64,8192, 0,0, 1, 0, 0,0,0,0,0
+#if defined(_WIN32)
+	,44100
 #else
-	0,
-#endif
-	64, 0, 1
-#ifdef SC_DARWIN
-	,0,0,CFSTR("com.audiosynth.scsynth"),NULL
-#endif
 	,0
+#endif
+	,64, 0, 1
+	,0, 0, 0
 	,0
 	,1
 	,0
@@ -104,33 +94,30 @@ const WorldOptions kDefaultWorldOptions =
 	,0
 };
 
-//#ifdef SC_WIN32
-//#include "../../Headers/server/SC_Reply.h"
-//#else //SC_WIN32
-#include "SC_Reply.h"
-//#endif //SC_WIN32
-
-#ifdef SC_WIN32
+#ifdef _WIN32
 # define SC_DLLEXPORT __declspec(dllexport)
 #else
 # define SC_DLLEXPORT
 #endif
 
+struct SndBuf;
+
+#if defined(__cplusplus)
 extern "C" {
+#endif // __cplusplus
 	SC_DLLEXPORT void SetPrintFunc(PrintFunc func);
-	SC_DLLEXPORT struct World* World_New(WorldOptions *inOptions);
-	SC_DLLEXPORT void World_Cleanup(World *inWorld);
-	SC_DLLEXPORT void World_NonRealTimeSynthesis(struct World *inWorld, WorldOptions *inOptions);
+	SC_DLLEXPORT struct World* World_New(struct WorldOptions *inOptions);
+	SC_DLLEXPORT void World_Cleanup(struct World *inWorld);
+	SC_DLLEXPORT void World_NonRealTimeSynthesis(struct World *inWorld, struct WorldOptions *inOptions);
 	SC_DLLEXPORT int World_OpenUDP(struct World *inWorld, int inPort);
 	SC_DLLEXPORT int World_OpenTCP(struct World *inWorld, int inPort, int inMaxConnections, int inBacklog);
-#if defined(SC_DARWIN) || defined(SC_IPHONE)
-	SC_DLLEXPORT void World_OpenMachPorts(struct World *inWorld, CFStringRef localName, CFStringRef remoteName);
-#endif
 	SC_DLLEXPORT void World_WaitForQuit(struct World *inWorld);
 	SC_DLLEXPORT bool World_SendPacket(struct World *inWorld, int inSize, char *inData, ReplyFunc inFunc);
 	SC_DLLEXPORT bool World_SendPacketWithContext(struct World *inWorld, int inSize, char *inData, ReplyFunc inFunc, void *inContext);
-	SC_DLLEXPORT int World_CopySndBuf(World *world, uint32 index, struct SndBuf *outBuf, bool onlyIfChanged, bool &didChange);
+	SC_DLLEXPORT int World_CopySndBuf(struct World *world, uint32 index, struct SndBuf *outBuf, bool onlyIfChanged, bool *didChange);
 	SC_DLLEXPORT int scprintf(const char *fmt, ...);
+#if defined(__cplusplus)
 }
+#endif // __cplusplus
 
 #endif // _SC_WorldOptions_

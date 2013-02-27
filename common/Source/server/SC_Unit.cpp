@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include "SC_Prototypes.h"
 
-#ifdef SC_WIN32
+#ifdef _WIN32
 // workaround for IN/OUT conflict with Win32 headers. see SC_Unit.h for details
 // (note: the pragma momentarily suppresses compiler warning about such conflict)
 #pragma warning(disable: 4005)
@@ -70,7 +70,6 @@ Unit* Unit_New(World *inWorld, UnitSpec *inUnitSpec, char*& memory)
 	Rate* rateInfo = unit->mRate = inUnitSpec->mRateInfo;
 	unit->mBufLength = rateInfo->mBufLength;
 
-	unit->mDimension = 0;
 	unit->mDone = false;
 
 	return unit;

@@ -15,54 +15,32 @@ plugins along with a 32-bit version of the application
 "
 fi
 
+# First let's detect the special 32/64bit mode
+switchableConfig="Deployment"
+buildArg=$*
+for opt in $*
+do
+    if [ $opt == "ARCHS=32_64" ]; then
+		switchableConfig="Deployment32-64"
+		buildArg=""
+        echo "Building 32/64 bit sclang, scsynth and plugins"
+    fi
+done
+
 # scsynth
 echo "Building scsynth..."
-if [ $# != 0  ]; then
-    if [ $* == "ARCHS=32_64" ]; then
-        echo "Building 32/64 bit scsynth"
-        xcodebuild -project Synth.xcodeproj -target "AllExceptAU" -configuration "Deployment32-64" build || exit
-    else
-    xcodebuild -project Synth.xcodeproj -target "AllExceptAU" -configuration "Deployment" $* build || exit
-    fi
-else 
-    xcodebuild -project Synth.xcodeproj -target "AllExceptAU" -configuration "Deployment" build || exit    
-fi
+xcodebuild -project Synth.xcodeproj -target "AllExceptAU" -configuration $switchableConfig $buildArg build || exit
 
 # plugins
 echo "Building plugins..."
-if [ $# != 0  ]; then
-    if [ $* == "ARCHS=32_64" ]; then
-        echo "Building 32/64 bit plugins"
-        xcodebuild -project Plugins.xcodeproj -target "All" -configuration "Deployment32-64" build || exit
-    else
-        xcodebuild -project Plugins.xcodeproj -target "All" -configuration "Deployment" $* build || exit
-    fi
-else
-    xcodebuild -project Plugins.xcodeproj -target "All" -configuration "Deployment" build || exit
-fi
+xcodebuild -project Plugins.xcodeproj -target "All" -configuration $switchableConfig $buildArg build || exit
 
 #sclang
 echo "Building sclang..."
-if [ $# != 0  ]; then
-    if [ $* == "ARCHS=32_64" ]; then
-        xcodebuild -project Language.xcodeproj -target "All" -configuration "Deployment" build || exit
-    else
-    xcodebuild -project Language.xcodeproj -target "All" -configuration "Deployment" $* build || exit
-    fi
-else
-    xcodebuild -project Language.xcodeproj -target "All" -configuration "Deployment" build || exit
-fi
+xcodebuild -project Language.xcodeproj -target "All" -configuration $switchableConfig $buildArg build || exit
 
 # scau
 echo "Building SuperColliderAU..."
-if [ $# != 0  ]; then
-    if [ $* == "ARCHS=32_64" ]; then
-        xcodebuild -project Synth.xcodeproj -target "SuperColliderAU" -configuration "Deployment32-64" build || exit
-    else
-        xcodebuild -project Synth.xcodeproj -target "SuperColliderAU" -configuration "Deployment" $* build || exit
-    fi
-else
-    xcodebuild -project Synth.xcodeproj -target "SuperColliderAU" -configuration "Deployment" build || exit
-fi
+xcodebuild -project Synth.xcodeproj -target "SuperColliderAU" -configuration $switchableConfig $buildArg build || exit
 
 echo "Done."

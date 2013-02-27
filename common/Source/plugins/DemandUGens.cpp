@@ -153,6 +153,11 @@ struct Dxrand : public Dseq
 {
 };
 
+struct Dwrand : public Dseq
+{
+	int32 m_weights_size;
+};
+
 struct Dswitch1 : public Unit
 {
 };
@@ -180,6 +185,11 @@ struct Dpoll : public Unit
 	char *m_id_string;
 	bool m_mayprint;
 	float m_id;
+};
+
+struct Dreset : public Unit
+{
+	float prev_reset;
 };
 
 extern "C"
@@ -248,6 +258,9 @@ void Drand_next(Drand *unit, int inNumSamples);
 
 void Dxrand_Ctor(Dxrand *unit);
 void Dxrand_next(Dxrand *unit, int inNumSamples);
+	
+void Dwrand_Ctor(Dwrand *unit);
+void Dwrand_next(Dwrand *unit, int inNumSamples);
 
 void Dswitch1_Ctor(Dswitch1 *unit);
 void Dswitch1_next(Dswitch1 *unit, int inNumSamples);
@@ -261,6 +274,9 @@ void Dstutter_next(Dstutter *unit, int inNumSamples);
 void Dpoll_Ctor(Dpoll *unit);
 void Dpoll_Ctor(Dpoll *unit);
 void Dpoll_next(Dpoll *unit, int inNumSamples);
+	
+void Dreset_Ctor(Dreset *unit);
+void Dreset_next(Dreset *unit, int inNumSamples);
 
 void Donce_Ctor(Donce *unit);
 void Donce_next(Donce *unit, int inNumSamples);
@@ -310,6 +326,9 @@ void Demand_next_aa(Demand *unit, int inNumSamples)
 		prevtrig = ztrig;
 		prevreset = zreset;
 	}
+	
+	unit->m_prevtrig = prevtrig;
+	unit->m_prevreset = prevreset;
 }
 
 
@@ -1761,6 +1780,77 @@ void Dxrand_Ctor(Dxrand *unit)
 	OUT0(0) = 0.f;
 }
 
+#define WINDEX \
+float w, sum = 0.0; \
+float r = unit->mParent->mRGen->frand(); \
+for (int i=0; i<weights_size; ++i) { \
+	w = IN0(2 + i); \
+	sum += w; \
+	if (sum >= r) { \
+		unit->m_index = i + offset; \
+		break; \
+	} \
+} \
+
+
+void Dwrand_next(Dwrand *unit, int inNumSamples)
+{
+	int offset = unit->m_weights_size + 2;
+	int weights_size = unit->mNumInputs - offset;
+	if (inNumSamples) {
+		
+		if (unit->m_repeats < 0.) {
+			float x = DEMANDINPUT_A(0, inNumSamples);
+			unit->m_repeats = sc_isnan(x) ? 0.f : floor(x + 0.5f);
+		}
+		while (true) {
+			
+			if (unit->m_repeatCount >= unit->m_repeats) {
+				OUT0(0) = NAN;
+				return;
+			}
+			
+			if (ISDEMANDINPUT(unit->m_index)) {
+				if (unit->m_needToResetChild) {
+					unit->m_needToResetChild = false;
+					RESETINPUT(unit->m_index);
+				}
+				float x = DEMANDINPUT_A(unit->m_index, inNumSamples);
+				if (sc_isnan(x)) {
+					
+					WINDEX;
+					unit->m_repeatCount++;
+					unit->m_needToResetChild = true;
+				} else {
+					OUT0(0) = x;
+					return;
+				}
+			} else {
+				OUT0(0) = DEMANDINPUT_A(unit->m_index, inNumSamples);
+				WINDEX;
+				unit->m_repeatCount++;
+				unit->m_needToResetChild = true;
+				return;
+			}
+		}
+	} else {
+		unit->m_repeats = -1.f;
+		unit->m_repeatCount = 0;
+		unit->m_needToResetChild = true;
+		WINDEX;
+	}
+}
+
+void Dwrand_Ctor(Dwrand *unit)
+{
+	SETCALC(Dwrand_next);
+	unit->m_weights_size = IN0(1);
+	Dwrand_next(unit, 0);
+	OUT0(0) = 0.f;
+}
+
+
+
 static void Dshuf_scramble(Dshuf *unit);
 
 void Dshuf_next(Dshuf *unit, int inNumSamples)
@@ -1943,7 +2033,7 @@ void Dstutter_next(Dstutter *unit, int inNumSamples)
 				OUT0(0) = NAN;
 				return;
 			} else {
-				unit->m_value = sc_abs(val);
+				unit->m_value = val;
 				unit->m_repeats = floor(repeats + 0.5f);
 				unit->m_repeatCount = 0.f;
 			}
@@ -2005,6 +2095,35 @@ void Dpoll_Dtor(Dpoll* unit)
 {
 	RTFree(unit->mWorld, unit->m_id_string);
 }
+
+//////////////////////////////
+
+
+
+void Dreset_next(Dreset *unit, int inNumSamples)
+{
+	if (inNumSamples) {
+		float x = DEMANDINPUT_A(0, inNumSamples);
+		float reset = DEMANDINPUT_A(1, inNumSamples);
+		if(sc_isnan(x)) {
+			OUT0(0) = NAN;
+			return;
+		}
+		if(reset > 0.0 && (unit->prev_reset <= 0.0)) { RESETINPUT(0); }
+		unit->prev_reset = reset;
+		OUT0(0) = x;
+	} else {
+		RESETINPUT(0);
+	}
+}
+
+void Dreset_Ctor(Dreset *unit)
+{
+	SETCALC(Dreset_next);
+	unit->prev_reset = 0.0;
+	Dreset_next(unit, 0);
+}
+
 
 
 //////////////////////////////
@@ -2083,7 +2202,37 @@ inline double sc_loop(Unit *unit, double in, double hi, int loop)
 		unit->m_fbufnum = fbufnum; \
 	} \
 	SndBuf *buf = unit->m_buf; \
+	LOCK_SNDBUF(buf); \
 	float *bufData __attribute__((__unused__)) = buf->data; \
+	uint32 bufChannels __attribute__((__unused__)) = buf->channels; \
+	uint32 bufSamples __attribute__((__unused__)) = buf->samples; \
+	uint32 bufFrames = buf->frames; \
+	int mask __attribute__((__unused__)) = buf->mask; \
+	int guardFrame __attribute__((__unused__)) = bufFrames - 2;
+
+#define D_GET_BUF_SHARED \
+	float fbufnum  = DEMANDINPUT_A(0, inNumSamples);; \
+	if (fbufnum != unit->m_fbufnum) { \
+		uint32 bufnum = (int)fbufnum; \
+		World *world = unit->mWorld; \
+		if (bufnum < 0) { bufnum = 0; } \
+		if (bufnum >= world->mNumSndBufs) { \
+			int localBufNum = bufnum - world->mNumSndBufs; \
+			Graph *parent = unit->mParent; \
+			if(localBufNum <= parent->localBufNum) { \
+				unit->m_buf = parent->mLocalSndBufs + localBufNum; \
+			} else { \
+				bufnum = 0; \
+				unit->m_buf = world->mSndBufs + bufnum; \
+			} \
+		} else { \
+			unit->m_buf = world->mSndBufs + bufnum; \
+		} \
+		unit->m_fbufnum = fbufnum; \
+	} \
+	const SndBuf *buf = unit->m_buf; \
+	LOCK_SNDBUF_SHARED(buf); \
+	const float *bufData __attribute__((__unused__)) = buf->data; \
 	uint32 bufChannels __attribute__((__unused__)) = buf->channels; \
 	uint32 bufSamples __attribute__((__unused__)) = buf->samples; \
 	uint32 bufFrames = buf->frames; \
@@ -2095,7 +2244,7 @@ void Dbufrd_next(Dbufrd *unit, int inNumSamples)
 {
 	int32 loop     = (int32)DEMANDINPUT_A(2, inNumSamples);
 
-	D_GET_BUF
+	D_GET_BUF_SHARED
 	D_CHECK_BUF
 
 	double loopMax = (double)(loop ? bufFrames : bufFrames - 1);
@@ -2205,11 +2354,13 @@ PluginLoad(Demand)
 	DefineSimpleUnit(Dbufrd);
 	DefineSimpleUnit(Dbufwr);
 	DefineSimpleUnit(Drand);
+	DefineSimpleUnit(Dwrand);
 	DefineSimpleUnit(Dxrand);
 	DefineDtorUnit(Dshuf);
 	DefineSimpleUnit(Dswitch1);
 	DefineSimpleUnit(Dswitch);
 	DefineSimpleUnit(Dstutter);
 	DefineSimpleUnit(Donce);
+	DefineSimpleUnit(Dreset);
 	DefineDtorUnit(Dpoll);
 }

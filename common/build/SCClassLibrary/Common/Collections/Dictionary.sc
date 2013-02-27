@@ -22,6 +22,9 @@ Dictionary : Set {
 		});
 		^nil
 	}
+	trueAt { arg key;
+		^this.at(key) ? false
+	}
 	add { arg anAssociation;
 		this.put(anAssociation.key, anAssociation.value);
 	}
@@ -173,7 +176,38 @@ Dictionary : Set {
 		^dict
 	}
 
-
+	merge {|that, func, fill = true|
+		var commonKeys, myKeys = this.keys, otherKeys = that.keys;
+		var res = ();
+	
+		if (myKeys == otherKeys) {
+			commonKeys = myKeys
+		} {
+			commonKeys = myKeys.sect(otherKeys);
+		};
+		
+		commonKeys.do { |key|
+			res[key] = func.value(this[key], that[key], key)
+		};
+		
+		if (fill) {
+			myKeys.difference(otherKeys).do { |key| res[key] = this[key] };
+			otherKeys.difference(myKeys).do { |key| res[key] = that[key] };
+		};
+		^res
+	}
+	
+	blend { |that, blend = 0.5, fill = true, specs|
+		
+		^this.merge(that, { |a, b, key|
+			var spec = if (specs.notNil) { specs[key].asSpec };
+			if (spec.notNil) {
+				spec.map(blend(spec.unmap(a), spec.unmap(b), blend))
+			} {
+				blend(a, b, blend)
+			}
+		}, fill)
+	}
 
 	findKeyForValue { arg argValue;
 		this.keysValuesArrayDo(array, { arg key, val, i;
@@ -219,7 +253,6 @@ Dictionary : Set {
 		}
 	}
 
-
 	// Pattern support
 	transformEvent { arg event;
 		^event.putAll(this);
@@ -230,8 +263,12 @@ Dictionary : Set {
 
 	asSortedArray {
 		var array;
-		this.keysValuesDo({ arg key, value; array = array.add([key,value]); });
-		array = array.sort({ arg a, b; a.at(0) < b.at(0) });
+		if ( this.notEmpty ){
+			this.keysValuesDo({ arg key, value; array = array.add([key,value]); });
+			array = array.sort({ arg a, b; a.at(0) < b.at(0) });
+		}{
+			array = [];
+		};
 		^array;
 	}
 	asKeyValuePairs {

@@ -309,11 +309,11 @@ void slotString(PyrSlot *slot, char *str)
 					if (!slotRawFrame(slot)) {
 						sprintf(str, "Frame (%0X)", slotRawInt(slot));
 					} else if (slotRawBlock(&slotRawFrame(slot)->method)->classptr == class_method) {
-						sprintf(str, "Frame (%0X) of %s:%s", slotRawInt(slot),
+						sprintf(str, "Frame (%p) of %s:%s", slotRawObject(slot),
 							slotRawSymbol(&slotRawClass(&slotRawMethod(&slotRawFrame(slot)->method)->ownerclass)->name)->name,
 							slotRawSymbol(&slotRawMethod(&slotRawFrame(slot)->method)->name)->name);
 					} else {
-						sprintf(str, "Frame (%0X) of Function", slotRawInt(slot));
+						sprintf(str, "Frame (%p) of Function", slotRawFrame(slot));
 					}
 				} else {
 					sprintf(str, "instance of %s (%p, size=%d, set=%d)",
@@ -575,7 +575,7 @@ int asCompileString(PyrSlot *slot, char *str)
 			break;
 		case tagChar :
 		{
-			int c = slotRawInt(slot);
+			int c = slotRawChar(slot);
 			if (isprint(c)) {
 				sprintf(str, "$%c", c);
 			} else {
@@ -637,19 +637,18 @@ void stringFromPyrString(PyrString *obj, char *str, int maxlength)
 
 void pstrncpy(unsigned char *s1, unsigned char *s2, int n);
 
-void pstringFromPyrString(PyrString *obj, unsigned char *str, int maxlength);
 void pstringFromPyrString(PyrString *obj, unsigned char *str, int maxlength)
 {
+	static const char not_a_string[] = "not a string";
+	const char * src;
+	int len;
 	if (obj && obj->classptr == class_string) {
-		int len;
 		len = sc_min(maxlength-1, obj->size);
-		memcpy(str+1, obj->s, len);
-		str[0] = len;
+		src = obj->s;
 	} else {
-#ifdef SC_DARWIN
-		pstrncpy(str, (unsigned char*)"\pnot a string", maxlength-1);
-#else
-		strncpy((char*)str, "not a string", maxlength-1);
-#endif
+		len =  sizeof(not_a_string);
+		src = not_a_string;
 	}
+	memcpy(str+1, src, len);
+	str[0] = len;
 }

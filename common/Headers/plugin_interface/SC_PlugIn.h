@@ -38,7 +38,7 @@
 #endif
 #include <stdlib.h>
 
-#ifdef SC_WIN32
+#ifdef _WIN32
 
 // temporarily override __attribute__ for (unused), later we'll remove it
 #ifndef __GNUC__
@@ -77,9 +77,11 @@ using std::atan2;
 using std::sinh;
 using std::cosh;
 using std::tanh;
+
+#ifndef SC_WIN32
 using std::asinh;
 using std::acosh;
 using std::atanh;
-
+#endif
 
 #endif

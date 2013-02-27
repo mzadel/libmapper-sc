@@ -36,8 +36,6 @@ import platform   # Seems to have more portable uname() than os
 
 PACKAGE = 'SuperCollider'
 
-
-
 f = open('../VERSION')
 VERSION = f.readline()
 f.close()
@@ -51,7 +49,7 @@ PLATFORM = platform.uname()[0].lower()
 CPU = short_cpu_name(platform.uname()[4])
 
 ANY_FILE_RE = re.compile('.*')
-HELP_FILE_RE = re.compile('.*\.(rtf(d)?|scd|html)$')
+HELP_FILE_RE = re.compile('.*\.(rtf(d)?|scd|htm(l)?)$')
 SC_FILE_RE = re.compile('.*\.sc$')
 SRC_FILE_RE = re.compile('.*\.(c(pp)|h)$')
 
@@ -88,7 +86,7 @@ else:
     DEFAULT_OPT_ARCH = None
 
 if PLATFORM != 'windows':
-	subprocess.call(['sh', 'setMainVersion.sh'])
+    subprocess.call(['sh', 'setMainVersion.sh'])
 
 
 # ======================================================================
@@ -267,79 +265,89 @@ def make_static_object(env, source, postfix="_a"):
 def make_static_objects(env, sources, postfix="_a"):
     return map(lambda x: make_static_object(env, x, postfix), sources)
 
+# for linking libX.so => libX.so.1 on *nixy systems. Note, they must be in same dir.
+def make_local_symlink(target, source, env):
+    targetname = os.path.basename(str(target[0]))
+    if os.path.isfile(targetname):
+        if not os.path.islink(targetname):
+            liblog.error("ERROR: cannot create symlink %s because already exists as non-symlink." % (targetname))
+    else:
+	    os.symlink(os.path.basename(str(source[0])), targetname)
+    return None
+
 # ======================================================================
 # command line options
 # ======================================================================
 
-opts = Options('scache.conf', ARGUMENTS)
-opts.AddOptions(
-    BoolOption('ALSA',
+opts = Variables('scache.conf', ARGUMENTS)
+opts.AddVariables(
+    BoolVariable('ALSA',
                'Build with ALSA sequencer support', 1),
-    BoolOption('ALTIVEC',
+    BoolVariable('ALTIVEC',
                'Build with Altivec support', 1),
     ('OPT_ARCH', 'Architecture to optimize for', DEFAULT_OPT_ARCH),
-    EnumOption('AUDIOAPI',
+    EnumVariable('AUDIOAPI',
                'Build with specified audio API support',
                DEFAULT_AUDIO_API, ('jack', 'coreaudio', 'portaudio')),
     ('CC', 'C compiler executable'),
     ('CCFLAGS', 'C compiler flags'),
     ('CXX', 'C++ compiler executable'),
     ('CXXFLAGS', 'C++ compiler flags'),
-    BoolOption('DEBUG',
+    BoolVariable('DEBUG',
                'Build with debugging information', 0),
-    PathOption('DESTDIR',
+    PathVariable('DESTDIR',
                'Intermediate installation prefix for packaging', '/'),
-    BoolOption('DEVELOPMENT',
+    BoolVariable('DEVELOPMENT',
                'Build and install the development files', 0),
-    BoolOption('FFTW',
+    BoolVariable('FFTW',
                'Use the FFTW libraries', PLATFORM != 'darwin'),
-    BoolOption('JACK_DLL',
+    BoolVariable('JACK_DLL',
                'Build with delay locked loop support', 0),
-    BoolOption('JACK_DEBUG_DLL',
+    BoolVariable('JACK_DEBUG_DLL',
                'Build with delay locked loop debugging support', 0),
-    BoolOption('LANG',
+    BoolVariable('LANG',
                'Build the language application', 1),
-    BoolOption('LID',
+    BoolVariable('LID',
                'Build with Linux Input Device support [linux]', PLATFORM == 'linux'),
-    BoolOption('NO_LIBSNDFILE',
+    BoolVariable('NO_LIBSNDFILE',
                'Disable libsndfile (audio file reading/writing)', 0),
-    BoolOption('WII',
+    BoolVariable('WII',
                'Build with Linux WII support [linux]', PLATFORM == 'linux'),
-    PathOption('PREFIX',
+    PathVariable('PREFIX',
                'Installation prefix', DEFAULT_PREFIX),
-    BoolOption('RENDEZVOUS',
+    BoolVariable('RENDEZVOUS',
                'Enable Zeroconf/Rendezvous.', 1),
-    BoolOption('SCEL',
+    BoolVariable('SCEL',
                'Enable the SCEL user interface; NOTE for the HTML help system you need emacs-w3m', 1),
-    BoolOption('SCVIM',
+    BoolVariable('SCVIM',
                'Enable the SCVIM user interface; NOTE see the README in /editors/scvim for setting variables', 1),
-    BoolOption('SCED',
+    BoolVariable('SCED',
                'Enable the SCED (based on gedit) user interface; NOTE see the README in /editors/sced for setting variables', 0),
-    BoolOption('SSE',
+    BoolVariable('SSE',
                'Build with SSE support', 1),
-    BoolOption('SSE2',
+    BoolVariable('SSE2',
                'Build with SSE2 support', 1),
-    BoolOption('STRIP',
+    BoolVariable('STRIP',
                'Strip symbols from binaries', 0),
-    BoolOption('CROSSCOMPILE',
+    BoolVariable('CROSSCOMPILE',
                'Crosscompile for another platform (does not do SSE support check)', 0),
-    BoolOption('TERMINAL_CLIENT',
+    BoolVariable('TERMINAL_CLIENT',
                'Build with terminal client interface', 1),
-    BoolOption('CURL',
+    BoolVariable('CURL',
                'Build with libcurl - allows server to load files from remote servers by URL', 0),
-    BoolOption('READLINE',
+    BoolVariable('READLINE',
                'Build with GNU readline for nice command-line sclang interface', PLATFORM == 'linux'),
-    BoolOption('GPL3',
+    BoolVariable('GPL3',
                'Allow the inclusion of gpl-3 licensed code. Makes the license of the whole package gpl-3', 1),
-    PackageOption('X11',
+    PackageVariable('X11',
                 'Build with X11 support', 1),
     )
 
 if PLATFORM == 'darwin':
-    opts.AddOptions(
-        BoolOption('UNIVERSAL',
+    opts.AddVariables(
+        BoolVariable('UNIVERSAL',
                    'Build universal binaries (see UNIVERSAL_ARCHS)', 1),
-        BoolOption('INTERNAL_LIBSNDFILE',
+        BoolVariable('INTERNAL_LIBSNDFILE',
                    'Use internal version of libsndfile', 1),
 #       ListOption('UNIVERSAL_ARCHS',
 #                  'Architectures to build for',
@@ -381,15 +389,19 @@ if os.path.exists('/usr/lib/ccache/bin'):
 
 env['ENV']['PATH'] = os.environ['PATH']
 if PLATFORM == 'windows':
-	env['ENV']['HOME'] = os.environ['HOMEPATH']
+    env['ENV']['HOME'] = os.environ['HOMEPATH']
 else:
-	env['ENV']['HOME'] = os.environ['HOME']
+    env['ENV']['HOME'] = os.environ['HOME']
 
 if PLATFORM == 'linux':
-	env['amd64'] = 'x86_64' in platform.uname()
-	if env['amd64']:
-		print "we are on amd64 linux"
-
+    env['amd64'] = 'x86_64' in platform.uname()
+    if env['amd64']:
+        print "we are on amd64 linux"
+    else:
+        # include libc-macro to include LFS-support on non-64-bit:
+        lfs_cflags = os.popen("getconf LFS_CFLAGS").read()[:-1]
+        for flag in lfs_cflags.split():
+            env.Append(CPPDEFINES = flag)
 
 # ======================================================================
 # installation directories
@@ -551,17 +563,21 @@ else:
 
 # libicu
 if env['LANG']:
-    if PLATFORM == 'darwin' or conf.CheckCHeader('unicode/uregex.h'):
-        libraries['libicu'] = Environment(
-             LINKFLAGS = '-licui18n -licuuc -licudata',
-        )
+    # nothing needed if darwin, icucore is linked further down with maccy things
+    if PLATFORM == 'darwin':
+        libraries['libicu'] = Environment()
     else:
-        print "libicu not found"
-        Exit(1)
+        if conf.CheckCHeader('unicode/uregex.h'):
+            libraries['libicu'] = Environment(
+                LINKFLAGS = '-licui18n -licuuc -licudata',
+            )
+        else:
+            print "libicu not found"
+            Exit(1)
 
 # readline
 if env['LANG'] and env['READLINE'] and env['GPL3']:
-    if conf.CheckCHeader('readline/readline.h'):
+    if conf.CheckLibWithHeader ('readline', ['stdio.h', 'readline/readline.h', 'readline/history.h'], 'c', 'add_history("testline");'):
         libraries['readline'] = Environment(
              LINKFLAGS = '-lreadline',
         )
@@ -581,7 +597,7 @@ if env['ALTIVEC']:
     libraries['altivec'] = env.Clone()
     libraries['altivec'].Append(
         CCFLAGS = altivec_flags,
-        CPPDEFINES = [('SC_MEMORY_ALIGNMENT', 16)])
+        CPPDEFINES = [('SC_MEMORY_ALIGNMENT', 16), 'HAS_ALTIVEC'])
     altiConf = Configure(libraries['altivec'])
     features['altivec'] = altiConf.CheckCHeader('altivec.h')
     altiConf.Finish()
@@ -700,14 +716,6 @@ commonEnv.Append(
     CXXFLAGS = ['-fPIC']
     )
 
-# strtod
-conf = Configure(commonEnv)
-if conf.CheckFunc('strtod'):
-    commonEnv.Append(
-        CPPDEFINES = 'HAVE_STRTOD'
-        )
-commonEnv = conf.Finish()
-
 
 # ======================================================================
 # back to common
@@ -751,17 +759,6 @@ serverEnv.Append(
                '#Headers/server'],
     CPPDEFINES = [('SC_PLUGIN_DIR', '\\"' + pkg_lib_dir(FINAL_PREFIX, 'plugins') + '\\"'), ('SC_PLUGIN_EXT', '\\"' + PLUGIN_EXT + '\\"')],
     LIBPATH = 'build')
-libscsynthEnv = serverEnv.Clone(
-    PKGCONFIG_NAME = 'libscsynth',
-    PKGCONFIG_DESC = 'SuperCollider synthesis server library',
-    PKGCONFIG_PREFIX = FINAL_PREFIX,
-    PKGCONFIG_REQUIRES = make_pkgconfig_requires(libraries['sndfile'],
-                                                 libraries['audioapi'],
-                                                 libraries['rendezvous']),
-    PKGCONFIG_LIBS = ['-lscsynth'],
-#     PKGCONFIG_LIBS_PRIVATE = ['-lm', '-lpthread', '-ldl'],
-    PKGCONFIG_CFLAGS = ['-D' + PLATFORM_SYMBOL, '-I${includedir}/common', '-I${includedir}/plugin_interface', '-I${includedir}/server']
-    )
 
 # platform specific
 
@@ -797,6 +794,24 @@ if env['CURL']:
     serverEnv.Append(CPPDEFINES = ['HAVE_LIBCURL'])
     merge_lib_info(serverEnv, libraries['libcurl'])
 
+libscsynthEnv = serverEnv.Clone(
+    PKGCONFIG_NAME = 'libscsynth',
+    PKGCONFIG_DESC = 'SuperCollider synthesis server library',
+    PKGCONFIG_PREFIX = FINAL_PREFIX,
+    PKGCONFIG_REQUIRES = make_pkgconfig_requires(libraries['sndfile'],
+                                                 libraries['audioapi'],
+                                                 libraries['rendezvous']),
+    PKGCONFIG_LIBS = ['-lscsynth'],
+#     PKGCONFIG_LIBS_PRIVATE = ['-lm', '-lpthread', '-ldl'],
+    PKGCONFIG_CFLAGS = ['-D' + PLATFORM_SYMBOL, '-I${includedir}/common', '-I${includedir}/plugin_interface', '-I${includedir}/server'],
+    SHLIBSUFFIX='.so.1',
+    LIBSUFFIXES=['.so.1']
+    )
+if PLATFORM == 'linux':
+    libscsynthEnv.Append(
+        LINKFLAGS = ['-Wl,-soname,libscsynth.so.1'])
+    libscsynthEnv.Command('build/libscsynth.so', 'build/libscsynth.so.1', make_local_symlink, chdir=1)
+
 libscsynthSources = Split('''
 Source/server/Rendezvous.cpp
 Source/server/Samp.cpp
@@ -805,7 +820,6 @@ Source/server/SC_Carbon.cpp
 Source/server/SC_Complex.cpp
 Source/server/SC_ComPort.cpp
 Source/server/SC_CoreAudio.cpp
-Source/server/SC_Dimension.cpp
 Source/server/SC_Errors.cpp
 Source/server/SC_Graph.cpp
 Source/server/SC_GraphDef.cpp
@@ -817,7 +831,6 @@ Source/server/SC_Node.cpp
 Source/server/SC_Rate.cpp
 Source/server/SC_SequencedCommand.cpp
 Source/server/SC_Str4.cpp
-Source/server/SC_SyncCondition.cpp
 Source/server/SC_Unit.cpp
 Source/server/SC_UnitDef.cpp
 Source/server/SC_World.cpp
@@ -825,8 +838,8 @@ Source/server/SC_World.cpp
 
 scsynthSources = ['Source/server/scsynth_main.cpp']
 
-libscsynth = serverEnv.SharedLibrary('build/scsynth', libscsynthSources)
-env.Alias('install-programs', env.Install(lib_dir(INSTALL_PREFIX), [libscsynth]))
+libscsynth = libscsynthEnv.SharedLibrary('build/scsynth', libscsynthSources)
+env.Alias('install-programs', env.Install(lib_dir(INSTALL_PREFIX), [libscsynth, 'build/libscsynth.so']))
 
 libscsynthStaticSources = libscsynthSources + make_static_objects(serverEnv, commonSources, "_libscsynthStatic");
 libscsynthStatic = serverEnv.StaticLibrary('build/scsynth', libscsynthStaticSources)
@@ -910,7 +923,7 @@ plugins.append(
         ['Source/plugins/FFTInterfaceTable.cpp',
          'Source/plugins/FFT_UGens.cpp',
          'Source/plugins/PV_UGens.cpp',
-	 'Source/plugins/PartitionedConvolution.cpp'] + fftSources))
+         'Source/plugins/PartitionedConvolution.cpp'] + fftSources))
 
 plugins.append(
     fftEnv.SharedLibrary(
@@ -945,7 +958,6 @@ if not env['NO_LIBSNDFILE']:  # (libsndfile needed for all of these, so skip if 
             )
 
     diskIOSources = [
-        diskIOEnv.SharedObject('Source/plugins/SC_SyncCondition', 'Source/server/SC_SyncCondition.cpp'),
         'Source/plugins/DiskIO_UGens.cpp']
     merge_lib_info(diskIOEnv, libraries['sndfile'])
     plugins.append(
@@ -1009,7 +1021,7 @@ if PLATFORM == 'darwin':
     langEnv.Append(
                 LIBS = ['icucore'],
                 LINKFLAGS = ['-framework', 'CoreServices'],
-                CPPPATH = ['#include/icu/unicode'])
+                CPPPATH = ['#include/icu'])
 elif PLATFORM == 'linux':
     langEnv.Append(
         LINKFLAGS = ['-Wl,-rpath,build', '-Wl,-rpath,' + FINAL_PREFIX + '/lib'])
@@ -1034,11 +1046,15 @@ libsclangEnv = langEnv.Clone(
     PKGCONFIG_PREFIX = FINAL_PREFIX,
     PKGCONFIG_REQUIRES = make_pkgconfig_requires(libraries['sndfile']) + ['libscsynth'],
     PKGCONFIG_LIBS = ['-lsclang'],
-    PKGCONFIG_CFLAGS = ['-D' + PLATFORM_SYMBOL, '-I${includedir}/common', '-I${includedir}/plugin_interface', '-I${includedir}/lang', '-I${includedir}/server']
+    PKGCONFIG_CFLAGS = ['-D' + PLATFORM_SYMBOL, '-I${includedir}/common', '-I${includedir}/plugin_interface', '-I${includedir}/lang', '-I${includedir}/server'],
+    SHLIBSUFFIX='.so.1',
+    LIBSUFFIXES=['.so.1']
     )
 if PLATFORM == 'linux':
     libsclangEnv.Append(
-        LINKFLAGS = ['-Wl,-soname,libsclang.so'])
+        LINKFLAGS = ['-Wl,-soname,libsclang.so.1'])
+    libsclangEnv.Command('build/libsclang.so', 'build/libsclang.so.1', make_local_symlink, chdir=1)
+    Requires('build/libsclang.so.1', 'build/libscsynth.so')
 
 # required libraries
 merge_lib_info(langEnv, libraries['sndfile'])
@@ -1065,7 +1081,6 @@ Source/lang/LangSource/SC_TerminalClient.cpp
 Source/lang/LangSource/Samp.cpp
 Source/lang/LangSource/SimpleStack.cpp
 Source/lang/LangSource/VMGlobals.cpp
-Source/lang/LangSource/alloca.cpp
 Source/lang/LangSource/dumpByteCodes.cpp
 Source/lang/LangSource/Bison/lang11d_tab.cpp
 Source/lang/LangPrimSource/SC_Wii.cpp
@@ -1096,14 +1111,11 @@ if env['LANG']:
 
 # optional features
 if features['midiapi']:
-    merge_lib_info(langEnv, libraries['midiapi'])
+    merge_lib_info(libsclangEnv, libraries['midiapi'])
     if features['midiapi'] == 'CoreMIDI':
                 libsclangSources += ['Source/lang/LangPrimSource/SC_CoreMIDI.cpp']
     else:
                 libsclangSources += ['Source/lang/LangPrimSource/SC_AlsaMIDI.cpp']
-else:
-    # fallback implementation
-    libsclangSources += ['Source/lang/LangPrimSource/SC_AlsaMIDI.cpp']
 
 if PLATFORM == 'darwin':
     langEnv.Append(
@@ -1128,12 +1140,12 @@ if PLATFORM == 'linux':
     # HAVE_LID does the right thing in SC_LID.cpp source
     libsclangSources += ['Source/lang/LangPrimSource/SC_LID.cpp']
     if features['wii']:
-                langEnv.Append(CPPDEFINES = 'HAVE_WII')
-                langEnv.Append(LINKFLAGS = '-lcwiid')
+                libsclangEnv.Append(CPPDEFINES = 'HAVE_WII')
+                libsclangEnv.Append(LINKFLAGS = '-lcwiid')
         #langEnv.Append(LINKFLAGS = '-lbluetooth')
         #langEnv.Append(CPPPATH = '-I/usr/local/include/libcwiimote-0.4.0/libcwiimote/' ) #FIXME: to proper include directory
     if features['lid']:
-            langEnv.Append(CPPDEFINES = 'HAVE_LID')
+            libsclangEnv.Append(CPPDEFINES = 'HAVE_LID')
 
 if PLATFORM == 'darwin':
     langEnv.Append(CPPDEFINES = 'HAVE_SPEECH')
@@ -1142,8 +1154,10 @@ if PLATFORM == 'darwin':
 sclangSources = ['Source/lang/LangSource/cmdLineFuncs.cpp']
 
 if env['LANG']:
-    libsclang = langEnv.SharedLibrary('build/sclang', libsclangSources)
-    env.Alias('install-bin', env.Install(lib_dir(INSTALL_PREFIX), [libsclang]))
+    langEnv.Append(CPPDEFINES='YYSTACK_USE_ALLOCA')
+
+    libsclang = libsclangEnv.SharedLibrary('build/sclang', libsclangSources)
+    env.Alias('install-bin', env.Install(lib_dir(INSTALL_PREFIX), [libsclang, 'build/libsclang.so']))
     if PLATFORM == 'darwin':
         sclangLibs = ['scsynth', 'sclang']
     else:
@@ -1191,7 +1205,7 @@ if is_installing():
         env.Alias('install-library', install_dir(
             env, '../editors/scel/sc',
             pkg_extension_dir(INSTALL_PREFIX, 'scide_scel'),
-            SC_FILE_RE, 3))
+            SC_FILE_RE, 4))
     # scvim
 #    if env['SCVIM']:
 #        env.Alias('install-library', install_dir(
@@ -1211,8 +1225,8 @@ if is_installing():
     #os.popen ("cat /proc/cpuinfo | grep '^flags'").read()[:-1]
 
 #if env['SCVIM']:
-	#vimenv = env.Clone()
-	#SConscript('editors/test/SConstruct', exports=['vimenv'])
+    #vimenv = env.Clone()
+    #SConscript('editors/test/SConstruct', exports=['vimenv'])
 
 #if env['SCVIM']:
    #print 'installing scvim'

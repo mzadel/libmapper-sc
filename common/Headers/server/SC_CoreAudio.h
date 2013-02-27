@@ -34,9 +34,9 @@
 #define SC_AUDIO_API_PORTAUDIO  3
 #define SC_AUDIO_API_AUDIOUNITS  4
 #define SC_AUDIO_API_COREAUDIOIPHONE	5
+#define SC_AUDIO_API_ANDROIDJNI 6
 
-
-#ifdef SC_WIN32
+#ifdef _WIN32
 # ifndef SC_INNERSC
 #  define SC_AUDIO_API SC_AUDIO_API_PORTAUDIO
 # else
@@ -44,12 +44,20 @@
 # endif
 #endif
 
+#ifdef SC_ANDROID
+#define SC_AUDIO_API SC_AUDIO_API_ANDROIDJNI
+#endif
+
 #ifdef SC_IPHONE
 #define SC_AUDIO_API SC_AUDIO_API_COREAUDIOIPHONE
 #endif
 
 #ifndef SC_AUDIO_API
-# define SC_AUDIO_API SC_AUDIO_API_COREAUDIO
+# ifdef __APPLE__ 
+#  define SC_AUDIO_API SC_AUDIO_API_COREAUDIO
+# else
+#  error SC_AUDIO_API undefined, cannot determine audio backend
+# endif
 #endif // SC_AUDIO_API
 
 #if SC_AUDIO_API == SC_AUDIO_API_COREAUDIO || SC_AUDIO_API == SC_AUDIO_API_AUDIOUNITS
@@ -78,15 +86,24 @@ const double kOSCtoSecs = 2.328306436538696e-10;
 
 struct SC_ScheduledEvent
 {
+	/// Callback function responsible for freeing the OSC packet in the correct thread.
+	typedef void (*PacketFreeFunc)(struct World* world, OSC_Packet* packet);
+
+	/// Frees an OSC packet in the realtime thread (to be used as a PacketFreeFunc).
+	static void FreeInRT(struct World* world, OSC_Packet* packet);
+	/// Frees an OSC packet in the non-realtime thread (to be used as a PacketFreeFunc).
+	static void FreeInNRT(struct World* world, OSC_Packet* packet);
+
 	SC_ScheduledEvent() : mTime(0), mPacket(0) {}
-	SC_ScheduledEvent(struct World *inWorld, int64 inTime, OSC_Packet *inPacket)
-		: mTime(inTime), mPacket(inPacket), mWorld(inWorld) {}
+	SC_ScheduledEvent(struct World *inWorld, int64 inTime, OSC_Packet *inPacket, PacketFreeFunc freeFunc)
+		: mTime(inTime), mPacket(inPacket), mPacketFreeFunc(freeFunc), mWorld(inWorld) {}
 
 	int64 Time() { return mTime; }
 	void Perform();
 
 	int64 mTime;
 	OSC_Packet *mPacket;
+	PacketFreeFunc mPacketFreeFunc;
 	struct World *mWorld;
 };
 
@@ -97,7 +114,24 @@ extern "C" {
 	int32 server_timeseed();
 	int64 oscTimeNow();
 };
+
 void initializeScheduler();
+
+/** Denotes whether an OSC packet has been performed immediately or has been scheduled for later execution.
+
+	If the package has been scheduled, memory ownership is transferred from the caller to the scheduler.
+*/
+enum PacketStatus
+{
+	PacketPerformed,
+	PacketScheduled
+};
+
+/** Perform a completion message in the realtime thread.
+
+	The return value denotes whether ownership is transferred to the scheduler or not.
+ */
+PacketStatus PerformCompletionMsg(World *world, const OSC_Packet& packet);
 
 class SC_AudioDriver
 {
@@ -226,9 +260,13 @@ protected:
 	virtual bool DriverStop();
 
 public:
+	int builtinoutputflag_; 
+	
     SC_CoreAudioDriver(struct World *inWorld);
 	virtual ~SC_CoreAudioDriver();
 
+	bool StopStart(); 
+	
     void Run(const AudioBufferList* inInputData, AudioBufferList* outOutputData, int64 oscTime);
 
 	bool UseInput() { return mInputDevice != kAudioDeviceUnknown; }
@@ -349,5 +387,32 @@ inline SC_AudioDriver* SC_NewAudioDriver(struct World *inWorld)
   return new SC_VSTAudioDriver(inWorld); //This gets saved in inWorld->hw->mAudioDriver
 }
 #endif // SC_AUDIO_API == SC_AUDIO_API_INNERSC_VST
+
+#if SC_AUDIO_API == SC_AUDIO_API_ANDROIDJNI
+
+class SC_AndroidJNIAudioDriver : public SC_AudioDriver
+{
+
+protected:
+
+    // Driver interface methods
+        virtual bool DriverSetup(int* outNumSamplesPerCallback, double* outSampleRate);
+        virtual bool DriverStart();
+        virtual bool DriverStop();
+        
+public:
+    SC_AndroidJNIAudioDriver(struct World *inWorld);
+        virtual ~SC_AndroidJNIAudioDriver();
+
+        void genaudio(short* arri, int numSamples);
+
+};
+
+inline SC_AudioDriver* SC_NewAudioDriver(struct World *inWorld)
+{
+    return new SC_AndroidJNIAudioDriver(inWorld);
+}
+
+#endif // SC_AUDIO_API == SC_AUDIO_API_ANDROIDJNI
 
 #endif

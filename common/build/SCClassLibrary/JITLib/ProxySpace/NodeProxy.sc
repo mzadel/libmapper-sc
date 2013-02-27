@@ -45,7 +45,7 @@ NodeProxy : BusPlug {
 		if(this.isPlaying) {
 			bundle = MixedBundle.new;
 			if(fadeTime.notNil) { bundle.add([15, group.nodeID, "fadeTime", fadeTime]) };
-			this.stopAllToBundle(bundle);
+			this.stopAllToBundle(bundle, fadeTime);
 			if(freeGroup) {
 				bundle.sched((fadeTime ? this.fadeTime) + (server.latency ? 0), { group.free });
 			};
@@ -146,6 +146,7 @@ NodeProxy : BusPlug {
 					container.wakeUpParentsToBundle(bundle);
 					this.sendObjectToBundle(bundle, container, extraArgs, index);
 				};
+				nodeMap.wakeUpParentsToBundle(bundle);
 				bundle.schedSend(server, clock ? TempoClock.default, quant);
 			} {
 				loaded = false;
@@ -172,13 +173,14 @@ NodeProxy : BusPlug {
 		this.put(i, \filter -> func)
 	}
 
-	removeLast { this.removeAt(objects.indices.last) }
-	removeAll { this.removeAt(nil) }
-	removeAt { | index |
+	removeFirst { | fadeTime | this.removeAt(objects.indices.first, fadeTime) }
+	removeLast { | fadeTime | this.removeAt(objects.indices.last, fadeTime) }
+	removeAll { | fadeTime | this.removeAt(nil, fadeTime) }
+	removeAt { | index, fadeTime |
 		var bundle = MixedBundle.new;
 		if(index.isNil)
-			{ this.removeAllToBundle(bundle) }
-			{ this.removeToBundle(bundle, index) };
+			{ this.removeAllToBundle(bundle, fadeTime) }
+			{ this.removeToBundle(bundle, index, fadeTime) };
 		bundle.schedSend(server);
 	}
 	
@@ -297,7 +299,7 @@ NodeProxy : BusPlug {
 	}
 
 	mapn { | ... args |
-		"NodeProxy: mapn is decrepated, please use map instead".postln;
+		"NodeProxy: mapn is deprecated, please use map instead".postln;
 		^this.map(*args)
 	}
 	
@@ -395,7 +397,8 @@ NodeProxy : BusPlug {
 	// map receiver to proxy input
 	// second argument is an adverb
 	<>> { | proxy, key = \in |
-		^proxy.perform('<<>', this, key)
+		proxy.perform('<<>', this, key);
+		^proxy
 	}
 	
 	// map proxy to receiver input
@@ -404,18 +407,21 @@ NodeProxy : BusPlug {
 		var ctl, rate, numChannels, canBeMapped;
 		if(proxy.isNil) { ^this.unmap(key) };
 		ctl = this.controlNames.detect { |x| x.name == key };
-		rate = ctl.rate ?? { if(this.isNeutral) { \audio } { this.rate } };
-		numChannels = ctl !? { ctl.defaultValue.size } ?? { 
-			if(rate == \audio) { this.class.defaultNumAudio } { this.class.defaultNumControl } 
+		rate = ctl.rate ?? {
+				if(proxy.isNeutral) {
+					if(this.isNeutral) { \audio } { this.rate } 
+				} {
+					proxy.rate
+				}
 		};
-		canBeMapped = proxy.initBus(rate, numChannels);
+		numChannels = ctl !? { ctl.defaultValue.asArray.size };		canBeMapped = proxy.initBus(rate, numChannels);
 		if(canBeMapped) {
 			if(this.isNeutral) { this.defineBus(rate, numChannels) };
 			this.xmap(key, proxy);
-		} { 
+		} {
 			"Could not link node proxies, no matching input found.".warn 
 		};
-		^proxy; // returns first argument for further chaining
+		^proxy // returns first argument for further chaining
 	}
 
 
@@ -503,7 +509,7 @@ NodeProxy : BusPlug {
 	}
 
 	edit { | nSliders, parent, bounds |
-		^NodeProxyEditor(this, nSliders ? this.getKeysValues.size.max(5), parent, bounds);
+		^NdefGui(this, nSliders ? this.getKeysValues.size.max(5), parent, bounds);
 	}
 
 
@@ -571,7 +577,8 @@ NodeProxy : BusPlug {
 		^#[\out, \i_out, \gate, \fadeTime];
 	}
 	
-	controlNames { | except |
+		// return names in the order they have in .objects
+	controlNames { | except, addNodeMap = true |
 		var all = Array.new; // Set doesn't work, because equality undefined for ControlName
 		except = except ? this.internalKeys;
 		objects.do { |el|
@@ -583,7 +590,39 @@ NodeProxy : BusPlug {
 				}
 			};
 		};
-		^all
+		^if (addNodeMap.not or: nodeMap.isNil) { all } { 
+			this.addNodeMapControlNames(all, except) 
+		};
+	}
+	
+		// if a name is set in nodemap, overwrite the values in objCtlNames;
+		// if a key is set in the nodemap, but is not used in the objects yet, add at the end. 
+	addNodeMapControlNames { |objCtlNames, except = #[]| 
+		nodeMap.controlNames
+			.reject { |ctlname| except.includes(ctlname.name) }
+			.do { |mapCtl|
+				var index = objCtlNames.detectIndex { |objCtl| objCtl.name == mapCtl.name };
+				if (index.notNil) { 
+					objCtlNames.put(index, mapCtl)
+				} { 
+					objCtlNames = objCtlNames.add(mapCtl)
+				}
+			};
+		^objCtlNames
+	}
+	
+	resetNodeMap { 
+		this.nodeMap = ProxyNodeMap.new;
+	}
+	
+	cleanNodeMap { 
+		var nodeMapKeys, keysToRemove; 
+		if (nodeMap.isNil) { ^this };
+		
+		nodeMapKeys = nodeMap.settings.keys.difference(this.internalKeys);
+		keysToRemove = nodeMapKeys.difference(this.controlNames(addNodeMap: false).collect(_.name));
+		
+		keysToRemove.do(this.unset(_));
 	}
 
 	controlKeys { | except, noInternalKeys = true |
@@ -705,21 +744,21 @@ NodeProxy : BusPlug {
 	}
 
 	// bundle: remove single object
-	removeToBundle { | bundle, index |
+	removeToBundle { | bundle, index, fadeTime |
 		var obj, dt, playing;
 		playing = this.isPlaying;
 		obj = objects.removeAt(index);
 
 		if(obj.notNil) {
-				dt = this.fadeTime;
+				dt = fadeTime ? this.fadeTime;
 				if(playing) { obj.stopToBundle(bundle, dt) };
 				obj.freeToBundle(bundle, dt);
 		}
 	}
 	// bundle: remove all objects
-	removeAllToBundle { | bundle |
+	removeAllToBundle { | bundle, fadeTime |
 		var dt, playing;
-		dt = this.fadeTime;
+		dt = fadeTime ? this.fadeTime;
 		playing = this.isPlaying;
 		objects.do { arg obj;
 				if(playing) { obj.stopToBundle(bundle, dt) };
@@ -729,9 +768,9 @@ NodeProxy : BusPlug {
 	}
 
 	// bundle: stop single process
-	stopAllToBundle { | bundle |
+	stopAllToBundle { | bundle, fadeTime |
 		var obj, dt;
-		dt = this.fadeTime;
+		dt = fadeTime ? this.fadeTime;
 		if(this.isPlaying) { 
 			objects.do { |obj| obj.stopToBundle(bundle, dt) } 
 		}
@@ -765,7 +804,7 @@ NodeProxy : BusPlug {
 			if(loaded.not) { this.loadToBundle(bundle) };
 			if(awake and: { this.isPlaying.not }) {
 				this.prepareToBundle(nil, bundle, \addToHead);
-				this.sendAllToBundle(bundle)
+				this.sendAllToBundle(bundle);
 			};
 		};
 
@@ -773,7 +812,7 @@ NodeProxy : BusPlug {
 
 	wakeUpParentsToBundle { | bundle, checkedAlready |
 			nodeMap.wakeUpParentsToBundle(bundle, checkedAlready);
-			objects.do{ arg item; item.wakeUpParentsToBundle(bundle, checkedAlready) };
+			objects.do { arg item; item.wakeUpParentsToBundle(bundle, checkedAlready) };
 	}
 
 
@@ -884,7 +923,7 @@ Ndef : NodeProxy {
 	}
 	
 	*clear { | fadeTime |
-		all.do { arg dict; dict.do { arg item; item.clear(fadeTime) } };
+		all.do(_.clear(fadeTime));
 		all.clear;
 	}
 
@@ -892,7 +931,8 @@ Ndef : NodeProxy {
 		var dict = all.at(server.name);
 		if(dict.isNil) {
 			dict = ProxySpace.new(server); // use a proxyspace for ease of access.
-			all.put(server.name, dict)
+			all.put(server.name, dict);
+			dict.registerServer;
 		};
 		^dict
 	}	
@@ -901,7 +941,10 @@ Ndef : NodeProxy {
 		this.printOn(stream);
 	}
 	printOn { | stream |
-		stream << this.class.name << "(" <<< this.key << ")"
+		var serverString = if (server == Server.default) { "" } { 
+			" ->" + server.name.asCompileString;
+		};
+		stream << this.class.name << "(" <<< this.key << serverString << ")"
 	}
 	
 	

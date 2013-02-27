@@ -16,14 +16,15 @@
 
 	makeGui { arg w;
 		var active, booter, killer, makeDefault, running, booting, stopped, bundling, showDefault;
+		var startDump, stopDump, blockAliveThread, dumping = false;
 		var recorder, scoper;
 		var countsViews, ctlr;
-		var dumping = false, label, gui, font, volumeNum;
+		var label, gui, font, volumeNum;
 
 		if (window.notNil) { ^window.front };
 
 		gui = GUI.current;
-		font = GUI.font.new("Helvetica", 10);
+		font = GUI.font.new(Font.defaultSansFace, 10);
 
 		if(w.isNil) {
 			label = name.asString + "server";
@@ -55,7 +56,7 @@
 			killer.states = [["K", Color.black, Color.clear]];
 			killer.font = font;
 			killer.canFocus = false;
-			killer.action = { Server.killAll };
+			killer.action = { Server.killAll; stopped.value; };
 		};
 
 		active = gui.staticText.new(w, Rect(0,0, 78, 18));
@@ -74,20 +75,21 @@
 
 		//w.view.decorator.nextLine;
 
-		recorder = gui.button.new(w, Rect(0,0, 66, 18));
-		recorder.font = font;
-		recorder.states = [
-			["record >", Color.black, Color.clear],
-			["stop []", Color.black, Color.red.alpha_(0.3)]
-		];
-
-		recorder.action = {
-			if (recorder.value == 1) { this.record } { this.stopRecording };
+		if(isLocal){
+			recorder = gui.button.new(w, Rect(0,0, 66, 18));
+			recorder.font = font;
+			recorder.states = [
+				["record >", Color.black, Color.clear],
+				["stop []", Color.black, Color.red.alpha_(0.3)]
+			];
+			recorder.action = {
+				if (recorder.value == 1) { this.record } { this.stopRecording };
+			};
+			recorder.enabled = false;
 		};
-		recorder.enabled = false;
 
 		w.view.keyDownAction = { arg view, char, modifiers;
-			var startDump, stopDump, stillRunning;
+
 
 				// if any modifiers except shift key are pressed, skip action
 			if(modifiers & 16515072 == 0) {
@@ -102,23 +104,6 @@
 					GUI.use( gui, { this.scope })}
 				{char == $d } {
 					if(this.isLocal or: { this.inProcess }) {
-						stillRunning = {
-							SystemClock.sched(0.2, { this.stopAliveThread });
-						};
-						startDump = {
-							this.dumpOSC(1);
-							this.stopAliveThread;
-							dumping = true;
-							w.name = "dumping osc: " ++ name.asString;
-							CmdPeriod.add(stillRunning);
-						};
-						stopDump = {
-							this.dumpOSC(0);
-							this.startAliveThread;
-							dumping = false;
-							w.name = label;
-							CmdPeriod.remove(stillRunning);
-						};
 						if(dumping, stopDump, startDump)
 					} {
 						"cannot dump a remote server's messages".inform
@@ -132,7 +117,7 @@
 			};
 		};
 
-		if (isLocal, {
+		if (isLocal) {
 
 			running = {
 				active.stringColor_(Color.new255(74, 120, 74));
@@ -143,6 +128,7 @@
 			stopped = {
 				active.stringColor_(Color.grey(0.3));
 				active.string = "inactive";
+				stopDump.value;
 				booter.setProperty(\value,0);
 				recorder.setProperty(\value,0);
 				recorder.enabled = false;
@@ -158,24 +144,38 @@
 				booter.setProperty(\value,1);
 				recorder.enabled = false;
 			};
+			blockAliveThread = {
+				SystemClock.sched(0.2, { this.stopAliveThread });
+			};
+			startDump = {
+				this.dumpOSC(1);
+				this.stopAliveThread;
+				dumping = true;
+				w.name = "dumping osc: " ++ name.asString;
+				CmdPeriod.add(blockAliveThread);
+			};
+			stopDump = {
+				this.dumpOSC(0);
+				this.startAliveThread;
+				dumping = false;
+				w.name = label;
+				CmdPeriod.remove(blockAliveThread);
+			};
 
 			w.onClose = {
 				window = nil;
 				ctlr.remove;
 			};
 
-		},{
+		} {
 			running = {
 				active.stringColor_(Color.new255(74, 120, 74));
 				active.string = "running";
 				active.background = Color.white;
-				recorder.enabled = true;
 			};
 			stopped = {
 				active.stringColor_(Color.grey(0.3));
 				active.string = "inactive";
-				recorder.setProperty(\value,0);
-				recorder.enabled = false;
 
 			};
 			booting = {
@@ -187,7 +187,6 @@
 				active.stringColor = Color.new255(237, 157, 196);
 				active.background = Color.red(0.5);
 				booter.setProperty(\value,1);
-				recorder.enabled = false;
 			};
 
 			w.onClose = {
@@ -196,7 +195,7 @@
 				window = nil;
 				ctlr.remove;
 			};
-		});
+		};
 
 		showDefault = {
 			makeDefault.value = (Server.default == this).binaryValue;
@@ -324,11 +323,13 @@
 				countsViews.at(4).string = numGroups;
 				countsViews.at(5).string = numSynthDefs;
 			})
-			.put(\cmdPeriod,{
-				recorder.setProperty(\value,0);
-			})
 			.put(\bundling, bundling)
 			.put(\default, showDefault);
+		if(isLocal){
+			ctlr.put(\cmdPeriod,{
+					recorder.setProperty(\value,0);
+				})
+		};
 
 		this.startAliveThread;
 	}
@@ -420,7 +421,7 @@
 						var thisSize, rect, endYTabs;
 						xtabs = xtabs + 1;
 						ytabs = ytabs + 1;
-						Pen.font = Font("Helvetica", 11);
+						Pen.font = Font(Font.defaultSansFace, 11);
 						group.do({|node|
 							if(node.value.isArray, {
 

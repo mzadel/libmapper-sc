@@ -1,6 +1,6 @@
 
 ProxyMonitorGui { 	classvar <>lastOutBus = 99;
-	var <proxy, <usesPlayN, <usesName, <usesPausSend;
+	var <proxy, <usesPlayN = false, <usesName, <usesPausSend;
 	var <win, <zone, <flow;	var <ampSl, <playBut, <nameView, <setOutBox, <playNDialogBut, <pauseBut, <sendBut; 	var <skipjack, <oldState = #[];
 		*new { |proxy, w, bounds, showLevel=false, showPlayN=true, showName=true, showPauseSend = true,
 		makeWatcher=true, skin|
@@ -24,7 +24,7 @@ ProxyMonitorGui { 	classvar <>lastOutBus = 99;
 		var height;
 		var widthSum, sliderWidth, winBounds, viewBounds;
 
-		skin = skin ? GUI.skins.jit;		font = GUI.font.new(*skin.fontSpecs);
+		skin = skin ? GUI.skins[\jitSmall];		font = GUI.font.new(*skin.fontSpecs);
 
 		usesPlayN = showPlayN;
 		usesName = showName;		usesPausSend = showPauseSend;

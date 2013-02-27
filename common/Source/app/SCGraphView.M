@@ -36,6 +36,8 @@ typedef int NSInteger;
 typedef unsigned int NSUInteger;
 #endif
 
+CGRect SCtoCGRect(SCRect screct);
+
 extern PyrSymbol *s_draw;
 extern PyrSymbol *s_scview;
 extern PyrSymbol *s_closed;
@@ -569,17 +571,13 @@ const int circDiam = 20;
 }
 
 - (unsigned int)draggingEntered:(id)dragInfo {
-	NSLog(@"dragSource %@", [dragInfo draggingSource]);
 	if (!mTopView) return NSDragOperationNone;
 	NSPasteboard* pboard = [dragInfo draggingPasteboard];
-	NSLog(@"types %@", [pboard types]);
 	if ([[pboard types] containsObject: sSCObjType]) {
 
 	} else if ([[pboard types] containsObject: NSStringPboardType]) {
 		NSString *nsstring = [pboard stringForType: NSStringPboardType];
-		NSLog(@"string %@", nsstring);
 		if (!nsstring) return NSDragOperationNone;
-		NSLog(@"goingto imp");
 		pthread_mutex_lock (&gLangMutex);
 			VMGlobals *g = gMainVMGlobals;
 			PyrString* pstrobj = newPyrString(g->gc, [nsstring UTF8String], 0, true);
@@ -732,7 +730,6 @@ const int circDiam = 20;
 
 - (void)drawRect: (NSRect)drawBounds
 {
-
 	if (mTopView) {
 
         SCRect screct;
@@ -769,7 +766,7 @@ const int circDiam = 20;
 
 		const CGRect *dirtyRects;
 		CGRect	curRect;
-		int		numDirtyRects;
+		NSInteger		numDirtyRects;
 
 		[self getRectsBeingDrawn:(const NSRect**)&dirtyRects count:(NSInteger*)&numDirtyRects];
 
@@ -880,7 +877,7 @@ int nsStringDrawInRectAlign(NSString *nsstring, SCRect screct, char *cFontName, 
  	   drawBounds.origin.y += vdiff;
 	}
 
-    CGRect cgrect = *(CGRect*)&screct;
+    CGRect cgrect = SCtoCGRect(screct);
     CGContextRef cgc = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
     CGContextSaveGState(cgc);
     CGContextClipToRect(cgc, cgrect);
@@ -892,25 +889,25 @@ int nsStringDrawInRectAlign(NSString *nsstring, SCRect screct, char *cFontName, 
 }
 
 
-int stringDrawInRect(char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
+int stringDrawInRect(const char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
 {
 	NSString *nsstring = [NSString stringWithCString: cString];
 	return nsStringDrawInRect(nsstring, screct, cFontName, fontSize, sccolor);
 }
 
-int stringDrawCenteredInRect(char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
+int stringDrawCenteredInRect(const char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
 {
 	NSString *nsstring = [NSString stringWithCString: cString];
 	return nsStringDrawInRectAlign(nsstring, screct, cFontName, fontSize, sccolor, 0, 0, NULL);
 }
 
-int stringDrawLeftInRect(char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
+int stringDrawLeftInRect(const char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
 {
 	NSString *nsstring = [NSString stringWithCString: cString];
 	return nsStringDrawInRectAlign(nsstring, screct, cFontName, fontSize, sccolor, -1, 0, NULL);
 }
 
-int stringDrawRightInRect(char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
+int stringDrawRightInRect(const char *cString, SCRect screct, char *cFontName, float fontSize, SCColor sccolor)
 {
 	NSString *nsstring = [NSString stringWithCString: cString];
 	return nsStringDrawInRectAlign(nsstring, screct, cFontName, fontSize, sccolor, 1, 0, NULL);

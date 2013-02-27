@@ -135,6 +135,14 @@ Dshuf : ListDUGen {}
 Drand : ListDUGen {}
 Dxrand : ListDUGen {}
 
+Dwrand : DUGen {
+	*new { arg list, weights, repeats = 1;
+		var size = list.size;
+		weights = weights.extend(size, 0.0);
+		^this.multiNewList(['demand', repeats, size] ++ weights ++ list)
+	}
+}
+
 Dswitch1 : DUGen {
 	*new { arg list, index;
 		^this.multiNewList(['demand', index] ++ list)
@@ -171,6 +179,12 @@ Donce : DUGen {
 	}
 }
 
+Dreset : DUGen {
+	*new { arg in, reset = 0.0;
+		^this.multiNew('demand', in, reset)
+	}
+}
+
 Dpoll : DUGen {
 	*new { arg in, label, run = 1, trigid = -1;
 		^this.multiNew('demand', in, label, run, trigid)
@@ -183,3 +197,24 @@ Dpoll : DUGen {
 	}
 }
 
+// behave as identical in multiple uses
+
+Dunique : UGen {
+	var <>source, stutter, numUses;
+	
+	*new { arg source;
+		^super.new.source_(source).init
+	}
+	
+	init {
+		numUses = 0;
+		stutter = Dstutter(1, source);
+	}
+	
+	asUGenInput {
+		numUses = numUses + 1;
+		stutter.inputs[0] = numUses;
+		^stutter
+	}
+	
+}

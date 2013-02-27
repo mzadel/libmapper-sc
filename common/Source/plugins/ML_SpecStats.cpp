@@ -81,6 +81,7 @@ struct SpecCentroid : FFTAnalyser_Unit
 	} else { \
 		buf = world->mSndBufs + ibufnum; \
 	} \
+	LOCK_SNDBUF(buf); \
 	int numbins = buf->samples - 2 >> 1;
 
 // Copied from FFT_UGens.cpp
@@ -302,8 +303,6 @@ void SpecCentroid_next(SpecCentroid *unit, int inNumSamples)
 void load(InterfaceTable *inTable)
 {
 	ft= inTable;
-
-	init_SCComplex(inTable);
 
 	//(*ft->fDefineUnit)("SpecFlatness", sizeof(FFTAnalyser_Unit), (UnitCtorFunc)&SpecFlatness_Ctor, 0, 0);
 	//(*ft->fDefineUnit)("SpecPcile", sizeof(SpecPcile_Unit), (UnitCtorFunc)&SpecPcile_Ctor, (UnitDtorFunc)&SpecPcile_Dtor, 0);

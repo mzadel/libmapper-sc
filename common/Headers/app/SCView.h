@@ -157,7 +157,6 @@ public:
 	virtual bool isSubViewScroller() { return false; }
 	virtual bool isContainer() { return false; }
 	virtual SCRect checkMinimumSize() { return mBounds; }
-	virtual bool relativeOrigin() {return false;}
 
 	bool isTopContainer(){ return (!mParent);};
 
@@ -207,13 +206,11 @@ public:
 	virtual SCRect checkMinimumSize();
 	virtual void setVisibleFromParent();
 	virtual bool isVisible() {return mVisible && mParent->isVisible(); }
-	virtual bool relativeOrigin() {return mRelativeOrigin;}
 	virtual bool isContainer() { return true; }
 
 protected:
 	SCView *mChildren;
 	int mNumChildren;
-	bool mRelativeOrigin;
 };
 
 class SCCompositeView : public SCContainerView
@@ -374,7 +371,6 @@ public:
 	virtual void drawIfNecessary(SCRect inDamage);
 	virtual void drawSubViewIfNecessary(SCRect inDamage);
 	virtual bool isVisible() {return mVisible && mParent->isVisible(); }
-	virtual bool relativeOrigin() {return false;}
 };
 
 inline bool SCView::isFocus() const { return mTop->focusView() == this; }
@@ -495,7 +491,7 @@ SCView* NewSC2DTabletSlider(SCContainerView *inParent, PyrObject* inObj, SCRect 
 
 #include "SC_SndBuf.h"
 
-const int kMaxScopeChannels = 16;
+const int kMaxScopeChannels = 128;
 class SCScope : public SCView
 {
 public:
@@ -579,6 +575,14 @@ protected:
 SCView* NewSCButton(SCContainerView *inParent, PyrObject* inObj, SCRect inBounds);
 
 
+@interface SCNSMenu : NSMenu
+{
+	int current;
+}
+- (void) selectedItem:(id)item;
+- (int) current;
+@end
+
 class SCPopUpMenu : public SCView
 {
 public:
@@ -600,7 +604,7 @@ public:
 protected:
 
 	int mValue;
-	MenuHandle mMenuH;
+	SCNSMenu *mMenu;
 	char mFontName[kFontNameSize];
 	float mFontSize;
 	SCColor mStringColor;
@@ -809,7 +813,6 @@ public:
 protected:
 	bool mDrawingEnabled;
 	bool mClearOnRefresh;
-	bool mRelativeOrigin;
 	double mFrameLastTimes[kFrameLastTimes];
 	float mFrameRate;
 	int mFrameCounter;
