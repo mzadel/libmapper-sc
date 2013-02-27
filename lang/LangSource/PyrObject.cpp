@@ -1163,7 +1163,7 @@ void buildBigMethodMatrix()
 	post("\t%d method selectors, %d classes\n", numSelectors, numClasses);
 	post("\tmethod table size %d bytes, ", rowTableSize);
 	post("big table size %d\n", numSelectors * numClasses * sizeof(PyrMethod*));
-	//postfl("%08X %08X %08X\n", classes, bigTable, sels);
+	//postfl("%p %p %p\n", classes, bigTable, sels);
 /*
 	// not necessary since the entire pool will be freed..
 	pyr_pool_compile->Free(classes);
@@ -1273,7 +1273,7 @@ PyrClass* makeIntrinsicClass(PyrSymbol *className, PyrSymbol *superClassName,
 			sizeof(PyrSlot) * classClassNumInstVars);
 		memcpy(slotRawSymbolArray(&metaclassobj->instVarNames)->symbols,
 			slotRawSymbolArray(&metaSuperClass->instVarNames)->symbols,
-			sizeof(PyrSlot) * classClassNumInstVars);
+			sizeof(PyrSymbol*) * classClassNumInstVars);
 		slotRawObject(&metaclassobj->iprototype)->size = classClassNumInstVars;
 		slotRawObject(&metaclassobj->instVarNames)->size = classClassNumInstVars;
 		//dumpObject((PyrObject*)metaclassobj);
@@ -1290,7 +1290,7 @@ PyrClass* makeIntrinsicClass(PyrSymbol *className, PyrSymbol *superClassName,
 			sizeof(PyrSlot) * superInstVars);
 		memcpy(slotRawSymbolArray(&classobj->instVarNames)->symbols,
 			slotRawSymbolArray(&superClass->instVarNames)->symbols,
-			sizeof(PyrSlot) * superInstVars);
+			sizeof(PyrSymbol*) * superInstVars);
 		slotRawObject(&classobj->iprototype)->size = superInstVars;
 		slotRawObject(&classobj->instVarNames)->size = superInstVars;
 	}
@@ -1487,7 +1487,7 @@ void initClasses()
 
 		addIntrinsicVar(class_thread, "environment", &o_nil);
 		addIntrinsicVar(class_thread, "exceptionHandler", &o_nil);
-	
+
 		addIntrinsicVar(class_thread, "executingPath", &o_nil);
 		addIntrinsicVar(class_thread, "oldExecutingPath", &o_nil);
 
@@ -1586,10 +1586,10 @@ void initClasses()
 	slotRawSymbolArray(&o_argnamethis)->symbols[0] = s_this;
 
 	/*
-	post("array %08X '%s'\n", class_array, class_array->name.us->name);
-	post("o_emptyarray %08X '%s'\n", slotRawObject(&o_emptyarray)->classptr, slotRawObject(&o_emptyarray)->classptr->name.us->name);
-	post("o_argnamethis %08X '%s'\n", slotRawObject(&o_argnamethis)->classptr, slotRawObject(&o_argnamethis)->classptr->name.us->name);
-	post("o_onenilarray %08X '%s'\n", slotRawObject(&o_onenilarray)->classptr, slotRawObject(&o_onenilarray)->classptr->name.us->name);
+	post("array %p '%s'\n", class_array, class_array->name.us->name);
+	post("o_emptyarray %p '%s'\n", slotRawObject(&o_emptyarray)->classptr, slotRawObject(&o_emptyarray)->classptr->name.us->name);
+	post("o_argnamethis %p '%s'\n", slotRawObject(&o_argnamethis)->classptr, slotRawObject(&o_argnamethis)->classptr->name.us->name);
+	post("o_onenilarray %p '%s'\n", slotRawObject(&o_onenilarray)->classptr, slotRawObject(&o_onenilarray)->classptr->name.us->name);
 	dumpObjectSlot(&o_emptyarray);
 	dumpObjectSlot(&o_argnamethis);
 	dumpObjectSlot(&o_onenilarray);
@@ -1721,10 +1721,10 @@ void dumpObject(PyrObject *obj)
 	}
 	classobj = obj->classptr;
 	if (isKindOf(obj, class_class)) {
-		post("class %s (%08X) {\n", slotRawSymbol(&((PyrClass*)obj)->name)->name, obj);
+		post("class %s (%p) {\n", slotRawSymbol(&((PyrClass*)obj)->name)->name, obj);
 	} else {
-		//post("Instance of %s (%08X) {\n", slotRawSymbol(&classobj->name)->name, obj);
-		post("Instance of %s {    (%08X, gc=%02X, fmt=%02X, flg=%02X, set=%02X)\n",
+		//post("Instance of %s (%p) {\n", slotRawSymbol(&classobj->name)->name, obj);
+		post("Instance of %s {    (%p, gc=%02X, fmt=%02X, flg=%02X, set=%02X)\n",
 			slotRawSymbol(&classobj->name)->name, obj, obj->gc_color, obj->obj_format, obj->obj_flags,
 			obj->obj_sizeclass);
 	}
@@ -1816,10 +1816,10 @@ void dumpBadObject(PyrObject *obj)
 	}
 	classobj = obj->classptr;
 	if (isKindOf(obj, class_class)) {
-		postfl("class %s (%08X) {\n", slotRawSymbol(&((PyrClass*)obj)->name)->name, obj);
+		postfl("class %s (%p) {\n", slotRawSymbol(&((PyrClass*)obj)->name)->name, obj);
 	} else {
-		//postfl("Instance of %s (%08X) {\n", slotRawSymbol(&classobj->name)->name, obj);
-		postfl("Instance of %s {    (%08X, gc=%02X, fmt=%02X, flg=%02X, set=%02X)\n",
+		//postfl("Instance of %s (%p) {\n", slotRawSymbol(&classobj->name)->name, obj);
+		postfl("Instance of %s {    (%p, gc=%02X, fmt=%02X, flg=%02X, set=%02X)\n",
 			slotRawSymbol(&classobj->name)->name, obj, obj->gc_color, obj->obj_format, obj->obj_flags,
 			obj->obj_sizeclass);
 	}
@@ -1992,9 +1992,7 @@ void DumpFrame(PyrFrame *frame)
 	meth = slotRawMethod(&frame->method);
 	methraw = METHRAW(meth);
 	if (methraw->numtemps) {
-		post("\t%s   %08X\n", str, frame);
-//#ifndef SC_LINUX
-// sk: crashes on linux when accessing meth->argNames.uosym->symbols[i]
+		post("\t%s   %p\n", str, frame);
 		numargs = methraw->numargs + methraw->varargs;
 		for (i=0; i<methraw->numtemps; ++i) {
 			slotOneWord(frame->vars + i, str);
@@ -2005,7 +2003,6 @@ void DumpFrame(PyrFrame *frame)
 				post("\t\tvar %s = %s\n", slotRawSymbolArray(&meth->varNames)->symbols[i - numargs]->name, str);
 			}
 		}
-//#endif // !SC_LINUX
 	} else {
 		post("\t%s  (no arguments or variables)\n", str);
 	}
@@ -2294,7 +2291,7 @@ PyrMethod* initPyrMethod(PyrMethod* method)
 	nilSlots(&method->code,  numSlots-2);
 	//slotCopy(&method->byteMeter, &o_zero);
 	//slotCopy(&method->callMeter, &o_zero);
-	//post("<- newPyrMethod %08X %08X\n", method, methraw);
+	//post("<- newPyrMethod %p %p\n", method, methraw);
 	return method;
 }
 
@@ -2350,7 +2347,7 @@ int getIndexedInt(PyrObject *obj, int index, int *value)
 			}
 			break;
 		case obj_double :
-			*value = (int)slotRawFloat(&obj->slots[index]);
+			*value = (int)((double*)(obj->slots))[index];
 			break;
 		case obj_float :
 			*value = (int)((float*)(obj->slots))[index];
@@ -2387,7 +2384,7 @@ int getIndexedFloat(PyrObject *obj, int index, float *value)
 			}
 			break;
 		case obj_double :
-			*value = slotRawFloat(&obj->slots[index]);
+			*value = ((double*)(obj->slots))[index];
 			break;
 		case obj_float :
 			*value = ((float*)(obj->slots))[index];
@@ -2424,7 +2421,7 @@ int getIndexedDouble(PyrObject *obj, int index, double *value)
 			}
 			break;
 		case obj_double :
-			*value = slotRawFloat(&obj->slots[index]);
+			*value = ((double*)(obj->slots))[index];
 			break;
 		case obj_float :
 			*value = ((float*)(obj->slots))[index];
@@ -2451,8 +2448,10 @@ void getIndexedSlot(PyrObject *obj, PyrSlot *a, int index)
 //		obj, index);
 	switch (obj->obj_format) {
 		case obj_slot :
-		case obj_double :
 			slotCopy(a, &obj->slots[index]);
+			break;
+		case obj_double :
+			SetFloat(a, ((double*)(obj->slots))[index]);
 			break;
 		case obj_float :
 			SetFloat(a, ((float*)(obj->slots))[index]);
@@ -2489,10 +2488,10 @@ int putIndexedSlot(VMGlobals *g, PyrObject *obj, PyrSlot *c, int index)
 			if (NotFloat(c)) {
 				if (NotInt(c)) return errWrongType;
 				else {
-					SetFloat(&obj->slots[index], slotRawInt(c));
+					((double*)(obj->slots))[index] = slotRawInt(c);
 				}
 			} else
-				SetRaw(&obj->slots[index], slotRawFloat(c));
+				((double*)(obj->slots))[index] = slotRawFloat(c);
 			break;
 		case obj_float :
 			if (NotFloat(c)) {
@@ -2500,9 +2499,8 @@ int putIndexedSlot(VMGlobals *g, PyrObject *obj, PyrSlot *c, int index)
 				else {
 					((float*)(obj->slots))[index] = slotRawInt(c);
 				}
-			} else {
+			} else
 				((float*)(obj->slots))[index] = slotRawFloat(c);
-			}
 			break;
 		case obj_int32 :
 			if (NotInt(c)) return errWrongType;
@@ -2538,7 +2536,7 @@ int putIndexedFloat(PyrObject *obj, double val, int index)
 			SetFloat(slot, val);
 			break;
 		case obj_double :
-			SetFloat(&obj->slots[index], val);
+			((double*)(obj->slots))[index] = val;
 			break;
 		case obj_float :
 			((float*)(obj->slots))[index] = (float)val;

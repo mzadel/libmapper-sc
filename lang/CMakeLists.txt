@@ -1,12 +1,11 @@
 include_directories(${CMAKE_SOURCE_DIR}/include/common
                     ${CMAKE_SOURCE_DIR}/include/lang
-                     ${CMAKE_SOURCE_DIR}/include/server
                     ${CMAKE_SOURCE_DIR}/include/plugin_interface
-	LangSource/Bison)
+                    LangSource/Bison)
 
 if(APPLE)
 	include_directories(${CMAKE_SOURCE_DIR}/external_libraries/icu
-		LangPrimSource/HID_Utilities)
+		"LangPrimSource/${HID_UTIL_DIR}")
 elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	find_package(ALSA)
 	find_package(ICU)
@@ -66,10 +65,30 @@ set(sclang_sources
 	LangSource/SimpleStack.cpp
 	LangSource/VMGlobals.cpp
 	LangSource/dumpByteCodes.cpp
-	../common/fftlib.c)
+
+	${CMAKE_SOURCE_DIR}/common/fftlib.c
+	${CMAKE_SOURCE_DIR}/common/SC_fftlib.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_AllocPool.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_DirUtils.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_Sem.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_StandAloneInfo_Darwin.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_StringBuffer.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_StringParser.cpp
+	${CMAKE_SOURCE_DIR}/common/scsynthsend.cpp
+	${CMAKE_SOURCE_DIR}/common/sc_popen.cpp
+)
 
 if(NOT WIN32)
-    set(sclang_sources ${sclang_sources} LangPrimSource/PyrSerialPrim.cpp)
+    list(APPEND sclang_sources LangPrimSource/PyrSerialPrim.cpp)
+endif()
+
+if(WIN32)
+    list(APPEND sclang_sources ${CMAKE_SOURCE_DIR}/common/SC_Win32Utils.cpp)
+endif()
+
+if(WIN32)
+	include_directories(../platform/windows/compat_stuff)
+	list(APPEND sclang_sources ../platform/windows/compat_stuff/getopt.c)
 endif()
 
 set(sclang_parser_source LangSource/Bison/lang11d_tab.cpp)
@@ -81,22 +100,27 @@ if(UNIX)
 		list(APPEND sclang_sources
 			LangPrimSource/WiiMote_OSX/wiiremote.c
 			LangPrimSource/SC_HID.cpp
-			LangPrimSource/HID_Utilities/IOHIDElement_.c
-			LangPrimSource/HID_Utilities/IOHIDDevice_.c
-			LangPrimSource/HID_Utilities/HID_Utilities.c
-			LangPrimSource/HID_Utilities/HID_Name_Lookup.c
-			LangPrimSource/HID_Utilities/HID_Queue_Utilities.c
-			LangPrimSource/HID_Utilities/HID_Error_Handler.c
+			"LangPrimSource/${HID_UTIL_DIR}/HID_Utilities.c"
+			"LangPrimSource/${HID_UTIL_DIR}/HID_Name_Lookup.c"
+			"LangPrimSource/${HID_UTIL_DIR}/HID_Queue_Utilities.c"
+			"LangPrimSource/${HID_UTIL_DIR}/HID_Error_Handler.c"
 			LangPrimSource/SC_CoreMIDI.cpp
 			LangPrimSource/SC_CoreAudioPrim.cpp
 			LangPrimSource/SC_Speech.M
 			)
-			add_definitions(-DHAVE_SPEECH)
+		add_definitions(-DHAVE_SPEECH)
+		if(MAC_OSX_SDK_VERSION GREATER 4)
+			list(APPEND sclang_sources
+				"LangPrimSource/${HID_UTIL_DIR}/IOHIDElement_.c"
+				"LangPrimSource/${HID_UTIL_DIR}/IOHIDDevice_.c"
+			)
+		endif()
 	else(APPLE)
 		if(ALSA_FOUND)
 			list(APPEND sclang_sources LangPrimSource/SC_AlsaMIDI.cpp)
 		endif()
 		list(APPEND sclang_sources LangPrimSource/SC_LID.cpp)
+		add_definitions(-DHAVE_LID)
 	endif(APPLE)
 else(UNIX)
 endif(UNIX)
@@ -174,6 +198,7 @@ if (APPLE)
 	target_link_libraries(libsclang "-framework CoreAudio")
 	target_link_libraries(libsclang "-framework CoreMidi")
 	target_link_libraries(libsclang "-framework IOKit")
+	target_link_libraries(libsclang "-framework CoreServices")
 endif()
 
 if(ALSA_FOUND)
@@ -191,7 +216,11 @@ elseif(NOT NO_LIBSNDFILE)
 	message(SEND_ERROR "Cannot find libsndfile")
 endif(SNDFILE_FOUND)
 
-target_link_libraries(libsclang sccommon ${PTHREADS_LIBRARY})
+if (GC_SANITYCHECK)
+	add_definitions(-DGC_SANITYCHECK)
+endif()
+
+target_link_libraries(libsclang ${PTHREADS_LIBRARY})
 
 add_executable(sclang LangSource/cmdLineFuncs.cpp)
 target_link_libraries(sclang libsclang)
@@ -200,6 +229,13 @@ set_property(TARGET sclang
 	APPEND
 	PROPERTY COMPILE_DEFINITIONS USE_SC_TERMINAL_CLIENT)
 
+if(LTO)
+    set_property(TARGET sclang libsclang
+                 APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
+
+    set_property(TARGET sclang libsclang
+                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report")
+endif()
 
 if(APPLE)
 	# determines the app name and app install location (scappbundlename, scappdir):
@@ -217,9 +253,9 @@ if(APPLE)
 else()
 	install(TARGETS libsclang
 			DESTINATION "lib"
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 	install(TARGETS sclang
 			DESTINATION "bin"
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endif()

@@ -1,5 +1,5 @@
 if(NOT APPLE)
-		message(SEND_ERROR "mac folder invoked by cmake, but not APPLE platform")
+	message(SEND_ERROR "mac folder invoked by cmake, but not APPLE platform")
 endif()
 
 # determines the app name and app install location (scappbundlename, scappdir):
@@ -15,7 +15,7 @@ include_directories(
 	${CMAKE_SOURCE_DIR}/editors/scapp/include/SMLAdvancedFind/ICU
 	${CMAKE_SOURCE_DIR}/external_libraries/icu/
 	${CMAKE_SOURCE_DIR}/external_libraries/icu/unicode/
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/HID_Utilities
+	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}"
 	)
 
 find_package(Sndfile)
@@ -63,15 +63,24 @@ set(scapp_sources
 	${CMAKE_SOURCE_DIR}/lang/LangSource/dumpByteCodes.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/WiiMote_OSX/wiiremote.c
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_HID.cpp
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/HID_Utilities/HID_Utilities.c
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/HID_Utilities/HID_Name_Lookup.c
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/HID_Utilities/IOHIDElement_.c
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/HID_Utilities/IOHIDDevice_.c
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/HID_Utilities/HID_Queue_Utilities.c
-	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/HID_Utilities/HID_Error_Handler.c
+	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Utilities.c"
+	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Name_Lookup.c"
+	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Queue_Utilities.c"
+	"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/HID_Error_Handler.c"
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_CoreMIDI.cpp
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_CoreAudioPrim.cpp
+
 	${CMAKE_SOURCE_DIR}/common/fftlib.c
+	${CMAKE_SOURCE_DIR}/common/SC_fftlib.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_AllocPool.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_DirUtils.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_Sem.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_StandAloneInfo_Darwin.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_StringBuffer.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_StringParser.cpp
+	${CMAKE_SOURCE_DIR}/common/scsynthsend.cpp
+	${CMAKE_SOURCE_DIR}/common/sc_popen.cpp
+
 	${CMAKE_SOURCE_DIR}/editors/scapp/CocoaBridgePrimitives.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/CocoaFilePrimitives.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/DrawBackground.M
@@ -104,12 +113,19 @@ set(scapp_sources
 	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/ICU/NSStringICUAdditions.m
 	)
 
+if(MAC_OSX_SDK_VERSION GREATER 4)
+	list(APPEND scapp_sources
+		"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/IOHIDElement_.c"
+		"${CMAKE_SOURCE_DIR}/lang/LangPrimSource/${HID_UTIL_DIR}/IOHIDDevice_.c"
+	)
+endif()
+
 set(scapp_parser_source ${CMAKE_SOURCE_DIR}/lang/LangSource/Bison/lang11d_tab.cpp)
 
 add_definitions(-DYYSTACK_USE_ALLOCA -DHAVE_SPEECH)
 
 # set how it shows up in the Info.plist file
-SET(MACOSX_BUNDLE_ICON_FILE SCcube.icns) 
+SET(MACOSX_BUNDLE_ICON_FILE SCcube.icns)
 # set where in the bundle to put the icns file
 SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/Resources/SCcube.icns
 	PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
@@ -164,7 +180,7 @@ elseif(NOT NO_LIBSNDFILE)
 	message(SEND_ERROR "Cannot find libsndfile")
 endif(SNDFILE_FOUND)
 
-target_link_libraries(${scappbundlename} sccommon pthread)
+target_link_libraries(${scappbundlename} ${PTHREADS_LIBRARY})
 
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${scappbundlename}.app"
 	DESTINATION ${scappdir}
@@ -176,3 +192,10 @@ if (NOT ("${standalone}" STREQUAL ""))
 
 	# TODO: Standalones are also given a chance to overwrite things from their specially-manufactured resources dir
 endif()
+
+# fixup_bundle will fix the dll referencing so the .app can be sent to other people:
+INSTALL(CODE "
+   include(BundleUtilities)
+   fixup_bundle(\"${CMAKE_CURRENT_BINARY_DIR}/${scappbundlename}.app\"   \"\"   \"${CMAKE_CURRENT_BINARY_DIR}\")
+   "
+COMPONENT Runtime)

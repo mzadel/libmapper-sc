@@ -41,6 +41,7 @@ File : UnixFILE {
 	close {	// close the file
 		// the GC will not call this for you
 		this.prClose;
+		fileptr = nil;
 		openFiles.remove(this);
 	}
 	length { // returns the length of the file
@@ -121,7 +122,13 @@ Pipe : UnixFILE {
 		});
 	}
 
-	close { // close the file
+	close {
+		this.prClose;
+		fileptr = nil;
+		openFiles.remove(this);
+	}
+
+	prClose { // close the file
 		// the GC will not call this for you
 		_PipeClose
 		^this.primitiveFailed;

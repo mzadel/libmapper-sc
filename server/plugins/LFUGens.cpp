@@ -29,7 +29,7 @@
 
 using nova::wrap_argument;
 
-#ifdef __GNUC__
+#if defined (__GNUC__) && !(defined(__clang__))
 #define inline_functions __attribute__ ((flatten))
 #else
 #define inline_functions
@@ -2328,6 +2328,57 @@ void LinExp_next(LinExp *unit, int inNumSamples)
 	);
 }
 
+#ifdef NOVA_SIMD
+static inline void LinExp_next_nova_loop(float * out, const float * in, int inNumSamples,
+										 nova::vec<float> dstlo, nova::vec<float> dstratio,
+										 nova::vec<float> rsrcrange, nova::vec<float> rrminuslo)
+{
+	const int vecSize = nova::vec<float>::size;
+	int unroll = inNumSamples / (2*vecSize);
+
+	do
+	{
+		nova::vec<float> val0, val1;
+		val0.load_aligned(in);
+		val1.load_aligned(in + vecSize);
+
+		val0 = dstlo * pow(dstratio, val0 * rsrcrange + rrminuslo);
+		val1 = dstlo * pow(dstratio, val1 * rsrcrange + rrminuslo);
+
+		val0.store_aligned(out);
+		val1.store_aligned(out + vecSize);
+
+		in += 2*vecSize;
+		out += 2*vecSize;
+	} while (--unroll);
+}
+
+static void LinExp_next_nova(LinExp *unit, int inNumSamples)
+{
+	float *out = OUT(0);
+	float *in   = IN(0);
+
+	LinExp_next_nova_loop(out, in, inNumSamples, unit->m_dstlo, unit->m_dstratio, unit->m_rsrcrange, unit->m_rrminuslo);
+}
+
+static void LinExp_next_nova_kk(LinExp *unit, int inNumSamples)
+{
+	float *out = OUT(0);
+	float *in  = IN(0);
+
+	float srclo = ZIN0(1);
+	float srchi = ZIN0(2);
+	float dstlo = ZIN0(3);
+	float dsthi = ZIN0(4);
+	float dstratio = dsthi/dstlo;
+	float rsrcrange = 1. / (srchi - srclo);
+	float rrminuslo = rsrcrange * -srclo;
+
+	LinExp_next_nova_loop(out, in, inNumSamples, dstlo, dstratio, rsrcrange, rrminuslo);
+}
+
+#endif
+
 void LinExp_next_kk(LinExp *unit, int inNumSamples)
 {
 	float *out = ZOUT(0);
@@ -2407,7 +2458,7 @@ void LinExp_next_ka(LinExp *unit, int inNumSamples)
 }
 
 
-void LinExp_SetCalc(LinExp* unit)
+static void LinExp_SetCalc(LinExp* unit)
 {
 	if(INRATE(1) == calc_FullRate || INRATE(2) == calc_FullRate) {
 		if(INRATE(3) == calc_FullRate || INRATE(4) == calc_FullRate) {
@@ -2420,12 +2471,31 @@ void LinExp_SetCalc(LinExp* unit)
 			SETCALC(LinExp_next_ka); return;
 		}
 	}
+
+	bool allScalar = true;
 	for(int i = 1; i<5; i++) {
 		if(INRATE(i) != calc_ScalarRate) {
-			SETCALC(LinExp_next_kk); return;
+			allScalar = false;
+			break;
 		}
 	};
-	SETCALC(LinExp_next);
+
+#ifdef NOVA_SIMD
+	if ((BUFLENGTH % (2*nova::vec<float>::size)) == 0)
+		if (allScalar)
+			SETCALC(LinExp_next_nova);
+		else
+			SETCALC(LinExp_next_nova_kk);
+	else
+#endif
+	if (allScalar)
+		SETCALC(LinExp_next);
+	else
+		SETCALC(LinExp_next_kk);
+
+	if (!allScalar)
+		return;
+
 	float srclo = ZIN0(1);
 	float srchi = ZIN0(2);
 	float dstlo = ZIN0(3);
@@ -3712,9 +3782,9 @@ void BufEnvGen_Ctor(BufEnvGen *unit)
 	if (!buf || !buf->data || buf->samples < 8) {
 		Print("Envelope not allocated.\n");
 		//Print("bufnum %d\n", bufnum);
-		//Print("buf %08X\n", buf);
+		//Print("buf %p\n", buf);
 		if (buf) {
-			//Print("buf->data %08X   buf->samples %d\n", buf->data, buf->samples);
+			//Print("buf->data %p   buf->samples %d\n", buf->data, buf->samples);
 		}
 		SETCALC(ClearUnitOutputs);
 		return;

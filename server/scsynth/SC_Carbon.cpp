@@ -59,7 +59,7 @@ bool sc_HasVectorUnit()
 {
 	SInt32 response;
 	Gestalt(gestaltPowerPCProcessorFeatures, &response);
-	//printf("HasAltivec %08X %d\n", response, response & (1<<gestaltPowerPCHasVectorInstructions));
+	//printf("HasAltivec %p %d\n", response, response & (1<<gestaltPowerPCHasVectorInstructions));
 	return response & (1<<gestaltPowerPCHasVectorInstructions);
 }
 
@@ -68,6 +68,7 @@ bool sc_HasVectorUnit()
 void sc_SetDenormalFlags()
 {
 	// all Macs have SSE
+	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 	_mm_setcsr(_mm_getcsr() | 0x40);
 }
 

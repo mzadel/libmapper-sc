@@ -1,3 +1,7 @@
+if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/nova-simd/vec.hpp)
+    message(FATAL_ERROR "nova-simd submodule is missing: please run `git submodule init && git submodule update' from the toplevel of your git working tree")
+endif()
+
 #boost
 aux_source_directory(boost/libs/thread/src/ boost_thread )
 
@@ -33,8 +37,11 @@ add_library(tlsf STATIC "TLSF-2.4.6/src/tlsf.c")
 set_target_properties(tlsf
                       PROPERTIES COMPILE_DEFINITIONS TLSF_STATISTIC=1)
 
-if(LTO)
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -flto")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -flto")
-endif()
 
+if(LTO)
+    set_property(TARGET boost_thread boost_program_options boost_system boost_filesystem oscpack tlsf
+                 APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
+
+    set_property(TARGET boost_thread boost_program_options boost_system boost_filesystem oscpack tlsf
+                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report")
+endif()

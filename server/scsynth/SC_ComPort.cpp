@@ -63,7 +63,7 @@ bool ProcessOSCPacket(World *inWorld, OSC_Packet *inPacket);
 void dumpOSCmsg(int inSize, char* inData)
 {
 	int size;
-	char *data;
+	const char *data;
 
 	if (inData[0]) {
 		char *addr = inData;
@@ -354,7 +354,7 @@ void DumpReplyAddress(ReplyAddress *inReplyAddress)
 	scprintf("mSockAddr.sin_family %d\n", inReplyAddress->mSockAddr.sin_family);
 	scprintf("mSockAddr.sin_port %d\n", inReplyAddress->mSockAddr.sin_port);
 	scprintf("mSockAddr.sin_addr.s_addr %d\n", inReplyAddress->mSockAddr.sin_addr.s_addr);
-	scprintf("mReplyFunc %08X\n", (intptr_t)inReplyAddress->mReplyFunc);
+	scprintf("mReplyFunc %p\n", (intptr_t)inReplyAddress->mReplyFunc);
 }
 
 /*

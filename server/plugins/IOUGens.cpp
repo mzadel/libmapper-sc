@@ -21,6 +21,10 @@
 
 #include "SC_PlugIn.h"
 
+#ifdef SC_IPHONE
+#include "SC_VFP11.h"
+#endif
+
 #ifdef NOVA_SIMD
 #include "simd_memory.hpp"
 #include "simd_mix.hpp"
@@ -65,8 +69,8 @@ const int kMaxLags = 16;
 
 struct LagControl : public IOUnit
 {
-	float m_b1[kMaxLags];
-	float m_y1[kMaxLags];
+	float * m_b1;
+	float * m_y1;
 };
 
 
@@ -359,6 +363,19 @@ void LagControl_next_1(LagControl *unit, int inNumSamples)
 
 void LagControl_Ctor(LagControl* unit)
 {
+	int numChannels = unit->mNumInputs;
+	float **mapin = unit->mParent->mMapControls + unit->mSpecialIndex;
+
+	char * chunk = (char*)RTAlloc(unit->mWorld, numChannels * 2 * sizeof(float));
+	unit->m_y1 = (float*)chunk;
+	unit->m_b1 = unit->m_y1 + numChannels;
+
+	for (int i=0; i<numChannels; ++i, mapin++) {
+		unit->m_y1[i] = **mapin;
+		float lag = ZIN0(i);
+		unit->m_b1[i] = lag == 0.f ? 0.f : (float)exp(log001 / (lag * unit->mRate->mSampleRate));
+	}
+
 	if (unit->mNumOutputs == 1) {
 		SETCALC(LagControl_next_1);
 		LagControl_next_1(unit, 1);
@@ -366,13 +383,11 @@ void LagControl_Ctor(LagControl* unit)
 		SETCALC(LagControl_next_k);
 		LagControl_next_k(unit, 1);
 	}
-	int numChannels = unit->mNumInputs;
-	float **mapin = unit->mParent->mMapControls + unit->mSpecialIndex;
-	for (int i=0; i<numChannels; ++i, mapin++) {
-		unit->m_y1[i] = **mapin;
-		float lag = ZIN0(i);
-		unit->m_b1[i] = lag == 0.f ? 0.f : (float)exp(log001 / (lag * unit->mRate->mSampleRate));
-	}
+}
+
+void LagControl_Dtor(LagControl* unit)
+{
+	RTFree(unit->mWorld, unit->m_y1);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1678,7 +1693,7 @@ void LocalIn_next_a(LocalIn *unit, int inNumSamples)
 		int diff = bufCounter - touched[i];
 		//Print("LocalIn  %d  %d  %g\n", i, diff, in[0]);
 		if (diff == 1 || diff == 0) Copy(inNumSamples, out, in);
-		else Fill(inNumSamples, out, 0.f);
+		else Fill(inNumSamples, out, IN0(i));
 	}
 }
 
@@ -1700,7 +1715,8 @@ inline_functions void LocalIn_next_a_nova(LocalIn *unit, int inNumSamples)
 		if (diff == 1 || diff == 0)
 			nova::copyvec_simd(out, in, inNumSamples);
 		else
-			nova::zerovec_simd(out, inNumSamples);
+			//nova::zerovec_simd(out, inNumSamples);
+			Fill(inNumSamples, out, IN0(i));
 	}
 }
 
@@ -1713,7 +1729,6 @@ inline_functions void LocalIn_next_a_nova_64(LocalIn *unit, int inNumSamples)
 	float *in = unit->m_bus;
 	int32 *touched = unit->m_busTouched;
 	int32 bufCounter = unit->mWorld->mBufCounter;
-
 	for (int i=0; i<numChannels; ++i, in += bufLength) {
 		float *out = OUT(i);
 		int diff = bufCounter - touched[i];
@@ -1721,7 +1736,8 @@ inline_functions void LocalIn_next_a_nova_64(LocalIn *unit, int inNumSamples)
 		if (diff == 1 || diff == 0)
 			nova::copyvec_simd<64>(out, in);
 		else
-			nova::zerovec_simd<64>(out);
+			//nova::zerovec_simd<64>(out);
+			Fill(inNumSamples, out, IN0(i));
 	}
 }
 #endif
@@ -1732,9 +1748,15 @@ void LocalIn_next_k(LocalIn *unit, int inNumSamples)
 	uint32 numChannels = unit->mNumOutputs;
 
 	float *in = unit->m_bus;
+	int32 *touched = unit->m_busTouched;
+	int32 bufCounter = unit->mWorld->mBufCounter;
 	for (uint32 i=0; i<numChannels; ++i, in++) {
+		int diff = bufCounter - touched[i];
 		float *out = OUT(i);
-		*out = *in;
+		if (diff == 1 || diff == 0)
+			*out = *in;
+		else
+			*out = IN0(i);
 	}
 }
 
@@ -1985,7 +2007,7 @@ PluginLoad(IO)
 	DefineDtorUnit(OffsetOut);
 	DefineDtorUnit(LocalIn);
 	DefineSimpleUnit(XOut);
-	DefineSimpleUnit(LagControl);
+	DefineDtorUnit(LagControl);
 	DefineDtorUnit(AudioControl);
 	DefineUnit("Control", sizeof(Unit), (UnitCtorFunc)&Control_Ctor, 0, 0);
 	DefineUnit("TrigControl", sizeof(Unit), (UnitCtorFunc)&TrigControl_Ctor, 0, 0);

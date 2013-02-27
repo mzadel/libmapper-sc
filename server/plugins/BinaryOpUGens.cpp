@@ -33,7 +33,7 @@
 #include "simd_math.hpp"
 #include "simd_memory.hpp"
 
-#ifdef __GNUC__
+#if defined (__GNUC__) && !(defined(__clang__))
 #define inline_functions __attribute__ ((flatten))
 #else
 #define inline_functions
@@ -5370,6 +5370,17 @@ void hypotx_ai(BinaryOpUGen *unit, int inNumSamples)
 
 #if __VEC__
 
+#ifdef vec_cmplt
+# undef vec_cmplt
+#endif
+#define vec_cmplt(a, b) (vec_cmpgt(b, a))
+#ifdef vec_cmple
+# undef vec_cmple
+#endif
+#define vec_cmple(a, b) (vec_cmpge(b, a))
+#define vec_div(a, b)  vec_mul(a, vec_reciprocal(b))
+
+
 void vadd_aa(BinaryOpUGen *unit, int inNumSamples)
 {
 	vfloat32 *vout = (vfloat32*)OUT(0);
@@ -7725,7 +7736,7 @@ bool ChooseOperatorFunc(BinaryOpUGen *unit)
 		func = ChooseNormalFunc(unit);
 	}
 	unit->mCalcFunc = (UnitCalcFunc)func;
-	//Print("<-ChooseOperatorFunc %08X\n", func);
+	//Print("<-ChooseOperatorFunc %p\n", func);
 	//Print("calc %d\n", unit->mCalcRate);
 	return ret;
 }

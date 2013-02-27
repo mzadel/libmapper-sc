@@ -36,7 +36,6 @@ namespace
 
 int32_t last_generated = 0;
 
-
 server_node * find_node(int32_t target_id)
 {
     if (target_id == -1)
@@ -60,7 +59,6 @@ abstract_group * find_group(int32_t target_id)
         cerr << "node not found or not a group" << endl;
     return node;
 }
-
 
 bool check_node_id(int node_id)
 {
@@ -121,13 +119,15 @@ void fill_notification(const server_node * node, osc::OutboundPacketStream & p)
     p << osc::EndMessage;
 }
 
+spin_lock system_callback_allocator_lock;
+
 struct movable_string
 {
-    /** allocate new string, only allowed to be called from the rt thread */
+    /** allocate new string, only allowed to be called from the rt context */
     explicit movable_string(const char * str)
     {
-        size_t length = strlen(str);
-        char * data = (char*)system_callback::allocate(length + 1); /* terminating \0 */
+        size_t length = strlen(str) + 1; /* terminating \0 */
+        char * data = (char*)system_callback::allocate(length);
         strcpy(data, str);
         data_ = data;
     }
@@ -157,8 +157,8 @@ private:
 template <typename T>
 struct movable_array
 {
-    /** allocate new array, only allowed to be called from the rt thread */
-    movable_array(size_t length, const T * data):
+    /** allocate new array, only allowed to be called from the rt context */
+    movable_array(size_t length, const T * data, bool locked = false):
         length_(length)
     {
         data_ = (T*)system_callback::allocate(length * sizeof(T));
@@ -190,7 +190,7 @@ struct movable_array
         return data_[index];
     }
 
-    const size_t size(void) const
+    size_t size(void) const
     {
         return length_;
     }
@@ -387,26 +387,34 @@ void free_mem_callback(movable_string & cmd,
 void fire_node_reply(int32_t node_id, int reply_id, movable_string & cmd,
                      movable_array<float> & values)
 {
-    size_t buffer_size = 128 + strlen(cmd.c_str()) + values.size()*sizeof(float);
+    size_t buffer_size = 1024 + strlen(cmd.c_str()) + values.size()*sizeof(float);
 
-    sized_array<char> buffer(buffer_size);
+    char * buffer = (buffer_size < 2048) ? (char*)alloca(buffer_size)
+                                         : (char*)malloc(buffer_size);
 
-    osc::OutboundPacketStream p(buffer.c_array(), buffer_size);
-    p << osc::BeginMessage(cmd.c_str()) << osc::int32(node_id) << osc::int32(reply_id);
+    try {
+        osc::OutboundPacketStream p(buffer, buffer_size);
+        p << osc::BeginMessage(cmd.c_str()) << osc::int32(node_id) << osc::int32(reply_id);
 
-    for (int i = 0; i != values.size(); ++i)
-        p << values[i];
+        for (int i = 0; i != values.size(); ++i)
+            p << values[i];
 
-    p << osc::EndMessage;
+        p << osc::EndMessage;
 
-    instance->send_notification(p.Data(), p.Size());
+        instance->send_notification(p.Data(), p.Size());
 
-    cmd_dispatcher<true>::fire_rt_callback(boost::bind(free_mem_callback, cmd, values));
+        cmd_dispatcher<true>::fire_rt_callback(boost::bind(free_mem_callback, cmd, values));
+    } catch (...) {
+    }
+
+    if (buffer_size >= 2048)
+        free(buffer);
 }
 
 void sc_notify_observers::send_node_reply(int32_t node_id, int reply_id, const char* command_name,
                                           int argument_count, const float* values)
 {
+    spin_lock::scoped_lock lock(system_callback_allocator_lock); // called from rt helper threads, so we need to lock the memory pool
     movable_string cmd(command_name);
     movable_array<float> value_array(argument_count, values);
 
@@ -2909,7 +2917,24 @@ void handle_p_new(received_message const & msg)
     }
 }
 
+void handle_u_cmd(received_message const & msg, int size)
+{
+    sc_msg_iter args(size, msg.AddressPattern());
 
+    int node_id = args.geti();
+
+    server_node * target_synth = find_node(node_id);
+
+    if (target_synth == NULL || target_synth->is_group())
+        return;
+
+    sc_synth * synth = static_cast<sc_synth*>(target_synth);
+
+    int ugen_index = args.geti();
+    const char * cmd_name = args.gets();
+
+    synth->apply_unit_cmd(cmd_name, ugen_index, &args);
+}
 
 } /* namespace */
 
@@ -3051,6 +3076,10 @@ void sc_osc_handler::handle_message_int_address(received_message const & message
 
     case cmd_b_alloc:
         handle_b_alloc<realtime>(message, endpoint);
+        break;
+
+    case cmd_u_cmd:
+        handle_u_cmd(message, msg_size);
         break;
 
     case cmd_b_free:
@@ -3491,6 +3520,11 @@ void sc_osc_handler::handle_message_sym_address(received_message const & message
 
     if (strcmp(address+1, "p_new") == 0) {
         handle_p_new(message);
+        return;
+    }
+
+    if (strcmp(address+1, "u_cmd") == 0) {
+        handle_u_cmd(message, msg_size);
         return;
     }
 

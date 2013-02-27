@@ -26,15 +26,32 @@ ADD_CUSTOM_TARGET(setMainVersion ALL
        VERBATIM
       )
 
+if(APPLE)
+	STRING(REGEX REPLACE "^.*MacOSX10.([0-9]+).*$" "\\1" MAC_OSX_SDK_VERSION  "${CMAKE_OSX_SYSROOT}")
+
+	if(MAC_OSX_SDK_VERSION GREATER 4)
+		set(HID_UTIL_DIR "HID_Utilities")
+	else()
+		set(HID_UTIL_DIR "HID_Utilities_10_4")
+	endif()
+	MESSAGE( STATUS "Using HID Utilities from folder '${HID_UTIL_DIR}'")
+endif()
+
 #############################################
 # Compiler flags etc
 
 if (${CMAKE_COMPILER_IS_GNUCXX})
 	add_definitions("-ffast-math" "-fschedule-insns2" "-fomit-frame-pointer")
 
+	option(DSO_VISIBILITY "DSO visibility support for gcc" OFF)
+
+	if (DSO_VISIBILITY)
+		add_definitions(-fvisibility=hidden)
+	endif()
+
 	if(APPLE)
 		add_definitions("-D_REENTRANT")
-	else()
+	elseif(NOT (WIN32 AND NOT CYGWIN))
 		add_definitions("-pthread")
 	endif()
 endif ()
@@ -50,14 +67,20 @@ if(APPLE)
 elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	add_definitions("-DSC_LINUX")
 	add_definitions(-DSC_DATA_DIR="${CMAKE_INSTALL_PREFIX}/share/SuperCollider")
+elseif(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+	add_definitions("-DSC_FREEBSD")
+	add_definitions(-DSC_DATA_DIR="${CMAKE_INSTALL_PREFIX}/share/SuperCollider")
 endif()
 
 if(WIN32)
-        set_property(DIRECTORY
-            	     APPEND
-		     PROPERTY COMPILE_DEFINITIONS SC_WIN32 NOMINMAX _WINSOCKAPI_)
+    set_property(DIRECTORY
+                 APPEND
+                 PROPERTY COMPILE_DEFINITIONS SC_WIN32 NOMINMAX _WINSOCKAPI_)
+
+    if(MSVC)
         SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_RELEASE} /MTd")
         SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_DEBUG} /MT")
+    endif()
 endif()
 
 
@@ -71,7 +94,11 @@ if (NOT PTHREADS_FOUND)
 endif()
 include_directories(${PTHREADS_INCLUDE_DIR})
 
-find_library(MATH_LIBRARY m)
+if (MSVC)
+    set(MATH_LIBRARY "")
+else()
+    find_library(MATH_LIBRARY m)
+endif()
 
 if(CURL)
 	find_package(CURL)
@@ -101,7 +128,10 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 elseif()
     option(SUPERNOVA "Build with supernova as optional audio synthesis server" OFF)
 endif()
+
 option(SN_MEMORY_DEBUGGING "Build supernova for memory debugging (disable memory pools).")
+option(SC_MEMORY_DEBUGGING "Build sclang&scsynth for memory debugging (disable memory pools).")
+option(GC_SANITYCHECK "Enable sanity checks in the sclang garbage collector.")
 
 option(NO_LIBSNDFILE "Disable soundfile functionality. (Not recommended.)" OFF)
 mark_as_advanced(NO_LIBSNDFILE)
@@ -140,12 +170,12 @@ if(CMAKE_COMPILER_IS_GNUCXX)
   endif()
 endif()
 
-
-
+if (SC_MEMORY_DEBUGGING)
+	add_definitions(-DDISABLE_MEMORY_POOLS)
+endif()
 
 #############################################
 # subdirectories
-add_subdirectory(common)
 add_subdirectory(server)
 add_subdirectory(lang)
 add_subdirectory(bindings)
@@ -154,10 +184,10 @@ add_subdirectory(editors)
 add_subdirectory(external_libraries)
 add_subdirectory(testsuite)
 
-if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-    install(DIRECTORY include
+if(CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+    install(DIRECTORY include/common include/plugin_interface include/server include/lang
         DESTINATION ${CMAKE_INSTALL_PREFIX}/include/SuperCollider
-        PATTERN app* EXCLUDE
+        FILES_MATCHING PATTERN "*.h"
     )
 endif()
 

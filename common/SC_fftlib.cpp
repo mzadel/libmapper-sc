@@ -36,8 +36,10 @@ For speed we keep this global, although this makes the code non-thread-safe.
 
 
 // We include vDSP even if not using for FFT, since we want to use some vectorised add/mul tricks
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(SC_IPHONE)
 	#include "vecLib/vDSP.h"
+#elif defined(SC_IPHONE)
+	#include <Accelerate/Accelerate.h>
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -298,7 +300,7 @@ static void scfft_dowindowing(float *data, unsigned int winsize, unsigned int fu
 	if (wintype != kRectWindow) {
 		float *win = fftWindow[wintype][log2_winsize];
 		if (!win) return;
-		#ifdef __APPLE__
+		#if SC_FFT_VDSP
 			vDSP_vmul(data, 1, win, 1, data, 1, winsize);
 		#else
 			--win;
@@ -311,7 +313,7 @@ static void scfft_dowindowing(float *data, unsigned int winsize, unsigned int fu
 	}
 
 		// scale factor is different for different libs. But the compiler switch here is about using vDSP's fast multiplication method.
-	#ifdef __APPLE__
+	#if SC_FFT_VDSP
 		vDSP_vsmul(data, 1, &scalefac, data, 1, winsize);
 	#else
 		for(int i=0; i<winsize; ++i){
