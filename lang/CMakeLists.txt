@@ -7,7 +7,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include/common
 if(APPLE)
 	include_directories(${CMAKE_SOURCE_DIR}/external_libraries/icu
 		LangPrimSource/HID_Utilities)
-else()
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	find_package(ALSA)
 	find_package(ICU)
 	if (NOT ICU_FOUND)
@@ -17,6 +17,8 @@ endif()
 
 if(APPLE)
 	# apple bundles an old nongpl readline so we say no even though it is usually detectable
+	set(READLINE_FOUND false)
+elseif(WIN32)
 	set(READLINE_FOUND false)
 else()
 	find_package(Readline)
@@ -38,7 +40,6 @@ set(sclang_sources
 	LangPrimSource/PyrFilePrim.cpp
 	LangPrimSource/PyrListPrim.cpp
 	LangPrimSource/PyrPlatformPrim.cpp
-	LangPrimSource/PyrSerialPrim.cpp
 	LangPrimSource/PyrStringPrim.cpp
 	LangPrimSource/PyrUStringPrim.cpp
 	LangPrimSource/PyrSymbolPrim.cpp
@@ -66,6 +67,10 @@ set(sclang_sources
 	LangSource/VMGlobals.cpp
 	LangSource/dumpByteCodes.cpp
 	../common/fftlib.c)
+
+if(NOT WIN32)
+    set(sclang_sources ${sclang_sources} LangPrimSource/PyrSerialPrim.cpp)
+endif()
 
 set(sclang_parser_source LangSource/Bison/lang11d_tab.cpp)
 
@@ -95,6 +100,12 @@ if(UNIX)
 	endif(APPLE)
 else(UNIX)
 endif(UNIX)
+
+if(WIN32)
+    include_directories (../platform/windows/compat_stuff)
+
+    list(APPEND sclang_sources ../platform/windows/compat_stuff/getopt.c)
+endif()
 
 if (SC_WII OR APPLE)
 	if(CMAKE_SYSTEM_NAME MATCHES "Linux")

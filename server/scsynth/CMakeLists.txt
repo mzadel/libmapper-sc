@@ -106,6 +106,8 @@ elseif (AUDIOAPI STREQUAL portaudio)
 	include_directories(${PORTAUDIO_INCLUDE_DIRS})
 endif()
 
+set (FINAL_BUILD 0) # disable final build for scsynth
+
 if (FINAL_BUILD)
 	CREATE_FINAL_FILE(libscsynth_final.cpp ${scsynth_sources})
 	add_library(libscsynth SHARED libscsynth_final.cpp)
@@ -136,8 +138,6 @@ endif(SNDFILE_FOUND)
 
 if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	add_definitions(-DSC_PLUGIN_DIR="${CMAKE_INSTALL_PREFIX}/lib/SuperCollider/plugins")
-elseif(NOT APPLE)
-	message(SEND_ERROR "Not implemented")
 endif()
 
 if (AUDIOAPI STREQUAL jack)
