@@ -314,6 +314,37 @@ void PyrGC::BecomeImmutable(PyrObject *inObject)
 
 void DumpBackTrace(VMGlobals *g);
 
+PyrObject * PyrGC::Allocate(size_t inNumBytes, int32 sizeclass, bool inCollect)
+{
+	if (inCollect && mNumToScan >= kScanThreshold)
+		Collect();
+
+	GCSet *gcs = mSets + sizeclass;
+
+	PyrObject * obj = (PyrObject*)gcs->mFree;
+	if (!IsMarker(obj)) {
+		// from free list
+		gcs->mFree = obj->next;
+		assert(obj->obj_sizeclass == sizeclass);
+	} else {
+		if (sizeclass > kMaxPoolSet) {
+			SweepBigObjects();
+			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
+			obj = (PyrObject*)mPool->Alloc(allocSize);
+		} else {
+			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
+			obj = (PyrObject*)mNewPool.Alloc(allocSize);
+		}
+		if (!obj) {
+			post("alloc failed. size = %d\n", inNumBytes);
+			MEMFAILED;
+		}
+		DLInsertAfter(&gcs->mWhite, obj);
+		obj->obj_sizeclass = sizeclass;
+	}
+	return obj;
+}
+
 PyrObject *PyrGC::New(size_t inNumBytes, long inFlags, long inFormat, bool inCollect)
 {
 	PyrObject *obj = NULL;
@@ -339,34 +370,8 @@ PyrObject *PyrGC::New(size_t inNumBytes, long inFlags, long inFormat, bool inCol
 	mNumAllocs++;
 
 	mNumToScan += credit;
-	if (inCollect && mNumToScan >= kScanThreshold) {
-		Collect();
-	}
+	obj = Allocate(inNumBytes, sizeclass, inCollect);
 
-	GCSet *gcs = mSets + sizeclass;
-
-	obj = (PyrObject*)gcs->mFree;
-	if (!IsMarker(obj)) {
-		// from free list
-		gcs->mFree = obj->next;
-	} else {
-		if (sizeclass > kMaxPoolSet) {
-			SweepBigObjects();
-			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
-			obj = (PyrObject*)mPool->Alloc(allocSize);
-		} else {
-			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
-			obj = (PyrObject*)mNewPool.Alloc(allocSize);
-		}
-		if (!obj) {
-			post("alloc failed. size = %d\n", inNumBytes);
-			MEMFAILED;
-		}
-		DLInsertAfter(&gcs->mWhite, obj);
-	}
-
-
-	obj->obj_sizeclass = sizeclass;
 	obj->obj_format = inFormat;
 	obj->obj_flags = inFlags & 255;
 	obj->size = 0;
@@ -401,35 +406,9 @@ PyrObject *PyrGC::NewFrame(size_t inNumBytes, long inFlags, long inFormat, bool 
 	mAllocTotal += credit;
 	mNumAllocs++;
 	mNumToScan += credit;
-	if (inAccount) {
-		if (mNumToScan >= kScanThreshold) {
-			Collect();
-		}
-	}
 
-	GCSet *gcs = mSets + sizeclass;
+	obj = Allocate(inNumBytes, sizeclass, inAccount);
 
-	obj = (PyrObject*)gcs->mFree;
-	if (!IsMarker(obj)) {
-		// from free list
-		gcs->mFree = obj->next;
-	} else {
-		if (sizeclass > kMaxPoolSet) {
-			SweepBigObjects();
-			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
-			obj = (PyrObject*)mPool->Alloc(allocSize);
-		} else {
-			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
-			obj = (PyrObject*)mNewPool.Alloc(allocSize);
-		}
-		if (!obj) {
-			post("Frame alloc failed. size = %d\n", inNumBytes);
-			MEMFAILED;
-		}
-		DLInsertAfter(&gcs->mWhite, obj);
-	}
-
-	obj->obj_sizeclass = sizeclass;
 	obj->obj_format = inFormat;
 	obj->obj_flags = inFlags;
 	obj->size = 0;
@@ -802,8 +781,8 @@ bool PyrGC::SanityCheck()
 
 	//postfl("PyrGC::SanityCheck\n");
 	bool res = LinkSanity() && ListSanity()
-			&& SanityMarkObj((PyrObject*)mProcess,NULL,0) && SanityMarkObj(mStack,NULL,0)
-			&& SanityClearObj((PyrObject*)mProcess,0) && SanityClearObj(mStack,0)
+// 			&& SanityMarkObj((PyrObject*)mProcess,NULL,0) && SanityMarkObj(mStack,NULL,0)
+// 			&& SanityClearObj((PyrObject*)mProcess,0) && SanityClearObj(mStack,0)
 			&& SanityCheck2()
 	;
 	//if (!res) DumpInfo();
@@ -1022,17 +1001,13 @@ bool PyrGC::LinkSanity()
 
 bool PyrGC::BlackToWhiteCheck(PyrObject *objA)
 {
-	int j, size;
-	PyrSlot *slot;
-	PyrObject *objB;
-
 	if (objA->obj_format > obj_slot) return true;
 	// scan it
-	size = objA->size;
+	int size = objA->size;
 	if (size > 0) {
-		slot = objA->slots;
-		for (j=size; j--; ++slot) {
-			objB = NULL;
+		PyrSlot *slot = objA->slots;
+		for (int j=size; j--; ++slot) {
+			PyrObject * objB = NULL;
 			if (IsObj(slot) && slotRawObject(slot)) {
 				objB = slotRawObject(slot);
 			}
@@ -1041,11 +1016,21 @@ bool PyrGC::BlackToWhiteCheck(PyrObject *objA)
 				return false;
 			}
 			if (objB) {
-				if (objA == mStack) {
-				} else if (objA->gc_color == mBlackColor && objA != mPartialScanObj) {
+				if (objA == mStack)
+					continue;
+
+				if (objA->gc_color == mBlackColor && objA != mPartialScanObj) {
 					if (objB->gc_color == mWhiteColor) {
-						fprintf(stderr, "black to white ref %p %p\n", objA, objB);
+						if (objA->classptr == class_frame) {
+							// jmc: black stack frames pointing to white nodes can be ignore
+							PyrFrame * frameA = (PyrFrame*)objA;
+							PyrMethod * meth = slotRawMethod(&frameA->method);
+							PyrMethodRaw * methraw = METHRAW(meth);
+							if (methraw->needsHeapContext)
+								continue;
+						}
 #if DUMPINSANITY
+						fprintf(stderr, "black frame to white ref %p %p\n", objA, objB);
 						dumpBadObject(objA);
 						dumpBadObject(objB);
 						fprintf(stderr, "\n");
@@ -1061,10 +1046,6 @@ bool PyrGC::BlackToWhiteCheck(PyrObject *objA)
 
 bool PyrGC::SanityMarkObj(PyrObject *objA, PyrObject *fromObj, int level)
 {
-	int j, size, tag;
-	PyrSlot *slot;
-	PyrObject *objB;
-
 	if (objA->IsPermanent()) return true;
 	if (objA->IsMarked()) return true;
 	if (objA->size > MAXINDEXSIZE(objA)) {
@@ -1072,48 +1053,33 @@ bool PyrGC::SanityMarkObj(PyrObject *objA, PyrObject *fromObj, int level)
 		//dumpObject((PyrObject*)objA);
 		return false;
 	}
+
 	objA->SetMark(); // mark it
+	if (!BlackToWhiteCheck(objA))
+		return false;
+
 	if (objA->obj_format <= obj_slot) {
 		// scan it
-		size = objA->size;
+		int size = objA->size;
 		if (size > 0) {
-			slot = objA->slots;
-			for (j=size; j--; ++slot) {
-				objB = NULL;
-				tag = GetTag(slot);
+			PyrSlot *slot = objA->slots;
+			for (int j=size; j--; ++slot) {
+				PyrObject * objB = NULL;
+				int tag = GetTag(slot);
 				if (tag == tagObj && slotRawObject(slot))
 					objB = slotRawObject(slot);
 
-				if (objB && (long)objB < 100) {
-					fprintf(stderr, "weird obj ptr\n");
-					return false;
-				}
 				if (objB) {
-					if (objA == mStack) {
-					} else if (objA->gc_color == mBlackColor && objA != mPartialScanObj) {
-						if (objB->gc_color == mWhiteColor) {
-
-							//debugf("black to white ref %p %p\n", objA, objB);
-							//debugf("sizeclass %d %d\n",  objA->obj_sizeclass, objB->obj_sizeclass);
-							//debugf("class %s %s\n",  objA->classptr->name.us->name, objB->classptr->name.us->name);
-
-							fprintf(stderr, "black to white ref %p %p\n", objA, objB);
-	#if DUMPINSANITY
-							dumpBadObject(objA);
-							dumpBadObject(objB);
-							fprintf(stderr, "\n");
-	#endif
-							return false;
-						}
-					}
-					/*if (level > 40) {
+					/*
+					if (level > 40) {
 						fprintf(stderr, "40 levels deep!\n");
 						dumpBadObject(objA);
 						dumpBadObject(objB);
 						return false;
-					}*/
+					} */
 					bool err = SanityMarkObj(objB, objA, level + 1);
-					if (!err) return false;
+					if (!err)
+						return false;
 				}
 			}
 		}

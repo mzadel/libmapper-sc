@@ -1005,7 +1005,10 @@ langEnv.Append(
     LIBPATH = 'build'
     )
 
-langEnv.Append(LIBS = ['common', 'scsynth', 'mapper-0' ])
+langEnv.Append(LIBS = ['common', 'scsynth', 'QtCollider', 'mapper-0'])
+
+langEnv.Append(CPPDEFINES = "SC_QT")
+
 merge_lib_info(langEnv, libraries['audioapi'])
 
 if PLATFORM == 'windows':
