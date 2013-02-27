@@ -5,6 +5,8 @@ else()
         find_package(FFTW3f)
 endif()
 
+find_path(MAPPER_INCLUDE_DIR mapper/mapper.h PATH_SUFFIXES mapper-0)
+
 include_directories(${CMAKE_SOURCE_DIR}/include/common
                     ${CMAKE_SOURCE_DIR}/include/lang
                     ${CMAKE_SOURCE_DIR}/include/plugin_interface
@@ -14,6 +16,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include/common
                     ${CMAKE_SOURCE_DIR}/external_libraries/threadpool
                     ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.2.6/include
                     ${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src
+                    ${MAPPER_INCLUDE_DIR}
                     LangSource/Bison)
 
 if(APPLE)
@@ -50,6 +53,7 @@ set(sclang_sources
 	LangPrimSource/PyrStringPrim.cpp
 	LangPrimSource/PyrSymbolPrim.cpp
 	LangPrimSource/PyrUnixPrim.cpp
+	LangPrimSource/PyrMapperPrim.cpp
 	LangSource/AdvancingAllocPool.cpp
 	LangSource/ByteCodeArray.cpp
 	LangSource/DumpParseNode.cpp
@@ -261,6 +265,8 @@ target_link_libraries(libsclang ${PTHREADS_LIBRARY} supercollider_boost_thread)
 if(SC_QT)
 	target_link_libraries(libsclang ${QT_COLLIDER_LIBS})
 endif()
+
+target_link_libraries(libsclang "mapper-0")
 
 add_executable(sclang LangSource/cmdLineFuncs.cpp)
 target_link_libraries(sclang libsclang boost_thread)
