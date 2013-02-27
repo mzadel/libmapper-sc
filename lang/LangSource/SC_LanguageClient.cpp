@@ -45,6 +45,7 @@
 #include "GC.h"
 #include "VMGlobals.h"
 #include "SC_DirUtils.h"
+#include "SCBase.h"
 
 void closeAllGUIScreens();
 void initGUI();
@@ -120,11 +121,10 @@ bool SC_LanguageClient::readDefaultLibraryConfig()
 #ifndef SC_WIN32
 	const char* paths[3] = { ".sclang.cfg", "~/.sclang.cfg", "/etc/sclang.cfg" };
 
-	char ipath[PATH_MAX];
 	char opath[PATH_MAX];
 
 	for (int i=0; i < 3; i++) {
-		snprintf(ipath, PATH_MAX, paths[i]);
+		const char * ipath = paths[i];
 		if (sc_StandardizePath(ipath, opath)) {
 			bool success = readLibraryConfig(opath, ipath);
 			if (success) return true;
@@ -365,8 +365,8 @@ void postChar(char c)
 void error(const char *fmt, ...)
 {
 	char buf[512];
-    va_list ap;
-    va_start(ap, fmt);
+	va_list ap;
+	va_start(ap, fmt);
 	int n = vsnprintf(buf, sizeof(buf), fmt, ap);
 	if (n > 0) {
 		SC_LanguageClient::instance()->postError(buf, sc_min(n, sizeof(buf) - 1));

@@ -2928,6 +2928,7 @@ void initPyrThread(VMGlobals *g, PyrThread *thread, PyrSlot *func, int stacksize
 	array = newPyrArray(gc, stacksize, 0, collect);
 	SetObject(&thread->stack, array);
 	gc->GCWrite(thread, array);
+
 	SetInt(&thread->state, tInit);
 
 	SetPtr(&thread->ip, 0);
@@ -2957,6 +2958,8 @@ void initPyrThread(VMGlobals *g, PyrThread *thread, PyrSlot *func, int stacksize
 		slotCopy(&thread->executingPath,&g->process->nowExecutingPath);
 		gc->GCWrite(thread, &g->process->nowExecutingPath);
 	}
+
+	SetInt(&thread->stackSize, stacksize);
 }
 
 extern PyrSymbol *s_prstart;
@@ -2984,6 +2987,8 @@ int prThreadInit(struct VMGlobals *g, int numArgsPushed)
 
 	err = slotIntVal(c, &stacksize);
 	if (err) return err;
+
+	stacksize = std::max(stacksize, EVALSTACKDEPTH);
 
 	initPyrThread(g, thread, b, stacksize, (PyrInt32Array*)(slotRawObject(&g->thread->randData)),
 	slotRawFloat(&g->thread->beats), slotRawFloat(&g->thread->seconds), &g->thread->clock, true);

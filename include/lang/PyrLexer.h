@@ -23,6 +23,8 @@
 #define _PYRLEXER_H_
 
 #include "PyrSymbol.h"
+#include "SC_Export.h"
+#include "SCBase.h"
 
 extern int charno, lineno, linepos;
 extern int *linestarts;
@@ -59,7 +61,7 @@ void traverseDepTree2(ClassDependancy *classdep, int level);
 void compileClassExtensions();
 void compileClass(PyrSymbol *fileSym, int startPos, int endPos, int lineOffset);
 
-void runLibrary(PyrSymbol* selector);
+SC_DLLEXPORT_C void runLibrary(PyrSymbol* selector);
 
 void interpretCmdLine(const char *textbuf, int textlen, char *methodname);
 
@@ -73,7 +75,7 @@ void finiLexer() ;
 bool startLexer(char* filename) ;
 void startLexerCmdLine(char *textbuf, int textbuflen);
 int yylex() ;
-void yyerror(char *s) ;
+void yyerror(const char *s) ;
 void fatal() ;
 bool isValidSourceFileName(char *filename);
 bool passOne_ProcessOneFile(const char *filename, int level);

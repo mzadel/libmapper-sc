@@ -1,5 +1,7 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 2.8)
 project (SuperCollider)
+
+include(CTest)
 enable_testing()
 
 include (cmake_modules/FinalFile.cmake)
@@ -57,6 +59,10 @@ if (${CMAKE_COMPILER_IS_GNUCXX})
 
 	if(APPLE)
 		exec_program(${CMAKE_CXX_COMPILER} ARGS --version OUTPUT_VARIABLE _gcc_version_info)
+
+		if ("${_gcc_version_info}" MATCHES "darwin10-llvm-g..-4.2")
+			message(FATAL_ERROR "llvm-gcc-4.2 was reported to be broken. please use another compiler.")
+		endif()
 		if ("${_gcc_version_info}" MATCHES "Apple")
 			add_definitions("-fpascal-strings")
 		endif()
@@ -221,9 +227,14 @@ else()
 	set(auxresourcesdir "share/SuperCollider")
 endif()
 
+set(SCCLASSLIB_EXCLUDE_REGEX "\\.git")
+if(NOT SC_QT)
+	set(SCCLASSLIB_EXCLUDE_REGEX "${SCCLASSLIB_EXCLUDE_REGEX}|QtCollider")
+endif()
+
 install(DIRECTORY SCClassLibrary
 	DESTINATION ${auxresourcesdir}
-	PATTERN .git EXCLUDE
+	REGEX ${SCCLASSLIB_EXCLUDE_REGEX} EXCLUDE
 )
 
 install(DIRECTORY Help
@@ -248,3 +259,17 @@ set(CPACK_PACKAGE_VERSION_MAJOR 3)
 set(CPACK_PACKAGE_VERSION_MINOR 5)
 set(CPACK_PACKAGE_VERSION_PATCH dev)
 include(CPack)
+
+
+
+#############################################
+# hide advanced variables
+mark_as_advanced(AVAHI_LIBRARIES AVAHI_INCLUDE_DIRS AVAHI_INCLUDE_DIR AVAHI_LIBRARY-COMMON AVAHI_LIBRARY-CLIENT)
+mark_as_advanced(DL)
+mark_as_advanced(EMACS_EXECUTABLE)
+mark_as_advanced(FFTW3F_INCLUDE_DIR FFTW3F_LIBRARY)
+mark_as_advanced(JACK JACK_INCLUDE_DIR JACK_LIBRARY)
+mark_as_advanced(MATH_LIBRARY)
+mark_as_advanced(QT_QMAKE_EXECUTABLE)
+mark_as_advanced(SNDFILE)
+

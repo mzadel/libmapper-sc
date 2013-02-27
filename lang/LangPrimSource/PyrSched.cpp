@@ -23,6 +23,7 @@
 #include "PyrSched.h"
 #include "GC.h"
 #include "PyrPrimitive.h"
+#include "PyrSymbol.h"
 #ifdef SC_DARWIN
 # include <CoreAudio/HostTime.h>
 #endif
@@ -36,7 +37,7 @@
 #endif
 
 #include "SC_Win32Utils.h"
-
+#include "SCBase.h"
 
 static const double dInfinity = std::numeric_limits<double>::infinity();
 
@@ -202,8 +203,7 @@ double GetTimeOfDay()
 }
 #endif // SC_DARWIN
 
-void schedInit();
-void schedInit()
+SC_DLLEXPORT_C void schedInit()
 {
 	pthread_cond_init (&gSchedCond, NULL);
 	pthread_mutex_init (&gLangMutex, NULL);
@@ -219,8 +219,7 @@ void schedInit()
 #endif
 }
 
-void schedCleanup();
-void schedCleanup()
+SC_DLLEXPORT_C void schedCleanup()
 {
 	pthread_mutex_destroy (&gLangMutex);
 	pthread_cond_destroy (&gSchedCond);
@@ -336,8 +335,7 @@ void doubleToTimespec(double secs, struct timespec *spec)
 	spec->tv_nsec = (long)floor(1000000000. * (secs - isecs));
 }
 
-void schedStop();
-void schedStop()
+SC_DLLEXPORT_C void schedStop()
 {
 	//printf("->schedStop\n");
 	pthread_mutex_lock (&gLangMutex);
@@ -354,7 +352,7 @@ void schedStop()
 
 void schedClearUnsafe();
 
-void schedClear()
+SC_DLLEXPORT_C void schedClear()
 {
 	pthread_mutex_lock (&gLangMutex);
 	schedClearUnsafe();
@@ -576,8 +574,8 @@ static void SC_LinuxSetRealtimePriority(pthread_t thread, int priority)
 }
 #endif // SC_LINUX
 
-void schedRun();
-void schedRun()
+
+SC_DLLEXPORT_C void schedRun()
 {
 	pthread_create (&gSchedThread, NULL, schedRunFunc, (void*)0);
 

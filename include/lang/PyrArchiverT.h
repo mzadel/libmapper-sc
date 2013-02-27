@@ -32,9 +32,11 @@ An object archiving system for SuperCollider.
 
 #include "PyrKernel.h"
 #include "PyrPrimitive.h"
+#include "PyrSymbol.h"
 #include "VMGlobals.h"
 #include "GC.h"
 #include "ReadWriteMacros.h"
+#include "SCBase.h"
 
 const int32 kArchHdrSize = 12;
 const int32 kObjectArrayInitialCapacity = 32;
@@ -431,7 +433,7 @@ private:
 					SetObject(slot, readObjectID());
 					break;
 				case 'z' :
-					SetObject(slot, (void*)(size_t)mStream.readInt32_be());
+					SetObject(slot, (PyrObject*)(size_t)mStream.readInt32_be()); // FIXME: fix 64bit safety
 					break;
 				case 'C' :
 					SetObject(slot, (PyrObject*)readSymbolID()->u.classobj);

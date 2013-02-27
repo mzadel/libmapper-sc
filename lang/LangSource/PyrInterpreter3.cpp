@@ -100,7 +100,7 @@ extern PyrClass *gClassList;
 // 	runLibrary
 // 	interpretCmdLine
 
-void runInterpreter(VMGlobals *g, PyrSymbol *selector, int numArgsPushed)
+SC_DLLEXPORT_C void runInterpreter(VMGlobals *g, PyrSymbol *selector, int numArgsPushed)
 {
 		//postfl("->runInterpreter\n");
 #ifdef GC_SANITYCHECK
@@ -419,8 +419,8 @@ void endInterpreter(VMGlobals *g)
 static void StoreToImmutableA(VMGlobals *g, PyrSlot *& sp, unsigned char *& ip)
 {
 	// only the value is on the stack
-	slotCopy(&sp[1], &sp[0]); // copy value up one
-	slotCopy(&sp[0], &g->receiver); // put receiver in place
+	slotCopy(sp + 1, sp); // copy value up one
+	slotCopy(sp, &g->receiver); // put receiver in place
 	sp++;
 	g->sp = sp;
 	g->ip = ip;
@@ -484,14 +484,35 @@ static inline void handleSendSpecialBinaryArithMsg(VMGlobals* g, PyrSlot *& sp, 
 	sp = g->sp; ip = g->ip;
 }
 
+static inline bool checkStackOverflow(VMGlobals* g, PyrSlot * sp)
+{
+	PyrObject * stack = g->gc->Stack();
+	int depth = sp - stack->slots;
+	return depth < slotRawInt(&g->thread->stackSize);
+}
+
+static inline void checkStackDepth(VMGlobals* g, PyrSlot * sp)
+{
+#if CHECK_MAX_STACK_USE
+	int stackDepth = sp - g->sp + 1;
+	if (stackDepth > gMaxStackDepth) {
+		gMaxStackDepth = stackDepth;
+		printf("gMaxStackDepth %d\n", gMaxStackDepth);
+	}
+#endif
+}
+
 #ifdef __GNUC__
 #define dispatch_opcode \
 	op1 = ip[1];		\
 	++ip;				\
+	checkStackDepth(g, sp); \
+	assert(checkStackOverflow(g, sp)); \
 	goto *opcode_labels[op1]
 #else
 #define dispatch_opcode break
 #endif
+
 
 void Interpret(VMGlobals *g)
 {
@@ -810,13 +831,7 @@ void Interpret(VMGlobals *g)
 	while (true) {
 #endif
 
-#if CHECK_MAX_STACK_USE
-	int stackDepth = sp - g->sp + 1;
-	if (stackDepth > gMaxStackDepth) {
-		gMaxStackDepth = stackDepth;
-		printf("gMaxStackDepth %d\n", gMaxStackDepth);
-	}
-#endif
+	checkStackDepth(g, sp);
 
 #if BCSTAT
 	prevop = op1;
@@ -824,6 +839,9 @@ void Interpret(VMGlobals *g)
 
 	op1 = ip[1];
 	++ip;
+
+	assert(checkStackOverflow(g, sp));
+
 #if BCSTAT
 	++bcstat[op1];
 	++bcpair[prevop][op1];
@@ -2060,8 +2078,8 @@ void Interpret(VMGlobals *g)
 #if TAILCALLOPTIMIZE
 				g->tailCall = 0;
 #endif
-			} else if (IsInt(&sp[0])) {
-				SetRaw(&sp[0], -slotRawInt(&sp[0]));
+			} else if (IsInt(sp)) {
+				SetRaw(sp, -slotRawInt(sp));
 #if TAILCALLOPTIMIZE
 				g->tailCall = 0;
 #endif
@@ -2070,13 +2088,13 @@ void Interpret(VMGlobals *g)
 			dispatch_opcode;
 		case 209 : // opNot
 		handle_op_209:
-			if (IsTrue(&sp[0])) {
-				SetTagRaw(&sp[0], tagFalse);
+			if (IsTrue(sp)) {
+				SetTagRaw(sp, tagFalse);
 #if TAILCALLOPTIMIZE
 				g->tailCall = 0;
 #endif
-			} else if (IsFalse(&sp[0])) {
-				SetTagRaw(&sp[0], tagTrue);
+			} else if (IsFalse(sp)) {
+				SetTagRaw(sp, tagTrue);
 #if TAILCALLOPTIMIZE
 				g->tailCall = 0;
 #endif
@@ -2085,8 +2103,8 @@ void Interpret(VMGlobals *g)
 			dispatch_opcode;
 		case 210 : // opIsNil
 		handle_op_210:
-			if (IsNil(&sp[0])) {
-				SetTagRaw(&sp[0], tagTrue);
+			if (IsNil(sp)) {
+				SetTagRaw(sp, tagTrue);
 			} else {
 				slotCopy(sp, &gSpecialValues[svFalse]);
 			}
@@ -2096,10 +2114,10 @@ void Interpret(VMGlobals *g)
 			dispatch_opcode;
 		case 211 : // opNotNil
 		handle_op_211:
-			if (NotNil(&sp[0])) {
+			if (NotNil(sp)) {
 				slotCopy(sp, &gSpecialValues[svTrue]);
 			} else {
-				SetTagRaw(&sp[0], tagFalse);
+				SetTagRaw(sp, tagFalse);
 			}
 #if TAILCALLOPTIMIZE
 			g->tailCall = 0;
@@ -2135,9 +2153,9 @@ void Interpret(VMGlobals *g)
 		// opSendSpecialBinaryArithMsg
 		case 224 : // add
 		handle_op_224:
-			if (IsInt(&sp[-1])) {
-				if (IsInt(&sp[0])) {
-					--sp; SetRaw(&sp[0], slotRawInt(&sp[0]) + slotRawInt(&sp[1]));
+			if (IsInt(sp - 1)) {
+				if (IsInt(sp)) {
+					--sp; SetRaw(sp, slotRawInt(sp) + slotRawInt(sp + 1));
 #if TAILCALLOPTIMIZE
 					g->tailCall = 0;
 #endif
@@ -2156,9 +2174,9 @@ void Interpret(VMGlobals *g)
 			dispatch_opcode;
 		case 225 : // subtract
 		handle_op_225:
-			if (IsInt(&sp[-1])) {
-				if (IsInt(&sp[0])) {
-					--sp; SetRaw(&sp[0], slotRawInt(&sp[0]) - slotRawInt(&sp[1]));
+			if (IsInt(sp - 1)) {
+				if (IsInt(sp)) {
+					--sp; SetRaw(sp, slotRawInt(sp) - slotRawInt(sp + 1));
 #if TAILCALLOPTIMIZE
 					g->tailCall = 0;
 #endif
@@ -2177,9 +2195,9 @@ void Interpret(VMGlobals *g)
 			dispatch_opcode;
 		case 226 :  // multiply
 		handle_op_226:
-			if (IsInt(&sp[-1])) {
-				if (IsInt(&sp[0])) {
-					--sp; SetRaw(&sp[0], slotRawInt(&sp[0]) * slotRawInt(&sp[1]));
+			if (IsInt(sp - 1)) {
+				if (IsInt(sp)) {
+					--sp; SetRaw(sp, slotRawInt(sp) * slotRawInt(sp + 1));
 #if TAILCALLOPTIMIZE
 					g->tailCall = 0;
 #endif
@@ -2404,7 +2422,7 @@ void Interpret(VMGlobals *g)
 						sp -= numArgsPushed - 1;
 						index = methraw->specialIndex; // zero is index of the first argument
 						if (index < numArgsPushed) {
-							slotCopy(sp, &sp[index]);
+							slotCopy(sp, sp + index);
 						} else {
 							slotCopy(sp, &slotRawObject(&meth->prototypeFrame)->slots[index]);
 						}
@@ -2421,7 +2439,7 @@ void Interpret(VMGlobals *g)
 						if (obj->obj_flags & obj_immutable) { StoreToImmutableB(g, sp, ip); }
 						else {
 							if (numArgsPushed >= 2) {
-								slotCopy(&obj->slots[index], &sp[1]);
+								slotCopy(&obj->slots[index], sp + 1);
 								g->gc->GCWrite(obj, sp + 1);
 							} else {
 								slotCopy(&obj->slots[index], &gSpecialValues[svNil]);
@@ -2436,7 +2454,7 @@ void Interpret(VMGlobals *g)
 					case methAssignClassVar : /* assign class var */
 						sp -= numArgsPushed - 1;
 						if (numArgsPushed >= 2) {
-							slotCopy(&g->classvars->slots[methraw->specialIndex], &sp[1]);
+							slotCopy(&g->classvars->slots[methraw->specialIndex], sp + 1);
 							g->gc->GCWrite(g->classvars, sp + 1);
 						} else
 							slotCopy(&g->classvars->slots[methraw->specialIndex], &gSpecialValues[svNil]);
@@ -2547,7 +2565,7 @@ void Interpret(VMGlobals *g)
 						sp -= numArgsPushed - 1;
 						index = methraw->specialIndex; // zero is index of the first argument
 						if (index < numArgsPushed) {
-							slotCopy(sp, &sp[index]);
+							slotCopy(sp, sp + index);
 						} else {
 							slotCopy(sp, &slotRawObject(&meth->prototypeFrame)->slots[index]);
 						}
@@ -2565,7 +2583,7 @@ void Interpret(VMGlobals *g)
 						if (obj->obj_flags & obj_immutable) { StoreToImmutableB(g, sp, ip); }
 						else {
 							if (numArgsPushed >= 2) {
-								slotCopy(&obj->slots[index], &sp[1]);
+								slotCopy(&obj->slots[index], sp + 1);
 								g->gc->GCWrite(obj, sp + 1);
 							} else
 								slotCopy(&obj->slots[index], &gSpecialValues[svNil]);
@@ -2579,7 +2597,7 @@ void Interpret(VMGlobals *g)
 					case methAssignClassVar : /* assign class var */
 						sp -= numArgsPushed - 1;
 						if (numArgsPushed >= 2) {
-							slotCopy(&g->classvars->slots[methraw->specialIndex], &sp[1]);
+							slotCopy(&g->classvars->slots[methraw->specialIndex], sp + 1);
 							g->gc->GCWrite(g->classvars, sp + 1);
 						} else
 							slotCopy(&g->classvars->slots[methraw->specialIndex], &gSpecialValues[svNil]);

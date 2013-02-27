@@ -23,12 +23,14 @@
 #include "PyrInterpreter.h"
 #include "PyrPrimitive.h"
 #include "PyrListPrim.h"
+#include "PyrSymbol.h"
 #include "GC.h"
 #include "bullet.h"
 #include <stdlib.h>
 #include <assert.h>
 #include "PredefinedSymbols.h"
 #include "PyrObjectProto.h"
+#include "SCBase.h"
 
 #define DEBUGMETHODS 0
 #define METHODMETER 0
@@ -86,7 +88,7 @@ void sendMessageWithKeys(VMGlobals *g, PyrSymbol *selector, long numArgsPushed, 
 				break;
 			case methReturnLiteral : /* return literal */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &meth->selectors); /* in this case selectors is just a single value */
+				slotCopy(sp, &meth->selectors); /* in this case selectors is just a single value */
 				break;
 			case methReturnArg : /* return an argument */
 				numArgsPushed = keywordFixStack(g, meth, methraw, numArgsPushed, numKeyArgsPushed);
@@ -95,15 +97,15 @@ void sendMessageWithKeys(VMGlobals *g, PyrSymbol *selector, long numArgsPushed, 
 				sp = g->sp;
 				index = methraw->specialIndex; // zero is index of the first argument
 				if (index < numArgsPushed) {
-					slotCopy(&sp[0], &sp[index]);
+					slotCopy(sp, sp + index);
 				} else {
-					slotCopy(&sp[0], &slotRawObject(&meth->prototypeFrame)->slots[index]);
+					slotCopy(sp, &slotRawObject(&meth->prototypeFrame)->slots[index]);
 				}
 				break;
 			case methReturnInstVar : /* return inst var */
 				sp = g->sp -= numArgsPushed - 1;
 				index = methraw->specialIndex;
-				slotCopy(&sp[0], &slotRawObject(recvrSlot)->slots[index]);
+				slotCopy(sp, &slotRawObject(recvrSlot)->slots[index]);
 				break;
 			case methAssignInstVar : /* assign inst var */
 				sp = g->sp -= numArgsPushed - 1;
@@ -112,27 +114,27 @@ void sendMessageWithKeys(VMGlobals *g, PyrSymbol *selector, long numArgsPushed, 
 				if (obj->obj_flags & obj_immutable) { StoreToImmutableB(g, sp, g->ip); }
 				else {
 					if (numArgsPushed >= 2) {
-						slotCopy(&obj->slots[index], &sp[1]);
+						slotCopy(&obj->slots[index], sp + 1);
 						g->gc->GCWrite(obj, sp + 1);
 					} else {
 						SetNil(&obj->slots[index]);
 					}
-					slotCopy(&sp[0], recvrSlot);
+					slotCopy(sp, recvrSlot);
 				}
 				break;
 			case methReturnClassVar : /* return class var */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &g->classvars->slots[methraw->specialIndex]);
+				slotCopy(sp, &g->classvars->slots[methraw->specialIndex]);
 				break;
 			case methAssignClassVar : /* assign class var */
 				sp = g->sp -= numArgsPushed - 1;
 				if (numArgsPushed >= 2) {
-					slotCopy(&g->classvars->slots[methraw->specialIndex], &sp[1]);
+					slotCopy(&g->classvars->slots[methraw->specialIndex], sp + 1);
 					g->gc->GCWrite(g->classvars, sp + 1);
 				} else {
 					SetNil(&g->classvars->slots[methraw->specialIndex]);
 				}
-				slotCopy(&sp[0], recvrSlot);
+				slotCopy(sp, recvrSlot);
 				break;
 			case methRedirect : /* send a different selector to self, e.g. this.subclassResponsibility */
 				numArgsPushed = keywordFixStack(g, meth, methraw, numArgsPushed, numKeyArgsPushed);
@@ -219,21 +221,21 @@ void sendMessage(VMGlobals *g, PyrSymbol *selector, long numArgsPushed)
 				break;
 			case methReturnLiteral : /* return literal */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &meth->selectors); /* in this case selectors is just a single value */
+				slotCopy(sp, &meth->selectors); /* in this case selectors is just a single value */
 				break;
 			case methReturnArg : /* return an argument */
 				sp = g->sp -= numArgsPushed - 1;
 				index = methraw->specialIndex; // zero is index of the first argument
 				if (index < numArgsPushed) {
-					slotCopy(&sp[0], &sp[index]);
+					slotCopy(sp, sp + index);
 				} else {
-					slotCopy(&sp[0], &slotRawObject(&meth->prototypeFrame)->slots[index]);
+					slotCopy(sp, &slotRawObject(&meth->prototypeFrame)->slots[index]);
 				}
 				break;
 			case methReturnInstVar : /* return inst var */
 				sp = g->sp -= numArgsPushed - 1;
 				index = methraw->specialIndex;
-				slotCopy(&sp[0], &slotRawObject(recvrSlot)->slots[index]);
+				slotCopy(sp, &slotRawObject(recvrSlot)->slots[index]);
 				break;
 			case methAssignInstVar : /* assign inst var */
 				sp = g->sp -= numArgsPushed - 1;
@@ -242,27 +244,27 @@ void sendMessage(VMGlobals *g, PyrSymbol *selector, long numArgsPushed)
 				if (obj->obj_flags & obj_immutable) { StoreToImmutableB(g, sp, g->ip); }
 				else {
 					if (numArgsPushed >= 2) {
-						slotCopy(&obj->slots[index], &sp[1]);
+						slotCopy(&obj->slots[index], sp + 1);
 						g->gc->GCWrite(obj, sp + 1);
 					} else {
 						SetNil(&obj->slots[index]);
 					}
-					slotCopy(&sp[0], recvrSlot);
+					slotCopy(sp, recvrSlot);
 				}
 				break;
 			case methReturnClassVar : /* return class var */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &g->classvars->slots[methraw->specialIndex]);
+				slotCopy(sp, &g->classvars->slots[methraw->specialIndex]);
 				break;
 			case methAssignClassVar : /* assign class var */
 				sp = g->sp -= numArgsPushed - 1;
 				if (numArgsPushed >= 2) {
-					slotCopy(&g->classvars->slots[methraw->specialIndex], &sp[1]);
+					slotCopy(&g->classvars->slots[methraw->specialIndex], sp + 1);
 					g->gc->GCWrite(g->classvars, sp + 1);
 				} else {
 					SetNil(&g->classvars->slots[methraw->specialIndex]);
 				}
-				slotCopy(&sp[0], recvrSlot);
+				slotCopy(sp, recvrSlot);
 				break;
 			case methRedirect : /* send a different selector to self, e.g. this.subclassResponsibility */
 				if (numArgsPushed < methraw->numargs) { // not enough args pushed
@@ -336,7 +338,7 @@ void sendMessage(VMGlobals *g, PyrSymbol *selector, long numArgsPushed)
 			case methMultDispatchByClass : {
 				index = methraw->specialIndex;
 				if (index < numArgsPushed) {
-					classobj = slotRawObject(&sp[index])->classptr;
+					classobj = slotRawObject(sp + index)->classptr;
 					selector = slotRawSymbol(&meth->selectors);
 					goto lookup_again;
 				} else {
@@ -405,7 +407,7 @@ void sendSuperMessageWithKeys(VMGlobals *g, PyrSymbol *selector, long numArgsPus
 				break;
 			case methReturnLiteral : /* return literal */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &meth->selectors); /* in this case selectors is just a single value */
+				slotCopy(sp, &meth->selectors); /* in this case selectors is just a single value */
 				break;
 			case methReturnArg : /* return an argument */
 				numArgsPushed = keywordFixStack(g, meth, methraw, numArgsPushed, numKeyArgsPushed);
@@ -414,15 +416,15 @@ void sendSuperMessageWithKeys(VMGlobals *g, PyrSymbol *selector, long numArgsPus
 				sp = g->sp;
 				index = methraw->specialIndex; // zero is index of the first argument
 				if (index < numArgsPushed) {
-					slotCopy(&sp[0], &sp[index]);
+					slotCopy(sp, sp + index);
 				} else {
-					slotCopy(&sp[0], &slotRawObject(&meth->prototypeFrame)->slots[index]);
+					slotCopy(sp, &slotRawObject(&meth->prototypeFrame)->slots[index]);
 				}
 				break;
 			case methReturnInstVar : /* return inst var */
 				sp = g->sp -= numArgsPushed - 1;
 				index = methraw->specialIndex;
-				slotCopy(&sp[0], &slotRawObject(recvrSlot)->slots[index]);
+				slotCopy(sp, &slotRawObject(recvrSlot)->slots[index]);
 				break;
 			case methAssignInstVar : /* assign inst var */
 				sp = g->sp -= numArgsPushed - 1;
@@ -431,27 +433,27 @@ void sendSuperMessageWithKeys(VMGlobals *g, PyrSymbol *selector, long numArgsPus
 				if (obj->obj_flags & obj_immutable) { StoreToImmutableB(g, sp, g->ip); }
 				else {
 					if (numArgsPushed >= 2) {
-						slotCopy(&obj->slots[index], &sp[1]);
+						slotCopy(&obj->slots[index], sp + 1);
 						g->gc->GCWrite(obj, sp + 1);
 					} else {
 						SetNil(&obj->slots[index]);
 					}
-					slotCopy(&sp[0], recvrSlot);
+					slotCopy(sp, recvrSlot);
 				}
 				break;
 			case methReturnClassVar : /* return class var */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &g->classvars->slots[methraw->specialIndex]);
+				slotCopy(sp, &g->classvars->slots[methraw->specialIndex]);
 				break;
 			case methAssignClassVar : /* assign class var */
 				sp = g->sp -= numArgsPushed - 1;
 				if (numArgsPushed >= 2) {
-					slotCopy(&g->classvars->slots[methraw->specialIndex], &sp[1]);
+					slotCopy(&g->classvars->slots[methraw->specialIndex], sp + 1);
 					g->gc->GCWrite(g->classvars, sp + 1);
 				} else {
 					SetNil(&g->classvars->slots[methraw->specialIndex]);
 				}
-				slotCopy(&sp[0], recvrSlot);
+				slotCopy(sp, recvrSlot);
 				break;
 			case methRedirect : /* send a different selector to self, e.g. this.subclassResponsibility */
 				numArgsPushed = keywordFixStack(g, meth, methraw, numArgsPushed, numKeyArgsPushed);
@@ -539,21 +541,21 @@ void sendSuperMessage(VMGlobals *g, PyrSymbol *selector, long numArgsPushed)
 				break;
 			case methReturnLiteral : /* return literal */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &meth->selectors); /* in this case selectors is just a single value */
+				slotCopy(sp, &meth->selectors); /* in this case selectors is just a single value */
 				break;
 			case methReturnArg : /* return an argument */
 				sp = g->sp -= numArgsPushed - 1;
 				index = methraw->specialIndex; // zero is index of the first argument
 				if (index < numArgsPushed) {
-					slotCopy(&sp[0], &sp[index]);
+					slotCopy(sp, sp + index);
 				} else {
-					slotCopy(&sp[0], &slotRawObject(&meth->prototypeFrame)->slots[index]);
+					slotCopy(sp, &slotRawObject(&meth->prototypeFrame)->slots[index]);
 				}
 				break;
 			case methReturnInstVar : /* return inst var */
 				sp = g->sp -= numArgsPushed - 1;
 				index = methraw->specialIndex;
-				slotCopy(&sp[0], &slotRawObject(recvrSlot)->slots[index]);
+				slotCopy(sp, &slotRawObject(recvrSlot)->slots[index]);
 				break;
 			case methAssignInstVar : /* assign inst var */
 				sp = g->sp -= numArgsPushed - 1;
@@ -562,27 +564,27 @@ void sendSuperMessage(VMGlobals *g, PyrSymbol *selector, long numArgsPushed)
 				if (obj->obj_flags & obj_immutable) { StoreToImmutableB(g, sp, g->ip); }
 				else {
 					if (numArgsPushed >= 2) {
-						slotCopy(&obj->slots[index], &sp[1]);
+						slotCopy(&obj->slots[index], sp + 1);
 						g->gc->GCWrite(obj, sp + 1);
 					} else {
 						SetNil(&obj->slots[index]);
 					}
-					slotCopy(&sp[0], recvrSlot);
+					slotCopy(sp, recvrSlot);
 				}
 				break;
 			case methReturnClassVar : /* return class var */
 				sp = g->sp -= numArgsPushed - 1;
-				slotCopy(&sp[0], &g->classvars->slots[methraw->specialIndex]);
+				slotCopy(sp, &g->classvars->slots[methraw->specialIndex]);
 				break;
 			case methAssignClassVar : /* assign class var */
 				sp = g->sp -= numArgsPushed - 1;
 				if (numArgsPushed >= 2) {
-					slotCopy(&g->classvars->slots[methraw->specialIndex], &sp[1]);
+					slotCopy(&g->classvars->slots[methraw->specialIndex], sp + 1);
 					g->gc->GCWrite(g->classvars, sp + 1);
 				} else {
 					SetNil(&g->classvars->slots[methraw->specialIndex]);
 				}
-				slotCopy(&sp[0], recvrSlot);
+				slotCopy(sp, recvrSlot);
 				break;
 			case methRedirect : /* send a different selector to self, e.g. this.subclassResponsibility */
 				if (numArgsPushed < methraw->numargs) { // not enough args pushed
@@ -656,7 +658,7 @@ void sendSuperMessage(VMGlobals *g, PyrSymbol *selector, long numArgsPushed)
 			case methMultDispatchByClass : {
 				index = methraw->specialIndex;
 				if (index < numArgsPushed) {
-					classobj = slotRawObject(&sp[index])->classptr;
+					classobj = slotRawObject(sp + index)->classptr;
 					selector = slotRawSymbol(&meth->selectors);
 					goto lookup_again;
 				} else {

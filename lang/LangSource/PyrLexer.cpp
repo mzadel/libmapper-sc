@@ -184,43 +184,42 @@ extern void asRelativePath(char *inPath, char *outPath)
 }
 
 
-bool getFileText(char* filename, char **text, int *length);
-bool getFileText(char* filename, char **text, int *length)
+static bool getFileText(char* filename, char **text, int *length)
 {
 	FILE *file;
-        char *ltext;
-        int llength;
+	char *ltext;
+	int llength;
 
 #ifdef SC_WIN32
 	file = fopen(filename, "rb");
 #else
 	file = fopen(filename, "r");
 #endif
-  if (!file) return false;
+	if (!file) return false;
 
-        fseek(file, 0L, SEEK_END);
-        llength = ftell(file);
-        fseek(file, 0L, SEEK_SET);
-        ltext = (char*)pyr_pool_compile->Alloc((llength+1) * sizeof(char));
+	fseek(file, 0L, SEEK_END);
+	llength = ftell(file);
+	fseek(file, 0L, SEEK_SET);
+	ltext = (char*)pyr_pool_compile->Alloc((llength+1) * sizeof(char));
 #ifdef SC_WIN32
-        // win32 isprint( ) doesn't like the 0xcd after the end of file when
-        // there is a mismatch in lengths due to line endings....
-        memset(ltext,0,(llength+1) * sizeof(char));
+	// win32 isprint( ) doesn't like the 0xcd after the end of file when
+	// there is a mismatch in lengths due to line endings....
+	memset(ltext,0,(llength+1) * sizeof(char));
 #endif //SC_WIN32
-        MEMFAIL(ltext);
-#ifdef SC_WIN32
-        size_t size = fread(ltext, 1, llength, file);
-        if (size != llength)
-          ::MessageBox(NULL,"size != llength", "Error", MB_OK);
-#else
-        fread(ltext, 1, llength, file);
-#endif
-        ltext[llength] = 0;
-        //ltext[llength] = 0;
-        *length = llength;
-        fclose(file);
-        *text = ltext;
-        return true;
+	MEMFAIL(ltext);
+
+	size_t size = fread(ltext, 1, llength, file);
+	if (size != llength) {
+		error("error when reading file");
+		fclose(file);
+		return false;
+	}
+	ltext[llength] = 0;
+	//ltext[llength] = 0;
+	*length = llength;
+	fclose(file);
+	*text = ltext;
+	return true;
 }
 
 
@@ -1342,7 +1341,7 @@ int processstring(char *s)
 	return STRING;
 }
 
-void yyerror(char *s)
+void yyerror(const char *s)
 {
 	parseFailed = 1;
 	yytext[yylen] = 0;
@@ -2025,8 +2024,8 @@ void finiPassOne()
     //postfl("<-finiPassOne\n");
 }
 
-bool passOne_ProcessDir(char *dirname, int level);
-bool passOne_ProcessDir(char *dirname, int level)
+bool passOne_ProcessDir(const char *dirname, int level);
+bool passOne_ProcessDir(const char *dirname, int level)
 {
 	bool success = true;
 
@@ -2225,8 +2224,7 @@ void shutdownLibrary()
 	TempoClock_stopAll();
 }
 
-bool compileLibrary();
-bool compileLibrary()
+SC_DLLEXPORT_C bool compileLibrary()
 {
 	//printf("->compileLibrary\n");
 	shutdownLibrary();
@@ -2276,7 +2274,7 @@ void signal_init_globs();
 
 void dumpByteCodes(PyrBlock *theBlock);
 
-void runLibrary(PyrSymbol* selector)
+SC_DLLEXPORT_C void runLibrary(PyrSymbol* selector)
 {
         VMGlobals *g = gMainVMGlobals;
         g->canCallOS = true;

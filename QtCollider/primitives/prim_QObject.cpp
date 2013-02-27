@@ -30,8 +30,6 @@
 #include <PyrKernel.h>
 #include <GC.h>
 
-PyrSymbol *s_QObject;
-
 #define IS_OBJECT_NIL( a ) \
   IsNil( slotRawObject(a)->slots )
 
@@ -122,6 +120,21 @@ int QObject_Finalize( struct VMGlobals *, struct PyrObject *obj )
 
   QObjectProxy *proxy = (QObjectProxy*) slotRawPtr( obj->slots );
 
+  DestroyEvent *e = new DestroyEvent( QObjectProxy::DestroyProxyAndObject );
+  e->send( proxy, Synchronous );
+
+  return errNone;
+}
+
+QC_LANG_PRIMITIVE( QObject_ManuallyFinalize, 0, PyrSlot *r, PyrSlot *a, VMGlobals *g )
+{
+  qcSCObjectDebugMsg( 1, slotRawObject(r), "MANUAL FINALIZE" );
+
+  QObjectProxy *proxy = QOBJECT_FROM_SLOT( r );
+
+  // WARNING we assume that proxy's deletion will be deferred until any
+  // language shutdown code using it will have been executed, so any
+  // shutdown code is safe.
   DestroyEvent *e = new DestroyEvent( QObjectProxy::DestroyProxyAndObject );
   e->send( proxy, Synchronous );
 
@@ -300,7 +313,7 @@ QC_LANG_PRIMITIVE( QObject_DisconnectFunction, 2, PyrSlot *r, PyrSlot *a, VMGlob
 QC_LANG_PRIMITIVE( QObject_ConnectSlot, 3, PyrSlot *r, PyrSlot *a, VMGlobals *g )
 {
   // Args: signal, receiver, slot
-  if( !isKindOfSlot( a+1, getsym("QObject")->u.classobj )
+  if( !isKindOfSlot( a+1, class_QObject )
       || NotSym( a+0 ) || NotSym( a+2 ) ) return errWrongType;
 
   PyrSymbol *symSig = slotRawSymbol( a+0 );

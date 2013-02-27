@@ -34,15 +34,6 @@
 
 using namespace QtCollider;
 
-QC_LANG_PRIMITIVE( QtGUI_Start, 0, PyrSlot *r, PyrSlot *a, VMGlobals *g )
-{
-  // FIXME is QApplication::instance() thread-safe??
-  if( !QApplication::instance() ) {
-    QtCollider::init();
-  }
-  return errNone;
-}
-
 QC_LANG_PRIMITIVE( QtGUI_SetDebugLevel, 1, PyrSlot *r, PyrSlot *a, VMGlobals *g )
 {
   QtCollider::setDebugLevel( Slot::toInt(a) );
@@ -57,7 +48,7 @@ void qcScreenBounds( QcSyncEvent *e )
 
 QC_LANG_PRIMITIVE( QWindow_ScreenBounds, 1, PyrSlot *r, PyrSlot *rectSlot, VMGlobals *g )
 {
-  if( !isKindOfSlot( rectSlot, s_rect->u.classobj ) ) return errWrongType;
+  if( !isKindOfSlot( rectSlot, class_Rect ) ) return errWrongType;
 
   QVariant var;
 

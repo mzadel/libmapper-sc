@@ -127,6 +127,10 @@ else()
 	add_library(libscsynth SHARED ${scsynth_sources})
 endif()
 
+set_property(TARGET libscsynth
+	APPEND
+	PROPERTY COMPILE_DEFINITIONS BUILDING_SUPERCOLLIDER)
+
 if(CURL)
 	if(CURL_FOUND)
 		target_link_libraries(libscsynth ${CURL_LIBRARIES})
@@ -158,8 +162,10 @@ elseif(AUDIOAPI STREQUAL coreaudio)
 	target_link_libraries(libscsynth "-framework CoreAudio")
 endif()
 
-set_property(TARGET libscsynth
-			 PROPERTY OUTPUT_NAME scsynth)
+set_property(TARGET libscsynth PROPERTY OUTPUT_NAME scsynth)
+# These two properties are ABI version info, not sc version:
+set_property(TARGET libscsynth PROPERTY VERSION     1.0.0)
+set_property(TARGET libscsynth PROPERTY SOVERSION   1)
 
 
 if (FFTW3F_FOUND)

@@ -1,20 +1,19 @@
-find_package (Qt4 REQUIRED)
+find_package (Qt4)
+if (NOT QT4_FOUND)
+	message(FATAL_ERROR "you try to compile with QT support, but qt cannot be found."
+	"please either install qt4 or compile without qt support (add -DSC_QT=OFF to the cmake command line)")
+endif()
+
 find_package (Sndfile REQUIRED)
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}  -DQC_DEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}  -DQC_DEBUG")
 
 set( QT_COLLIDER_HDRS
-  QcApplication.h
   QObjectProxy.h
   QWidgetProxy.h
-  Slot.h
-  Common.h
-  QcHelper.h
-  QcObjectFactory.h
   widgets/BasicWidgets.h
   widgets/QcScrollArea.h
-  widgets/QcAbstractStepValue.h
   widgets/QcNumberBox.h
   widgets/QcSlider.h
   widgets/QcSlider2D.h
@@ -37,13 +36,11 @@ set( QT_COLLIDER_SRCS
   Common.cpp
   QObjectProxy.cpp
   QWidgetProxy.cpp
-  QcPen.cpp
   Slot.cpp
   QcObjectFactory.cpp
   primitives/primitives.cpp
   primitives/prim_QObject.cpp
-  #primitives/prim_QPen.cpp
-  primitives/prim_QPen_oldskool.cpp
+  primitives/prim_QPen.cpp
   primitives/prim_misc.cpp
   primitives/prim_QWidget.cpp
   widgets/BasicWidgets.cpp
@@ -123,7 +120,7 @@ if(APPLE)
 else()
   install(TARGETS QtCollider
           DESTINATION "lib"
-          PERMISSIONS OWNER_READ OWNER_EXECUTE
+          PERMISSIONS OWNER_READ OWNER_EXECUTE OWNER_WRITE
                       GROUP_READ GROUP_EXECUTE
                       WORLD_READ WORLD_EXECUTE )
 endif()
