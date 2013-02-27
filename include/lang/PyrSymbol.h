@@ -140,7 +140,7 @@ enum {
 #define lo_false 0
 #endif
 
-inline int lo_pattern_match(const char *str, const char *p)
+inline int sc_lo_pattern_match(const char *str, const char *p)
 {
     int negate;
     int match;
@@ -165,7 +165,7 @@ inline int lo_pattern_match(const char *str, const char *p)
 						str++;
 				
 				while (*str) {
-					if (lo_pattern_match(str, p))
+					if (sc_lo_pattern_match(str, p))
 						return lo_true;
 					str++;
 				}
@@ -246,7 +246,7 @@ inline int lo_pattern_match(const char *str, const char *p)
 				
                 while (c) {
                     if (c == ',') {
-                        if (lo_pattern_match(str, remainder)) {
+                        if (sc_lo_pattern_match(str, remainder)) {
                             return lo_true;
                         } else {
                             // backtrack on test string

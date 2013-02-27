@@ -234,7 +234,7 @@ int prSymbol_matchOSCPattern(struct VMGlobals *g, int numArgsPushed)
 //	int32 alen = slotRawSymbol(a)->length;
 //	int32 blen = slotRawSymbol(b)->length;
 //	length = sc_min(alen, blen);
-	if (lo_pattern_match(slotRawSymbol(a)->name, slotRawSymbol(b)->name)) {
+	if (sc_lo_pattern_match(slotRawSymbol(a)->name, slotRawSymbol(b)->name)) {
 		SetTrue(a);
 	} else {
 		SetFalse(a);
