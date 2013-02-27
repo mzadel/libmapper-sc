@@ -35,7 +35,7 @@ namespace Mapper {
 
 	namespace Signal
 	{
-		static void input_handler( mapper_signal msig, int instance_id, mapper_db_signal props, mapper_timetag_t *timetag, void *value );
+		static void input_handler( mapper_signal msig, mapper_db_signal props, int instance_id, void *value, int count, mapper_timetag_t *timetag );
 	}
 
 }
@@ -68,7 +68,7 @@ void* Mapper::Device::polling_loop( void* arg )
 // and value to MapperSignal:prCallAction() on the supercollider language
 // side, which calls the appropriate user-defined action function.
 //
-void Mapper::Signal::input_handler( mapper_signal msig, int instance_id, mapper_db_signal props, mapper_timetag_t *timetag, void *value )
+void Mapper::Signal::input_handler( mapper_signal msig, mapper_db_signal props, int instance_id, void *value, int count, mapper_timetag_t *timetag )
 {
 	pthread_mutex_lock (&gLangMutex);
 
@@ -633,7 +633,7 @@ int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed)
 	int err = numericSlotToPointer( b, props->type, &floatstorage, &intstorage, &storagepointer );
 	if ( err != errNone ) return err;
 
-	msig_update( sig, storagepointer );
+	msig_update( sig, storagepointer, 0, MAPPER_NOW );
 
 	return errNone;
 
