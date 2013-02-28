@@ -145,11 +145,11 @@ QEnvelopeView : QView
   }
 
   background {
-    ^this.palette.baseColor;
+    ^this.palette.base;
   }
 
   background_ { arg color;
-    this.palette = this.palette.baseColor_(color);
+    this.palette = this.palette.base_(color);
   }
 
   fillColor_ { arg aColor;
@@ -166,9 +166,8 @@ QEnvelopeView : QView
     this.fillColor_( fillColor );
   }
 
-  selectionColor_ { arg aColor;
-    selectionColor = aColor;
-    this.setProperty( \selectionColor, aColor );
+  selectionColor_ { arg color;
+    this.palette = this.palette.highlight_(color);
   }
 
   drawLines_ { arg aBool;
@@ -181,23 +180,43 @@ QEnvelopeView : QView
     this.setProperty( \drawRects, aBool );
   }
 
-  thumbWidth_ { arg aFloat;
-    this.setProperty( \thumbWidth, aFloat; );
+  style { ^this.getProperty(\style) }
+
+  style_ { arg style;
+    if (style.isNumber.not) {
+      style = style.switch (
+        \dots, 0,
+        \rects, 1,
+        0
+      );
+    };
+    style = style.clip(0,1).asInteger;
+    this.setProperty(\style, style)
   }
 
-  thumbHeight_ { arg aFloat;
-    this.setProperty( \thumbHeight, aFloat; );
+  thumbWidth_ { arg width;
+    this.setProperty( \thumbWidth, width.asInteger; );
   }
 
-  thumbSize_ { arg aFloat;
-    this.setProperty( \thumbSize, aFloat; );
+  thumbHeight_ { arg height;
+    this.setProperty( \thumbHeight, height.asInteger; );
   }
 
-  setThumbWidth { this.nonimpl("setThumbWidth"); }
+  thumbSize_ { arg size;
+    this.setProperty( \thumbSize, size.asInteger; );
+  }
 
-  setThumbHeight { this.nonimpl("setThumbHeight"); }
+  setThumbWidth { arg index, width;
+    this.invokeMethod(\setThumbWidthAt, [index, width.asInteger])
+  }
 
-  setThumbSize { this.nonimpl("setThumbSize"); }
+  setThumbHeight { arg index, height;
+    this.invokeMethod(\setThumbHeightAt, [index, height.asInteger])
+  }
+
+  setThumbSize { arg index, size;
+    this.invokeMethod(\setThumbSizeAt, [index, size.asInteger])
+  }
 
   metaAction_ { arg function;
     this.manageMethodConnection( metaAction, function, 'metaAction()', \doMetaAction );

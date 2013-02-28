@@ -6,14 +6,14 @@ HelpBrowser {
 	var <>homeUrl;
 	var <window;
 	var webView;
-	var animCount = 0;
+	var loading = false;
 	var srchBox;
 	var openNewWin;
 	var rout;
 
 	*initClass {
 		StartUp.add {
-			NotificationCenter.register(SCDoc, \docMapDidUpdate, this) {
+			NotificationCenter.register(SCDoc, \didIndexAllDocs, this) {
 				if(WebView.implClass.respondsTo(\clearCache)) {
 					WebView.clearCache;
 				}
@@ -24,10 +24,6 @@ HelpBrowser {
 	*instance {
 		if( singleton.isNil ) {
 			singleton = this.new;
-			singleton.window.onClose = {
-				singleton.stopAnim;
-				singleton = nil;
-			};
 		};
 		^singleton;
 	}
@@ -40,7 +36,13 @@ HelpBrowser {
 	}
 
 	*goTo {|url|
-		if(openNewWindows,{this.new},{this.instance}).goTo(url);
+		this.front.goTo(url);
+	}
+
+	*front {
+		var w = if(openNewWindows,{this.new},{this.instance});
+		w.window.front;
+		^w;
 	}
 
 	*openBrowsePage {|category|
@@ -52,7 +54,8 @@ HelpBrowser {
 		this.goTo(SCDoc.helpTargetDir++"/Search.html"++text);
 	}
 	*openHelpFor {|text|
-		this.goTo(SCDoc.findHelpFile(text));
+		var w = this.front;
+		{ w.startAnim; w.goTo(SCDoc.findHelpFile(text)) }.fork(AppClock);
 	}
 	*openHelpForMethod {|method|
 		var cls = method.ownerClass;
@@ -76,9 +79,6 @@ HelpBrowser {
 	cmdPeriod { rout.play(AppClock) }
 	goTo {|url, brokenAction|
 		var newPath, oldPath, plainTextExts = #[".sc",".scd",".txt",".schelp"];
-
-		//FIXME: since multiple scdoc queries can be running at the same time,
-		//it would be best to create a queue and run them in order, but only use the url from the last.
 
 		plainTextExts.do {|x|
 			if(url.endsWith(x)) {
@@ -139,6 +139,13 @@ HelpBrowser {
 		winRect = winRect.moveToPoint(winRect.centerIn(Window.screenBounds));
 
 		window = Window.new( bounds: winRect ).name_("SuperCollider Help");
+
+		window.onClose = {
+			this.stopAnim;
+			if(singleton == this) {
+				singleton = nil;
+			};
+		};
 
 		toolbar = ();
 
@@ -240,6 +247,9 @@ HelpBrowser {
 		};
 		if(webView.respondsTo(\onReload_)) {
 			webView.onReload = {|wv, url|
+				if(WebView.implClass.respondsTo(\clearCache)) {
+					WebView.clearCache;
+				};
 				this.goTo(url);
 			};
 		};
@@ -263,8 +273,8 @@ HelpBrowser {
 				view.tryPerform(\evaluateJavaScript,"selectLine()");
 			};
 		};
-		window.view.keyDownAction = { arg view, char, mods;
-			if( ((char.ascii == 6) && mods.isCtrl) || (char == $f && mods.isCmd) ) {
+		window.view.keyDownAction = { arg view, char, mods, uni, kcode, key;
+			if( ((key == 70) && mods.isCtrl) || (char == $f && mods.isCmd) ) {
 				toggleFind.value;
 			};
 			if(char.ascii==27) {
@@ -275,7 +285,11 @@ HelpBrowser {
 		toolbar[\Back].action = { this.goBack };
 		toolbar[\Forward].action = { this.goForward };
 		toolbar[\Reload].action = { this.goTo( webView.url ) };
-		txtFind.action = { |x| webView.findText( x.string ); };
+		if(GUI.id === \cocoa) {
+			txtFind.action = { |x| webView.focus; AppClock.sched(0, {webView.findText( x.string );}) };
+		} {
+			txtFind.action = { |x| webView.findText( x.string ) };
+		};
 	}
 
 	openTextFile {|path|
@@ -291,15 +305,15 @@ HelpBrowser {
 
 	startAnim {
 		var progress = [">---","->--","-->-","--->"];
-		animCount = animCount + 1;
-		if(animCount==1) {
+		if(loading.not) {
+			loading = true;
 			Routine {
 				block {|break|
 					loop {
 						progress.do {|p|
 							window.name = ("Loading"+p);
 							0.3.wait;
-							if(animCount==0) {break.value};
+							if(loading.not) {break.value};
 						};
 					};
 				};
@@ -308,9 +322,7 @@ HelpBrowser {
 		};
 	}
 	stopAnim {
-		if(animCount>0) {
-			animCount = animCount - 1;
-		};
+		loading = false;
 	}
 
 }

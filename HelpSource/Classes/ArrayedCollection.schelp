@@ -75,6 +75,13 @@ code::
 method::at
 Return the item at strong::index::.
 
+The index can also be an Array of indices to extract specified elements. Example:
+code::
+x = [10,20,30];
+y = [0,0,2,2,1];
+x[y]; // returns [ 10, 10, 30, 30, 20 ]
+::
+
 method::clipAt
 Same as link::#-at::, but values for strong::index:: greater than the size of the ArrayedCollection will be clipped to the last index.
 code::
@@ -167,7 +174,7 @@ y.postln;
 ::
 
 method::takeThese
-Removes all items in the receiver for which the strong::func:: answers true. The function is passed two arguments, the item and an integer index. note::that order is not preserved. See link::#-takeAt::.
+Removes all items in the receiver for which the strong::func:: answers true. The function is passed two arguments, the item and an integer index. Note that order is not preserved. See link::#-takeAt::.
 code::
 y = [ 1, 2, 3, 4 ];
 y.takeThese({ arg item, index; item.odd; });	//remove odd items

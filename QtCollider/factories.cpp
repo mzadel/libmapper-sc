@@ -36,6 +36,7 @@ void loadFactories () {
   QC_ADD_FACTORY( QcCustomPainted );
   QC_ADD_FACTORY( QcFileDialog );
   QC_ADD_FACTORY( QcGraph );
+  QC_ADD_FACTORY( QcKnob );
   QC_ADD_FACTORY( QcLevelIndicator );
   QC_ADD_FACTORY( QcMultiSlider );
   QC_ADD_FACTORY( QcNumberBox );
@@ -47,7 +48,6 @@ void loadFactories () {
   QC_ADD_FACTORY( QcScrollArea );
   QC_ADD_FACTORY( QcSlider );
   QC_ADD_FACTORY( QcSlider2D );
-  QC_ADD_FACTORY( QcSoundFileView );
   QC_ADD_FACTORY( QcWaveform );
   QC_ADD_FACTORY( QcTextEdit );
   QC_ADD_FACTORY( QcTreeWidget );
@@ -57,6 +57,7 @@ void loadFactories () {
   QC_ADD_FACTORY( QcHBoxLayout );
   QC_ADD_FACTORY( QcVBoxLayout );
   QC_ADD_FACTORY( QcGridLayout );
+  QC_ADD_FACTORY( QcStackLayout );
 }
 
 } // namespace QtCollider

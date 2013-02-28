@@ -30,8 +30,7 @@ An instance of link::Classes/Color::. The background color of the scope.
 discussion::
 Example:
 code::
-// must use internal server
-s = Server.internal.boot;
+s = FreqScope.server.boot;
 
 // create a new analyzer
 FreqScope.new(400, 200, 0);
@@ -47,7 +46,6 @@ FreqScope.new(400, 200, 0);
 
 // all harmonics
 { Blip.ar(200, Line.kr(1, 100, 10), 0.2) }.play(s);
-::
 ::
 
 subsection:: Subclassing and Internal Methods

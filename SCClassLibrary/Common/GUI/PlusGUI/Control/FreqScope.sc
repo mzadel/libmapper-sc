@@ -3,7 +3,7 @@
 // cross-platform port by Tim Blechmann
 
 PlusFreqScope {
-	classvar <>server;
+	classvar <server;
 
 	var <scope;
 	var <scopebuf;
@@ -13,10 +13,19 @@ PlusFreqScope {
 
 	*initClass {
 		StartUp.add {
-			server = if (GUI.id == \qt) {Server.default} {Server.internal};
+			server = GUI.current.stethoscope.defaultServer;
 
 			this.initSynthDefs;
 		}
+	}
+
+	*server_ {|aServer|
+		if(GUI.current.stethoscope.isValidServer(aServer).not) {
+			Error("PlusFreqScope: can not use server '%' with current GUI scheme (%)"
+				.format(aServer.name, GUI.current.id)).throw;
+		};
+
+		server = aServer;
 	}
 
 	*new { arg parent, bounds;
@@ -303,8 +312,10 @@ PlusFreqScope {
 	}
 
 	*response{ |parent, bounds, bus1, bus2, freqMode=1|
-		^this.new(parent, bounds).inBus_(bus1.index)
-			.special("freqScope%_magresponse".format(freqMode), [\in2, bus2])
+		var scope = this.new(parent, bounds).inBus_(bus1.index);
+		var synthDefName = "freqScope%_magresponse%".format(freqMode, if (scope.shmScopeAvailable) {"_shm"} {""});
+
+		^scope.special(synthDefName, [\in2, bus2])
 	}
 
 	doesNotUnderstand { arg selector ... args;
@@ -319,6 +330,7 @@ PlusFreqScope {
 
 PlusFreqScopeWindow {
 	classvar <scopeOpen;
+
 	var <scope, <window;
 
 	*new { arg width=522, height=300, busNum=0, scopeColor, bgColor;
@@ -475,5 +487,12 @@ PlusFreqScopeWindow {
 			}).front;
 			^super.newCopyArgs(scope, window)
 		});
+	}
+
+	*server {
+		^PlusFreqScope.server
+	}
+	*server_ {|aServer|
+		^PlusFreqScope.server_(aServer)
 	}
 }

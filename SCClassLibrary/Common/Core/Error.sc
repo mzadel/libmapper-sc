@@ -30,7 +30,7 @@ Exception {
 		^this.errorString.tr($ , $_).tr($\n, $_);
 	}
 	postProtectedBacktrace {
-		var out, currentFrame, def, ownerClass, methodName, pos = 0;
+		var out, currentFrame, def, ownerClass, methodName, pos, tempStr;
 		out = CollStream.new;
 		"\nPROTECTED CALL STACK:".postln;
 		currentFrame = protectedBacktrace;
@@ -45,7 +45,14 @@ Exception {
 				out << "\t%:%\t%\n".format(ownerClass, methodName, currentFrame.address);
 			}, {
 				out << "\ta FunctionDef\t%\n".format(currentFrame.address);
-				out << "\t\tsourceCode = %\n".format(def.sourceCode ? "<an open Function>");
+				// sourceCode may be ridiculously huge,
+				// so steal the technique from Object:asString to reduce the printed size
+				tempStr = String.streamContentsLimit({ |stream|
+					stream << "\t\tsourceCode = " <<< (def.sourceCode ? "<an open Function>");
+				}, 512);
+				out << tempStr;
+				if(tempStr.size >= 512) { out << "...etc..." << $" };
+				out << Char.nl;
 			});
 			def.argNames.do({|name, i|
 				out << "\t\targ % = %\n".format(name, currentFrame.args[i]);
@@ -57,7 +64,16 @@ Exception {
 		});
 		// lose everything after the last Function:protect
 		// it just duplicates the normal stack with less info
-		out.collection.copyFromStart(pos).postln;
+		// but, an Error in a routine in a Scheduler
+		// may not have a try/protect in the protectedBacktrace
+		// then, pos is nil and we should print everything
+		postln(
+			if(pos.notNil) {
+				out.collection.copyFromStart(pos)
+			} {
+				out.collection
+			}
+		);
 	}
 
 	isException { ^true }
@@ -197,15 +213,47 @@ DeprecatedError : MethodError {
 	}
 	errorString {
 		var methodSignature = { arg m;
-			var c = m.ownerClass;
-			var str = c.name.asString;
-			if(c.isMetaClass)
-				{ str = str.drop( str.indexOf($_) + 1 ) ++ ":*" ++ m.name }
-				{ str = str ++ ":-" ++ m.name };
-			str;
+			m.ownerClass.name.asString  ++ ":" ++ m.name;
 		};
-		var string;
-		string = "WARNING: Method" + methodSignature.value(method) + "is deprecated and will be removed.";
+		var searchForCaller = { arg backtrace, m;
+			while {
+				backtrace.notNil and: {
+					backtrace.functionDef !== m
+				}
+			} {
+				backtrace = backtrace.caller;
+			};
+			// backtrace.caller may now be a FunctionDef,
+			// useless for troubleshooting
+			// so roll back to the last real method
+			while {
+				backtrace.notNil and: {
+					backtrace = backtrace.caller;
+					backtrace.functionDef.isKindOf(Method).not
+				}
+			};
+			if(backtrace.notNil) { backtrace.tryPerform(\functionDef) };
+		};
+		var caller, string;
+		if(protectedBacktrace.notNil) {
+			caller = searchForCaller.value(protectedBacktrace, method);
+		};
+		if(caller.isNil) {
+			caller = searchForCaller.value(this.getBackTrace, method);
+		};
+		if(caller.isNil) {
+			caller = "{unknown}"
+		} {
+			if(caller.isKindOf(Method)) {
+				caller = methodSignature.value(caller);
+			} {
+				caller = caller.asString;
+			};
+		};
+		string = "WARNING: Called from %, method % is deprecated and will be removed.".format(
+			caller,
+			methodSignature.value(method)
+		);
 		if(alternateMethod.notNil, {
 			string = string + "Use" + methodSignature.value(alternateMethod) + "instead.";
 		});

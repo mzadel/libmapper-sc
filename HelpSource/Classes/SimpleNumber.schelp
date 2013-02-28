@@ -265,7 +265,7 @@ method:: excess
 Returns the difference of the receiver and its clipped form.
 discussion::
 code::
-(a - clip2(a,b)).
+(a - clip2(a,b))
 ::
 
 subsection:: testing
@@ -316,7 +316,8 @@ method:: asComplex
 returns:: this as link::Classes/Point::. x = y = this.
 
 method:: asWarp
-argument::spec a link::Classes/ControlSpec::
+argument::spec
+a link::Classes/ControlSpec::
 returns:: this as link::Classes/CurveWarp:: according to spec.
 
 method:: asFloat
@@ -646,6 +647,8 @@ argument::outMin
 output minimum
 argument::outMax
 output maximum
+argument::curve
+0 (linear) <0 (concave, negatively curved) >0 (convex, positively curved)
 argument::clip
 nil (don't clip)
 \max (clip ceiling)
@@ -673,6 +676,8 @@ argument::outMin
 output minimum
 argument::outMax
 output maximum
+argument::curve
+0 (linear) <0 (concave, negatively curved) >0 (convex, positively curved)
 argument::clip
 nil (don't clip)
 \max (clip ceiling)
@@ -826,9 +831,9 @@ method:: rand2
 returns:: a random number from -this to +this.
 
 method:: rrand
-returns:: a random number in the interval ]a, b[.
 argument::aNumber
 the upper limit
+returns:: a random number in the interval ]a, b[.
 discussion::
 If both a and b are link::Classes/Integer:: then the result will be an link::Classes/Integer::.
 
@@ -873,24 +878,6 @@ code::
 
 subsection:: misc
 
-method:: rate
-method::isValidUGenInput
+method:: isValidUGenInput
 returns:: false if receiver cannot be used in UGen.
-method:: performBinaryOpOnSignal (aSelector, aSignal)
-method:: performBinaryOpOnComplex
-
-method:: performBinaryOpOnSimpleNumber
-method:: hypotApx
-method:: fontID
-method:: playAndDelta
-method:: numChannels
-method:: asBufWithValues
-method:: firstArg
-
-
-
-
-
-
-
 

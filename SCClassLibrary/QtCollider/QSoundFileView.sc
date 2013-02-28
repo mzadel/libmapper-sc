@@ -2,6 +2,7 @@ QSoundFileView : QView {
 
   var <>soundfile;
   var <metaAction;
+  var <>elasticMode; // NOTE: no-op, only for compatibility
   var curDoneAction;
 
   *qtClass { ^"QcWaveform" }
@@ -22,6 +23,26 @@ QSoundFileView : QView {
         this.invokeMethod( \load, filename );
       }
     }
+  }
+
+  alloc { arg frames, channels=1, samplerate=44100;
+    this.invokeMethod( \allocate, [frames.asInteger, channels.asInteger, samplerate.asInteger] );
+  }
+
+  data_ { arg data;
+    this.setData(data);
+  }
+
+  setData { arg data, block, startframe=0, channels=1, samplerate=44100;
+    if( data.isKindOf(DoubleArray).not and: {data.isKindOf(FloatArray).not} )
+      { data = data.as(DoubleArray) };
+    this.invokeMethod( \load, [data, startframe, channels, samplerate] );
+  }
+
+  set { arg offset=0, data;
+    if( data.isKindOf(DoubleArray).not and: {data.isKindOf(FloatArray).not} )
+      { data = data.as(DoubleArray) };
+    this.invokeMethod( \write, [data, offset.asInteger] );
   }
 
   readFile { arg aSoundFile, startframe, frames, block, closeFile, doneAction;

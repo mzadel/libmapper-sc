@@ -806,7 +806,7 @@ void PyrClassNode::compile(PyrSlot *result)
 	indexType = getIndexType(this);
 	//postfl("%s %d\n", slotRawSymbol(&mClassName->mSlot)->name, indexType);
 
-	if ((long)superclassobj == -1) {
+	if ((size_t)superclassobj == -1) {
 		// redundant error message removed:
 		//error("Can't find superclass of '%s'\n", slotRawSymbol(&mClassName->mSlot)->name);
 		//nodePostErrorLine(node);
@@ -2525,6 +2525,7 @@ void compileIfNilMsg(PyrCallNodeBase2* node, bool flag)
 	PyrParseNode* arg1 = node->mArglist;
 
 	if (numArgs < 2) {
+		COMPILENODE(arg1, &dummy, false);
 		compileTail();
 		compileOpcode(opSendSpecialMsg, numArgs);
 		compileByte(opmIf);
@@ -2895,10 +2896,16 @@ void compileWhileMsg(PyrCallNodeBase2* node)
 		whileByteCodeLen = byteCodeLength(whileByteCodes);
 		compileAndFreeByteCodes(whileByteCodes);
 
-		exprByteCodeLen = byteCodeLength(exprByteCodes);
-		compileJump(opcJumpIfFalsePushNil, exprByteCodeLen + 3);
-
-		compileAndFreeByteCodes(exprByteCodes);
+		if (exprByteCodes) {
+			exprByteCodeLen = byteCodeLength(exprByteCodes);
+			compileJump(opcJumpIfFalsePushNil, exprByteCodeLen + 3);
+			compileAndFreeByteCodes(exprByteCodes);
+		} else {
+			exprByteCodeLen = 1;
+			compileJump(opcJumpIfFalsePushNil, exprByteCodeLen + 3);
+			// opcJumpBak does a drop..
+			compileOpcode(opPushSpecialValue, opsvNil);
+		}
 
 		compileJump(opcJumpBak, exprByteCodeLen + whileByteCodeLen + 4);
 

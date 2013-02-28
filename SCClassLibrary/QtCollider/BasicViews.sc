@@ -127,11 +127,22 @@ QVLayoutView : QView {
 
 QScrollCanvas : QObject {
   *qtClass { ^'QcScrollWidget' }
+
+  background {
+    ^this.getProperty(\palette).window;
+  }
+
+  background_ { arg color;
+    // Do not autoFillBackground; the widget will paint it if necessary.
+    var p = this.getProperty(\palette);
+    this.setProperty( \palette, p.window_(color) );
+  }
 }
 
 QScrollView : QAbstractScroll {
   var <canvas;
-  var <background, <hasBorder=true;
+  var <hasBorder=true;
+  var actionConnected=false;
 
   *new { arg parent, bounds;
     ^super.new( parent, bounds ).initQScrollView;
@@ -143,10 +154,8 @@ QScrollView : QAbstractScroll {
     ^canvas.children( class );
   }
 
-  background_ { arg aColor;
-    background = aColor;
-    canvas.setProperty( \background, aColor, true );
-  }
+  background { ^canvas.background }
+  background_ { arg color; canvas.background = color }
 
   hasBorder_ { arg aBool;
     hasBorder = aBool;
@@ -163,11 +172,18 @@ QScrollView : QAbstractScroll {
 
   visibleOrigin_ { arg point;
     this.setProperty( \visibleOrigin, point );
+    this.doAction;
   }
 
   canvas_ { arg view;
     canvas = view;
     this.invokeMethod( \setWidget, view, true );
+  }
+
+  action_ { arg handler;
+    action = handler;
+    if(actionConnected.not) { this.connectMethod( 'scrolled()', \doAction ) };
+    actionConnected = true;
   }
 
   initQScrollView {
@@ -180,8 +196,6 @@ QScrollView : QAbstractScroll {
 /////////////////////////// WIDGETS ///////////////////////////////
 
 QStaticText : QTextViewBase {
-  var <string;
-
   *qtClass { ^"QLabel" }
 
   *new { arg aParent, aBounds;
@@ -197,17 +211,15 @@ QStaticText : QTextViewBase {
     super.background_( aColor );
   }
 
-  string_ { arg text;
-    string = text;
-    this.setProperty( \text, text );
-  }
+  string { ^this.getProperty(\text) }
+  string_ { arg text; this.setProperty( \text, text.asString ) }
 
   stringColor {
-    ^this.palette.windowTextColor;
+    ^this.palette.windowText;
   }
 
   stringColor_ { arg color;
-    this.setProperty( \palette, this.palette.windowTextColor_(color) );
+    this.palette = this.palette.windowText_(color);
   }
 }
 
@@ -223,19 +235,19 @@ QTextField : QTextViewBase {
   }
 
   stringColor {
-    ^this.palette.baseTextColor;
+    ^this.palette.baseText;
   }
 
   stringColor_ { arg color;
-    this.setProperty( \palette, this.palette.baseTextColor_(color) );
+    this.palette = this.palette.baseText_(color);
   }
 
   background {
-    ^this.palette.baseColor;
+    ^this.palette.base;
   }
 
   background_ { arg color;
-    this.setProperty( \palette, this.palette.baseColor_(color) )
+    this.palette = this.palette.base_(color);
   }
 
   value {
@@ -347,9 +359,9 @@ QPopUpMenu : QItemViewBase {
 
   *qtClass { ^"QcPopUpMenu" }
 
-  allowsReselection { ^this.getProperty( \signalReactivation ) }
+  allowsReselection { ^this.getProperty( \reactivationEnabled ) }
 
-  allowsReselection_ { arg flag; ^this.setProperty( \signalReactivation, flag ) }
+  allowsReselection_ { arg flag; ^this.setProperty( \reactivationEnabled, flag ) }
 
   value {
     var v = this.getProperty( \currentIndex );
@@ -361,11 +373,11 @@ QPopUpMenu : QItemViewBase {
   }
 
   stringColor {
-    ^this.palette.buttonTextColor;
+    ^this.palette.buttonText;
   }
 
   stringColor_ { arg color;
-    this.setProperty( \palette, this.palette.buttonTextColor_(color) );
+    this.palette = this.palette.buttonText_(color);
   }
 
   defaultGetDrag { ^this.value; }

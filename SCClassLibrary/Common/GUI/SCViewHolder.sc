@@ -97,7 +97,16 @@ FlowViewLayout : FlowLayout {
 	}
 
 	reflow {
+		var newRows;
 		this.reset;
+		newRows = [];
+		rows.do { |row,i|
+			row = row.select(_.notClosed);
+			if(row.isEmpty.not,{
+				newRows = newRows.add(row)
+			});
+		};
+		rows = newRows;
 		rows.do { |row|
 			row.do { |view| super.place(view) };
 			if (row !== rows.last) { this.nextLine };
@@ -146,7 +155,7 @@ FlowView : SCViewHolder {
 			bounds = bounds.asRect;
 			if(iMadeParent) { bounds = bounds.moveTo(0, 0) };
 		},{
-			bounds = parentView.bounds;
+			bounds = parentView.bounds.moveTo(0,0);
 		});
 		this.view = this.class.viewClass.new(parentView, bounds);
 
@@ -277,6 +286,7 @@ FlowView : SCViewHolder {
 	asFlowView {}
 	asPageLayout {}
 
+	// only SCView calls these
 	prRemoveChild { |child|
 		view.prRemoveChild(child);
 	}

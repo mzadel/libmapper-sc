@@ -26,7 +26,9 @@ QView : QObject {
   // window actions
   var <toFrontAction, <endFrontAction;
   // hooks
-  var <onClose;
+  var <onClose, <onResize, <onMove;
+
+  *implementsClass { ^this.name.asString[1..].asSymbol }
 
   *initClass {
     hSizePolicy = [1,2,3,1,2,3,1,2,3];
@@ -52,6 +54,8 @@ QView : QObject {
   }
 
   remove {
+    if( this.parent.notNil and: { this.parent.decorator.notNil } )
+      { this.parent.decorator.remove(this) };
     this.destroy;
     wasRemoved = true;
     this.children.do { |child| child.remove };
@@ -80,11 +84,11 @@ QView : QObject {
   }
 
   background {
-    ^this.palette.windowColor;
+    ^this.palette.window;
   }
 
   background_ { arg color;
-    this.setProperty( \palette, this.palette.windowColor_(color) );
+    this.palette = this.palette.window_(color);
     this.setProperty( \autoFillBackground, true );
   }
 
@@ -123,6 +127,16 @@ QView : QObject {
     size = size.asSize;
     this.setProperty( \minimumSize, size );
     this.setProperty( \maximumSize, size );
+  }
+
+  fixedWidth_ { arg width;
+    this.setProperty( \minimumWidth, width );
+    this.setProperty( \maximumWidth, width );
+   }
+
+  fixedHeight_ { arg height;
+    this.setProperty( \minimumHeight, height );
+    this.setProperty( \maximumHeight, height );
   }
 
   maxWidth_ { arg width;
@@ -165,6 +179,7 @@ QView : QObject {
   resize_ { arg anInt;
     this.setProperty(\_qc_hSizePolicy, hSizePolicy[anInt-1]);
     this.setProperty(\_qc_vSizePolicy, vSizePolicy[anInt-1]);
+    resize = anInt;
   }
 
   canFocus {
@@ -187,13 +202,22 @@ QView : QObject {
     ^this.getProperty( \focus );
   }
 
-  focusColor_ {
-    this.nonimpl( "focusColor_" );
+  acceptsMouse {
+    _QWidget_AcceptsMouse
+    ^this.primitiveFailed;
+  }
+
+  acceptsMouse_ { arg bool;
+    _QWidget_SetAcceptsMouse
+    ^this.primitiveFailed;
+  }
+
+  focusColor_ { arg color;
+    this.setProperty(\focusColor, color);
   }
 
   focusColor {
-    this.nonimpl( "focusColor" );
-    ^Color.new;
+    ^try { this.getProperty(\focusColor) } { Color() };
   }
 
   // ------------------ container stuff ----------------------------
@@ -431,6 +455,16 @@ QView : QObject {
     this.setEventHandler( 9 /* QEvent::FocusOut */, \focusOutEvent );
   }
 
+  onMove_ { arg aFunction;
+    onMove = aFunction;
+    this.setEventHandler( 13 /* QEvent::Move */, \moveEvent );
+  }
+
+  onResize_ { arg aFunction;
+    onResize = aFunction;
+    this.setEventHandler( 14 /* QEvent::Resize */, \resizeEvent );
+  }
+
   onClose_ { arg func;
     this.manageFunctionConnection( onClose, func, 'destroyed()', false );
     onClose = func;
@@ -440,24 +474,24 @@ QView : QObject {
     action.value(this);
   }
 
-  defaultKeyDownAction { arg char, modifiers, unicode, keycode; }
+  defaultKeyDownAction { arg char, modifiers, unicode, keycode, key; }
 
-  defaultKeyUpAction { arg char, modifiers, unicode, keycode; }
+  defaultKeyUpAction { arg char, modifiers, unicode, keycode, key; }
 
-  keyDown { arg char, modifiers, unicode, keycode;
+  keyDown { arg char, modifiers, unicode, keycode, key;
     if( keyDownAction.notNil ) {
-      ^keyDownAction.value( this, char, modifiers, unicode, keycode );
+      ^keyDownAction.value( this, char, modifiers, unicode, keycode, key );
     } {
-      ^this.defaultKeyDownAction( char, modifiers, unicode, keycode );
+      ^this.defaultKeyDownAction( char, modifiers, unicode, keycode, key );
     };
   }
 
-  keyUp { arg char, modifiers, unicode, keycode;
+  keyUp { arg char, modifiers, unicode, keycode, key;
     keyTyped = char;
     if( keyUpAction.notNil ) {
-      ^keyUpAction.value( this, char, modifiers, unicode, keycode );
+      ^keyUpAction.value( this, char, modifiers, unicode, keycode, key );
     } {
-      ^this.defaultKeyUpAction( char, modifiers, unicode, keycode );
+      ^this.defaultKeyUpAction( char, modifiers, unicode, keycode, key );
     };
   }
 
@@ -565,38 +599,37 @@ QView : QObject {
   focusInEvent { focusGainedAction.value(this) }
   focusOutEvent { focusLostAction.value(this) }
 
-  keyDownEvent { arg char, modifiers, unicode, keycode, spontaneous;
-    modifiers = QKeyModifiers.toCocoa(modifiers);
+  moveEvent { onMove.value(this) }
+  resizeEvent { onResize.value(this) }
 
-    if( char.size > 0 ) {char = char[0]} {char = 0.asAscii};
+  keyDownEvent { arg char, modifiers, unicode, keycode, key, spontaneous;
+    modifiers = QKeyModifiers.toCocoa(modifiers);
 
     if( spontaneous ) {
       // this event has never been propagated to parent yet
-      QView.globalKeyDownAction.value( this, char, modifiers, unicode, keycode );
+      QView.globalKeyDownAction.value( this, char, modifiers, unicode, keycode, key );
     };
 
-    if( (keycode == 16r1000020) || (keycode == 16r1000021) ||
-        (keycode == 16r1000022) || (keycode == 16r1000023 ) )
+    if( (key == 16r1000020) || (key == 16r1000021) ||
+        (key == 16r1000022) || (key == 16r1000023 ) )
       { this.keyModifiersChanged( modifiers ) };
 
-    ^this.keyDown( char, modifiers, unicode, keycode );
+    ^this.keyDown( char, modifiers, unicode, keycode, key );
   }
 
-  keyUpEvent { arg char, modifiers, unicode, keycode, spontaneous;
+  keyUpEvent { arg char, modifiers, unicode, keycode, key, spontaneous;
     modifiers = QKeyModifiers.toCocoa(modifiers);
-
-    if( char.size > 0 ) {char = char[0]} {char = 0.asAscii};
 
     if( spontaneous ) {
       // this event has never been propagated to parent yet
-      QView.globalKeyUpAction.value( this, char, modifiers, unicode, keycode );
+      QView.globalKeyUpAction.value( this, char, modifiers, unicode, keycode, key );
     };
 
-    if( (keycode == 16r1000020) || (keycode == 16r1000021) ||
-        (keycode == 16r1000022) || (keycode == 16r1000023 ) )
+    if( (key == 16r1000020) || (key == 16r1000021) ||
+        (key == 16r1000022) || (key == 16r1000023 ) )
       { this.keyModifiersChanged( modifiers ) };
 
-    ^this.keyUp( char, modifiers, unicode, keycode );
+    ^this.keyUp( char, modifiers, unicode, keycode, key );
   }
 
   mouseDownEvent { arg x, y, modifiers, buttonNumber, clickCount;

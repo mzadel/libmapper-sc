@@ -305,7 +305,6 @@ struct MoogFF : public Unit
 	float m_freq, m_b0, m_a1; // Resonant freq and corresponding vals; stored because we need to compare against prev vals
 	double m_wcD;
 
-	double m_T; // 1/SAMPLEFREQ
 	float m_s1, m_s2, m_s3, m_s4; // 1st order filter states
 };
 
@@ -322,7 +321,6 @@ extern "C"
 	void Lag_next(Lag *unit, int inNumSamples);
 	void Lag_Ctor(Lag* unit);
 
-	void Lag2_next(Lag2 *unit, int inNumSamples);
 	void Lag2_Ctor(Lag2* unit);
 
 	void Lag3_next(Lag3 *unit, int inNumSamples);
@@ -674,7 +672,7 @@ void LagUD_Ctor(LagUD* unit)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-void Lag2_next(Lag2 *unit, int inNumSamples)
+static void Lag2_next_k(Lag2 *unit, int inNumSamples)
 {
 	float *out = ZOUT(0);
 	float *in = ZIN(0);
@@ -707,14 +705,60 @@ void Lag2_next(Lag2 *unit, int inNumSamples)
 	unit->m_y1b = zapgremlins(y1b);
 }
 
+static void Lag2_next_i(Lag2 *unit, int inNumSamples)
+{
+	float *out = ZOUT(0);
+	float *in = ZIN(0);
+
+	float y1a = unit->m_y1a;
+	float y1b = unit->m_y1b;
+	float b1 = unit->m_b1;
+
+	LOOP1(inNumSamples,
+			float y0a = ZXP(in);
+			y1a = y0a + b1 * (y1a - y0a);
+			y1b = y1a + b1 * (y1b - y1a);
+			ZXP(out) = y1b;
+	);
+	unit->m_y1a = zapgremlins(y1a);
+	unit->m_y1b = zapgremlins(y1b);
+}
+
+static void Lag2_next_1_i(Lag2 *unit, int inNumSamples)
+{
+	float y1a = unit->m_y1a;
+	float y1b = unit->m_y1b;
+	float b1 = unit->m_b1;
+
+	float y0a = ZIN0(0);
+	y1a = y0a + b1 * (y1a - y0a);
+	y1b = y1a + b1 * (y1b - y1a);
+	ZOUT0(0) = y1b;
+
+	unit->m_y1a = zapgremlins(y1a);
+	unit->m_y1b = zapgremlins(y1b);
+}
+
 void Lag2_Ctor(Lag2* unit)
 {
-	SETCALC(Lag2_next);
+	switch (INRATE(1)) {
+	case calc_FullRate:
+	case calc_BufRate:
+		SETCALC(Lag2_next_k);
+		break;
+
+	default:
+		if (BUFLENGTH == 1)
+			SETCALC(Lag2_next_1_i);
+		else
+			SETCALC(Lag2_next_i);
+		break;
+	}
 
 	unit->m_lag = 0.f;
 	unit->m_b1 = 0.f;
 	unit->m_y1a = unit->m_y1b = ZIN0(0);
-	Lag2_next(unit, 1);
+	Lag2_next_k(unit, 1);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2100,14 +2144,15 @@ void Slew_next(Slew* unit, int inNumSamples)
 {
 	//printf("Slew_next_a\n");
 
+	float sampleDur = unit->mRate->mSampleDur;
 	float *out = ZOUT(0);
 	float *in = ZIN(0);
-	float upf = ZIN0(1) * unit->mRate->mSampleDur;
-	float dnf = 0.f - ZIN0(2) * unit->mRate->mSampleDur;
+	float upf = ZIN0(1) * sampleDur;
+	float dnf = 0.f - ZIN0(2) * sampleDur;
 	float level = unit->mLevel;
 	LOOP1(inNumSamples,
 		float slope = ZXP(in) - level;
-		level += sc_clip(slope,dnf,upf);
+		level += sc_clip(slope, dnf, upf);
 		ZXP(out) = level;
 	);
 	unit->mLevel = level;
@@ -4753,7 +4798,6 @@ void MoogFF_Ctor(MoogFF* unit)
 
 	// initialize the unit generator state variables.
 	unit->m_freq = -10000.3f; // Force the freq to update on first run
-	unit->m_T = 1.0 / SAMPLERATE;
 	unit->m_s1 = 0.f;
 	unit->m_s2 = 0.f;
 	unit->m_s3 = 0.f;
@@ -4777,13 +4821,11 @@ void MoogFF_next(MoogFF *unit, int inNumSamples)
 	float s3 = unit->m_s3;
 	float s4 = unit->m_s4;
 	float freq = unit->m_freq;///
-	double T = unit->m_T;
 
 	// Reset filter state if requested
 	if(IN0(3)>0)
 		s1 = s2 = s3 = s4 = 0.f;
 
-	double wcD=unit->m_wcD;
 	float a1 = unit->m_a1, b0 = unit->m_b0; // Filter coefficient parameters
 	float o, u; // System's null response, loop input
 
@@ -4791,7 +4833,9 @@ void MoogFF_next(MoogFF *unit, int inNumSamples)
 	if(freq != IN0(1)) {
 		freq = IN0(1);
 		//Print("Updated freq to %g\n", freq);
-		wcD = 2.0 * tan(T * PI * freq) * SAMPLERATE;
+		double wcD=unit->m_wcD;
+		double T = SAMPLEDUR;
+		wcD = 2.0 * tan ( T * PI * freq ) * SAMPLERATE;
 		if(wcD<0)
 			wcD = 0; // Protect against negative cutoff freq
 		double TwcD = T*wcD;

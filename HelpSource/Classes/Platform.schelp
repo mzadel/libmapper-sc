@@ -1,6 +1,6 @@
 class:: Platform
 summary:: handle cross-platform differencies
-categories:: CrossPlatform
+categories:: Platform
 
 description::
 The Platform class (along with its subclasses) handles things which differ between operating systems (mac/linux/windows/...), to simplify cross-platform aspects of SuperCollider.
@@ -62,6 +62,12 @@ platform specific directory for class files (see link::Guides/Using-Extensions::
 method:: pathSeparator
 platform specific path separator
 
+method:: resourceDir
+platform specific resource directory
+
+method:: defaultTempDir
+default directory for temporary files
+
 subsection:: Features
 
 method:: when
@@ -72,8 +78,14 @@ Platform.when(#[\Document, \SCWindow], { "yeehah!".postln });
 
 instancemethods::
 
+private:: shutdown, startup
+
 method:: name
 returns the platform name
+
+method:: recompile
+recompile class library
+
 
 subsection:: Directories and filesystem stuff
 method:: classLibraryDir
@@ -102,6 +114,17 @@ platform specific directory for class files (see link::Guides/Using-Extensions::
 
 method:: pathSeparator
 platform specific path separator
+
+method:: resourceDir
+platform specific resource directory
+
+method:: recordingsDir
+recording directory
+
+method:: defaultTempDir
+default directory for temporary files
+
+
 
 subsection:: Startup files
 

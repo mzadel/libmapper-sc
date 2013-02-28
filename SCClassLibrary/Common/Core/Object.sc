@@ -96,12 +96,16 @@ Object  {
 	performWithEnvir { |selector, envir|
 		var argNames, args;
 		var method = this.class.findRespondingMethodFor(selector);
+		
 		if(method.isNil) { ^this.doesNotUnderstand(selector) };
-
-		envir = method.makeEnvirFromArgs.putAll(envir);
-
+		
 		argNames = method.argNames.drop(1);
-		args = envir.atAll(argNames);
+		args = method.prototypeFrame.drop(1);
+		argNames.do { |name, i|
+			var val = envir[name];
+			val !? { args[i] = val };
+		};
+		
 		^this.performList(selector, args)
 	}
 
@@ -165,8 +169,11 @@ Object  {
 		^true
 	}
 	instVarHash { arg instVarNames;
-		var res = this.class.hash;
-		var indices = if(instVarNames.notNil) {
+		var indices, res = this.class.hash;
+		if(this.instVarSize == 0) {
+			^res
+		};
+		indices = if(instVarNames.notNil) {
 			instVarNames.collect(this.slotIndex(_))
 		} {
 			(0..this.instVarSize-1)
@@ -618,7 +625,7 @@ Object  {
 		StartUp.defer { // make sure the synth defs are written to the right path
 			var file;
 			dir = dir ? SynthDef.synthDefDir;
-			if (name.isNil) { error("missing SynthDef file name") } {
+			if (name.isNil) { Error("missing SynthDef file name").throw } {
 				name = dir +/+ name ++ ".scsyndef";
 				if(overwrite or: { pathMatch(name).isEmpty })
 					{

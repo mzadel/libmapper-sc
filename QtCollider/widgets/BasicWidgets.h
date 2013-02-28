@@ -85,19 +85,21 @@ class QcPopUpMenu : public QComboBox, public QcHelper
 {
   Q_OBJECT
   Q_PROPERTY( VariantList items READ dummyVariantList WRITE setItems );
-  Q_PROPERTY( bool signalReactivation READ signalReactivation WRITE setSignalReactivation )
+  Q_PROPERTY( bool reactivationEnabled READ reactivationEnabled WRITE setReactivationEnabled )
 
   public:
     QcPopUpMenu();
-    bool signalReactivation() const { return _reactivation; }
-    void setSignalReactivation( bool b ) { _reactivation = b; }
+    bool reactivationEnabled() const { return _reactivation; }
+    void setReactivationEnabled( bool b ) { _reactivation = b; }
   Q_SIGNALS:
     void action();
   private Q_SLOTS:
     void doAction(int);
+    void setChanged() { _changed = true; }
+    void clearChanged() { _changed = false; }
   private:
     void setItems( const VariantList & );
-    int lastChoice;
+    bool _changed;
     bool _reactivation;
 };
 
@@ -152,11 +154,11 @@ class QcCustomPainted : public QcCanvas, QcHelper
       setLayout( new QcDefaultLayout() );
     }
     Q_INVOKABLE void addChild( QWidget* w ) { layout()->addWidget(w); }
-  private:
+  protected:
     // reimplement event handlers just so events don't propagate
-    void mousePressEvent( QMouseEvent * ) {}
-    void mouseReleaseEvent( QMouseEvent * ) {}
-    void mouseMoveEvent( QMouseEvent * ) {}
+    virtual void mousePressEvent( QMouseEvent * ) {}
+    virtual void mouseReleaseEvent( QMouseEvent * ) {}
+    virtual void mouseMoveEvent( QMouseEvent * ) {}
 };
 
 class QcCheckBox : public QCheckBox

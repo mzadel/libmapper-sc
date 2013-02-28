@@ -27,6 +27,7 @@
 #include <boost/atomic.hpp>
 #include <boost/cstdint.hpp>
 #include <boost/thread.hpp>
+#include <cstdio>
 
 #ifdef DEBUG_DSP_THREADS
 #include <boost/foreach.hpp>
@@ -475,22 +476,32 @@ private:
     void run_item(thread_count_t index)
     {
         backup b(256, 32768);
+        int poll_counts = 0;
+
         for (;;) {
-            if (node_count.load(boost::memory_order_acquire)) {
-                /* we still have some nodes to process */
-                int state = run_next_item(index);
-
-                switch (state) {
-                case no_remaining_items:
-                    return;
-                case fifo_empty:
-                    b.run();
-
-                default:
-                    b.reset();
-                }
-            } else
+            if (!node_count.load(boost::memory_order_acquire))
                 return;
+
+            /* we still have some nodes to process */
+            int state = run_next_item(index);
+            switch (state) {
+            case no_remaining_items:
+                return;
+            case fifo_empty:
+                b.run();
+                ++poll_counts;
+                break;
+
+            case remaining_items:
+                b.reset();
+                poll_counts = 0;
+            }
+
+            if (poll_counts == 50000) {
+                // the maximum poll count is system-dependent. 50000 should be high enough for recent machines
+                std::printf("nova::dsp_queue_interpreter::run_item: possible lookup detected\n");
+                abort();
+            }
         }
     }
 
@@ -510,8 +521,14 @@ private:
 
     void wait_for_end(void)
     {
-        while (node_count.load(boost::memory_order_acquire) != 0)
-        {} // busy-wait for helper threads to finish
+        int count = 0;
+        while (node_count.load(boost::memory_order_acquire) != 0) {
+            ++count;
+            if (count == 1000000) {
+                std::printf("nova::dsp_queue_interpreter::run_item: possible lookup detected\n");
+                abort();
+            }
+        } // busy-wait for helper threads to finish
     }
 
     HOT int run_next_item(thread_count_t index)

@@ -477,7 +477,7 @@ GetStringDialog  {
 	recvOSCfunc { this.deprecated(thisMethod); ^recvOSCfunc; }
 
 	recvOSCfunc_ { |newFunc|
-		this.deprecated(thisMethod, Main.findMethod(\addOSCFunc));
+		this.deprecated(thisMethod, Main.findMethod(\addOSCRecvFunc));
 		recvOSCfunc = newFunc;
 	}
 
@@ -490,3 +490,20 @@ GetStringDialog  {
 		^Rect(0,0,x,y)
 	}
 }
+
+
++ Nil {
+	fontID { this.deprecated(thisMethod); ^nil }
+}
+
++ SimpleNumber {
+	fontID { this.deprecated(thisMethod); ^this }
+}
+
++ String {
+	getSCDir {
+		this.deprecated(thisMethod, Platform.class.findMethod(\resourceDir));
+		^Platform.resourceDir
+	}
+}
+

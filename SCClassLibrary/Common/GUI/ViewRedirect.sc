@@ -59,13 +59,21 @@ Slider : ViewRedirect { *key { ^\slider }}
 Pen : GuiRedirect { *key { ^\pen }}
 
 Stethoscope : GuiRedirect {
-	*new {  arg server, numChannels = 2, index, bufsize = 4096, zoom, rate, view, bufnum;
+	*new {  arg server, numChannels = 2, index = 0, bufsize = 4096, zoom = 1, rate = \audio, view, bufnum;
 		index = index.asControlInput;
-		^super.new(server, numChannels, index, bufsize, zoom, rate, view, bufnum)
+
+		if (GUI.id == \qt and:
+			{ server.serverRunning and: server.hasShmInterface.not })
+		{
+			^GUI.current.stethoscope1.new
+				(server, numChannels, index, bufsize, zoom, rate, view, bufnum)
+		}{
+			^super.new(server, numChannels, index, bufsize, zoom, rate, view, bufnum)
+		};
 	}
 	*key { ^\stethoscope }
-
 }
+
 ScopeView : ViewRedirect { *key { ^\scopeView }}
 FreqScopeView : ViewRedirect { *key { ^\freqScopeView }} // redirects to FreqScope
 
@@ -128,7 +136,7 @@ Font : GuiRedirect  {
 		}.play(AppClock)
 	}
 	*new { arg name, size, bold = false, italic = false, isPointSize = false;
-		super.new(name, size, bold, italic, isPointSize)
+		^super.new(name, size, bold, italic, isPointSize)
 	}
 }
 
@@ -147,3 +155,4 @@ TreeView : ViewRedirect { *key { ^\treeView }}
 HLayout : GuiRedirect { *key { ^\hLayout }}
 VLayout : GuiRedirect { *key { ^\vLayout }}
 GridLayout : GuiRedirect { *key { ^\gridLayout }}
+StackLayout : GuiRedirect { *key { ^\stackLayout } }

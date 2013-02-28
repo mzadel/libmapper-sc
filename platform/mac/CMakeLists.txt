@@ -5,11 +5,11 @@ endif()
 # determines the app name and app install location (scappbundlename, scappdir):
 include (${CMAKE_SOURCE_DIR}/cmake_modules/MacAppFolder.cmake)
 
-# On OSX, everything is installed in a folder named after ${scappauxresourcesdir},
+# On OSX, everything is installed in a folder named after ${scappbundlename},
 # which defaults to "SuperCollider". The folder is installed under ${CMAKE_INSTALL_PREFIX},
 # which defaults to <build directory>/Install/
 # This means the app will go in <build dir>/Install/SuperCollider/SuperCollider.app
-# and class lib in <build dir>/Install/SuperCollider/SCClassLibrary, etc..
+# Class lib and similar goes into .app/Contents/Resources, as well as the external sclang and scsynth binaries.
 # The contents of the install prefix folder will be packaged to a DMG with "make package"
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -32,7 +32,7 @@ include_directories(
 	${CMAKE_SOURCE_DIR}/external_libraries/boost_lockfree
 	${CMAKE_SOURCE_DIR}/external_libraries/boost
 	${CMAKE_SOURCE_DIR}/external_libraries/threadpool
-	${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.2.6/include
+	${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.3.0/include
 	${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src
 	)
 
@@ -111,7 +111,7 @@ set(scapp_sources
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCDialog.mm
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCGraphView.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCImage.M
-	${CMAKE_SOURCE_DIR}/editors/scapp/SCNSWindow.m
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCNSWindow.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCService.mm
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCSoundFileView.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCTextView.M
@@ -135,13 +135,16 @@ file(GLOB boost_fs_sources ${CMAKE_SOURCE_DIR}/external_libraries/boost/libs/fil
 file(GLOB boost_regex_sources ${CMAKE_SOURCE_DIR}/external_libraries/boost/libs/regex/src/*cpp)
 list(APPEND scapp_sources ${boost_fs_sources} ${boost_system_sources} ${boost_regex_sources})
 
-file(GLOB yaml_sources ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.2.6/src/*cpp)
+file(GLOB yaml_sources ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.3.0/src/*cpp)
 list(APPEND scapp_sources ${yaml_sources})
 
 if(SC_QT)
 	include(${CMAKE_SOURCE_DIR}/QtCollider/CMakeLists.txt)
 	list(APPEND scapp_sources ${QT_COLLIDER_SRCS})
 endif()
+
+include(${CMAKE_SOURCE_DIR}/SCDoc/CMakeLists.txt)
+list(APPEND scapp_sources ${SCDOC_SRCS})
 
 set(objcpp_sources
 	${CMAKE_SOURCE_DIR}/lang/LangPrimSource/SC_Speech.M
@@ -154,6 +157,7 @@ set(objcpp_sources
 	${CMAKE_SOURCE_DIR}/editors/scapp/MyDocument.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/RendezvousClient.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCCocoaView.M
+	${CMAKE_SOURCE_DIR}/editors/scapp/SCNSWindow.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCGraphView.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCImage.M
 	${CMAKE_SOURCE_DIR}/editors/scapp/SCService.mm
@@ -169,7 +173,6 @@ set(objcpp_sources
 set(objc_sources
 	${CMAKE_SOURCE_DIR}/editors/scapp/GetStringFromUser.m
 	${CMAKE_SOURCE_DIR}/editors/scapp/HTMLRenderer.m
-	${CMAKE_SOURCE_DIR}/editors/scapp/SCNSWindow.m
 	${CMAKE_SOURCE_DIR}/editors/scapp/TabletEvents.m
 	${CMAKE_SOURCE_DIR}/editors/scapp/TextFinder.m
 	${CMAKE_SOURCE_DIR}/editors/scapp/SMLAdvancedFind/SMLAdvancedFindController.m
@@ -199,20 +202,11 @@ add_definitions(-DYYSTACK_USE_ALLOCA -DHAVE_SPEECH)
 
 # set how it shows up in the Info.plist file
 SET(MACOSX_BUNDLE_ICON_FILE SCcube.icns)
-# set where in the bundle to put the icns file
-SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/Resources/SCcube.icns
-	PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-# include the icns file in the target
-SET(scapp_resources ${CMAKE_CURRENT_SOURCE_DIR}/Resources/SCcube.icns)
 
-file(COPY Resources
-	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/${scappbundlename}.app/Contents
-	PATTERN Info.plist EXCLUDE
-)
+install(DIRECTORY Resources/ DESTINATION ${scappauxresourcesdir})
 
 add_executable(${scappbundlename} MACOSX_BUNDLE
 	${scapp_sources} ${scapp_parser_source}
-	${scapp_resources}
 	)
 
 if (SCLANG_SERVER)
@@ -260,12 +254,9 @@ endif(SNDFILE_FOUND)
 
 target_link_libraries(${scappbundlename} ${PTHREADS_LIBRARY})
 
-install(TARGETS ${scappbundlename} DESTINATION ${scappauxresourcesdir})
+install(TARGETS ${scappbundlename} DESTINATION ${scappbundlename})
 
 if (NOT ("${standalone}" STREQUAL ""))
-	# A synthdefs folder is expected in the bundle
-	file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${scappbundlename}.app/Contents/Resources/synthdefs")
-
 	# Standalones are also given a chance to overwrite things from their specially-manufactured resources dir.
 	# If "${scappbundlename} Resources" exists then that's used; otherwise it uses "Standalone Resources".
 	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${scappbundlename} Resources")
@@ -274,16 +265,8 @@ if (NOT ("${standalone}" STREQUAL ""))
 		set(standaloneresourcesfrom "Standalone Resources")
 	endif()
 	message(STATUS "Including standalone resources from folder named: " ${standaloneresourcesfrom})
-
-	# TODO: This globbing approach means cmake can't autodetect if files have changed and regenerate. Might be good if we can find a way that allows that.
-	file(GLOB_RECURSE standaloneresourceitems RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}/${standaloneresourcesfrom}" "${standaloneresourcesfrom}/*")
-
-	foreach(onefile ${standaloneresourceitems})
-		GET_FILENAME_COMPONENT(onefiledir "${onefile}" PATH)
-		file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/${standaloneresourcesfrom}/${onefile}"
-			DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${scappbundlename}.app/Contents/Resources/${onefiledir}"
-		)
-	endforeach(onefile)
+    install(DIRECTORY ${standaloneresourcesfrom}/ DESTINATION ${scappauxresourcesdir})
+    add_definitions(-DSC_STANDALONE)
 endif()
 
 set(MACOSX_BUNDLE_BUNDLE_NAME "${scappbundlename}")
@@ -291,5 +274,4 @@ set(MACOSX_BUNDLE_BUNDLE_NAME "${scappbundlename}")
 include(InstallRequiredSystemLibraries)
 
 include(DeployQt4)
-install_qt4_executable("${scappauxresourcesdir}/${scappbundlename}.app" "" "" "${CMAKE_BINARY_DIR}/server/scsynth")
-
+install_qt4_executable("${scappbundlename}/${scappbundlename}.app" "" "" "${CMAKE_BINARY_DIR}/server/scsynth;${CMAKE_BINARY_DIR}/external_libraries")

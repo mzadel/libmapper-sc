@@ -1,10 +1,13 @@
-find_package(FFTW3f)
+if(NOT APPLE)
+    find_package(FFTW3f)
 
-if (FFTW3F_FOUND)
-  add_definitions("-DSC_FFT_FFTW")
-  include_directories (${FFTW3F_INCLUDE_DIR})
-else()
-  message(SEND_ERROR "Cannot find libfftw3f")
+    if (FFTW3F_FOUND)
+        add_definitions("-DSC_FFT_FFTW")
+        include_directories (${FFTW3F_INCLUDE_DIR})
+    else()
+        message(SEND_ERROR "Cannot find libfftw3f")
+    endif()
+
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -33,6 +36,9 @@ include_directories(${CMAKE_SOURCE_DIR}/external_libraries/boost_endian
                     ${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src
                     )
 
+if(APPLE)
+    include_directories(${CMAKE_SOURCE_DIR}/external_libraries/libsndfile)
+endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/include/plugin_interface
                     ${CMAKE_SOURCE_DIR}/include/server
@@ -83,19 +89,31 @@ if (DL)
     target_link_libraries(libsupernova ${DL})
 endif()
 
-find_library(JACK NAMES jack)
-if (JACK)
-    set_property(TARGET libsupernova supernova
-                 APPEND
-                 PROPERTY COMPILE_DEFINITIONS JACK_BACKEND)
-    target_link_libraries(libsupernova ${JACK})
+if (WIN32 OR APPLE)
+    find_package(Portaudio)
+    if(NOT PORTAUDIO_FOUND)
+        message(FATAL_ERROR "Portaudio missing")
+    endif()
+    add_definitions(-DPORTAUDIO_BACKEND ${PORTAUDIO_DEFINITIONS})
+    include_directories(${PORTAUDIO_INCLUDE_DIRS})
+    target_link_libraries(libsupernova ${PORTAUDIO_LIBRARIES})
+else()
+    find_library(JACK NAMES jack)
+    if (JACK)
+        set_property(TARGET libsupernova supernova
+                    APPEND
+                    PROPERTY COMPILE_DEFINITIONS JACK_BACKEND)
+        target_link_libraries(libsupernova ${JACK})
+        include_directories(${JACK_INCLUDE_DIRS})
+    endif()
 endif()
 
-find_library(SNDFILE NAMES sndfile)
-if (NOT SNDFILE)
+find_package(Sndfile)
+if (NOT SNDFILE_FOUND)
     message(SEND_ERROR "Cannot find libsndfile")
 else()
-    target_link_libraries(libsupernova ${SNDFILE})
+    target_link_libraries(libsupernova ${SNDFILE_LIBRARIES})
+    include_directories(${SNDFILE_INCLUDE_DIR})
 endif()
 
 if (FFTW3F_FOUND)
@@ -115,8 +133,7 @@ if(APPLE)
 
 	install(TARGETS supernova
 			DESTINATION ${scappauxresourcesdir}
-			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE
-			COMPONENT app)
+			PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE OWNER_WRITE)
 else()
 
 install(TARGETS supernova

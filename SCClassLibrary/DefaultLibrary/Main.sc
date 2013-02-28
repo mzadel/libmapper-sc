@@ -1,12 +1,7 @@
 Main : Process {
-	// do not change the next lines manually:
-	//==== replace with new version from bash script ====
-classvar scVersionMajor=3, scVersionMinor=6, scVersionPostfix="~dev";
-	//==== end replace ====
-
 	var <platform, argv;
 	var recvOSCfunc, prRecvOSCFunc;
-	var <customPorts;
+	var openPorts;
 
 		// proof-of-concept: the interpreter can set this variable when executing code in a file
 		// should be nil most of the time
@@ -27,6 +22,7 @@ classvar scVersionMajor=3, scVersionMinor=6, scVersionPostfix="~dev";
 		GeneralHID.fromID( this.platform.defaultHIDScheme );
 		this.platform.startup;
 		StartUp.run;
+		openPorts = Set[NetAddr.langPort];
 
 		("Welcome to SuperCollider" + Main.version
 			++ (Platform.ideName.switch(
@@ -46,7 +42,7 @@ classvar scVersionMajor=3, scVersionMinor=6, scVersionPostfix="~dev";
 		).postln;
 
 		Main.overwriteMsg.split(Char.nl).drop(-1).collect(_.split(Char.tab)).do {|x|
-			if(x[2].beginsWith(Platform.classLibraryDir) and: {x[1].contains("/SystemOverwrites/").not}
+			if(x[2].beginsWith(Platform.classLibraryDir) and: {x[1].contains(""+/+"SystemOverwrites"+/+"").not}
 			) {
 				warn("Extension in '%' overwrites % in main class library.".format(x[1],x[0]));
 				didWarnOverwrite = true;
@@ -90,20 +86,24 @@ classvar scVersionMajor=3, scVersionMinor=6, scVersionPostfix="~dev";
 	}
 
 	addOSCRecvFunc { |func| prRecvOSCFunc = prRecvOSCFunc.addFunc(func) }
-	
+
 	removeOSCRecvFunc { |func| prRecvOSCFunc = prRecvOSCFunc.removeFunc(func) }
-	
+
 	replaceOSCRecvFunc { |func, newFunc| prRecvOSCFunc = prRecvOSCFunc.replaceFunc(func, newFunc) }
-	
+
+	openPorts { ^openPorts.copy } // don't allow the Set to be modified from the outside
+
 	openUDPPort {|portNum|
 		var result;
+		if(openPorts.includes(portNum), {^true});
 		result = this.prOpenUDPPort(portNum);
-		if(result, { customPorts = customPorts ++ [portNum]; });
+		if(result, { openPorts = openPorts.add(portNum); });
 		^result;
 	}
 
 	prOpenUDPPort {|portNum|
 		_OpenUDPPort
+		^false
 	}
 
 	newSCWindow {
@@ -140,21 +140,21 @@ classvar scVersionMajor=3, scVersionMinor=6, scVersionPostfix="~dev";
 		(class ? Object).browse;
 	}
 
-	*version {^[scVersionMajor, ".", scVersionMinor, scVersionPostfix].join}
+	*version {^[this.scVersionMajor, ".", this.scVersionMinor, this.scVersionPostfix].join}
 
 	*versionAtLeast { |maj, min|
-		^if((maj==scVersionMajor) and:{min.notNil}){
-			scVersionMinor >= min
+		^if((maj==this.scVersionMajor) and:{min.notNil}){
+			this.scVersionMinor >= min
 		}{
-			scVersionMajor >= maj
+			this.scVersionMajor >= maj
 		};
 	}
 
 	*versionAtMost { |maj, min|
-		^if((maj==scVersionMajor) and:{min.notNil}){
-			scVersionMinor <= min
+		^if((maj==this.scVersionMajor) and:{min.notNil}){
+			this.scVersionMinor <= min
 		}{
-			scVersionMajor <= maj
+			this.scVersionMajor <= maj
 		};
 	}
 

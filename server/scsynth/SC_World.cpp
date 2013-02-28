@@ -35,12 +35,7 @@
 #include "SC_Prototypes.h"
 #include "SC_Samp.h"
 #include "SC_DirUtils.h"
-#ifdef _WIN32
-# include "../../include/server/SC_ComPort.h"
-# include "SC_Win32Utils.h"
-#else
-# include "SC_ComPort.h"
-#endif
+#include "../../common/SC_SndFileHelpers.hpp"
 #include "SC_StringParser.h"
 #ifdef _WIN32
 # include <direct.h>
@@ -74,9 +69,6 @@ extern "C" {
 #ifdef NO_LIBSNDFILE
 struct SF_INFO {};
 #endif
-
-int sndfileFormatInfoFromStrings(struct SF_INFO *info,
-	const char *headerFormatString, const char *sampleFormatString);
 
 bool SendMsgToEngine(World *inWorld, FifoMsg& inMsg);
 bool SendMsgFromEngine(World *inWorld, FifoMsg& inMsg);
@@ -173,22 +165,6 @@ void* sc_dbg_zalloc(size_t n, size_t size, const char* tag, int line)
 #  define zalloc(n, size)		sc_zalloc((n), (size))
 # endif // SC_DEBUG_MEMORY
 
-#else // !__linux__
-
-// replacement for calloc.
-// calloc lazily zeroes memory on first touch. This is good for most purposes, but bad for realtime audio.
-void *zalloc(size_t n, size_t size)
-{
-	size *= n;
-	if (size) {
-		void* ptr = malloc(size);
-		if (ptr) {
-			memset(ptr, 0, size);
-			return ptr;
-		}
-	}
-	return 0;
-}
 #endif // __linux__
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -742,30 +718,6 @@ Bail:
 }
 #endif   // !NO_LIBSNDFILE
 
-SC_DLLEXPORT_C int World_OpenUDP(struct World *inWorld, int inPort)
-{
-	try {
-		new SC_UdpInPort(inWorld, inPort);
-		return true;
-	} catch (std::exception& exc) {
-		scprintf("Exception in World_OpenUDP: %s\n", exc.what());
-	} catch (...) {
-	}
-	return false;
-}
-
-SC_DLLEXPORT_C int World_OpenTCP(struct World *inWorld, int inPort, int inMaxConnections, int inBacklog)
-{
-	try {
-		new SC_TcpInPort(inWorld, inPort, inMaxConnections, inBacklog);
-		return true;
-	} catch (std::exception& exc) {
-		scprintf("Exception in World_OpenTCP: %s\n", exc.what());
-	} catch (...) {
-	}
-	return false;
-}
-
 SC_DLLEXPORT_C void World_WaitForQuit(struct World *inWorld)
 {
 	try {
@@ -1140,94 +1092,6 @@ SCErr bufAlloc(SndBuf* buf, int numChannels, int numFrames, double sampleRate)
 
 	return kSCErr_None;
 }
-
-#ifndef NO_LIBSNDFILE
-int sampleFormatFromString(const char* name);
-int sampleFormatFromString(const char* name)
-{
-	if (!name) return SF_FORMAT_PCM_16;
-
-	size_t len = strlen(name);
-	if (len < 1) return 0;
-
-	if (name[0] == 'u') {
-		if (len < 5) return 0;
-		if (name[4] == '8') return SF_FORMAT_PCM_U8; // uint8
-		return 0;
-	} else if (name[0] == 'i') {
-		if (len < 4) return 0;
-		if (name[3] == '8') return SF_FORMAT_PCM_S8;      // int8
-		else if (name[3] == '1') return SF_FORMAT_PCM_16; // int16
-		else if (name[3] == '2') return SF_FORMAT_PCM_24; // int24
-		else if (name[3] == '3') return SF_FORMAT_PCM_32; // int32
-	} else if (name[0] == 'f') {
-		return SF_FORMAT_FLOAT; // float
-	} else if (name[0] == 'd') {
-		return SF_FORMAT_DOUBLE; // double
-	} else if (name[0] == 'm' || name[0] == 'u') {
-		return SF_FORMAT_ULAW; // mulaw ulaw
-	} else if (name[0] == 'a') {
-		return SF_FORMAT_ALAW; // alaw
-	}
-	return 0;
-}
-
-int headerFormatFromString(const char *name);
-int headerFormatFromString(const char *name)
-{
-	if (!name) return SF_FORMAT_AIFF;
-	if (strcasecmp(name, "AIFF")==0) return SF_FORMAT_AIFF;
-	if (strcasecmp(name, "AIFC")==0) return SF_FORMAT_AIFF;
-	if (strcasecmp(name, "RIFF")==0) return SF_FORMAT_WAV;
-	if (strcasecmp(name, "WAVEX")==0) return SF_FORMAT_WAVEX;
-	if (strcasecmp(name, "WAVE")==0) return SF_FORMAT_WAV;
-	if (strcasecmp(name, "WAV" )==0) return SF_FORMAT_WAV;
-	if (strcasecmp(name, "Sun" )==0) return SF_FORMAT_AU;
-	if (strcasecmp(name, "IRCAM")==0) return SF_FORMAT_IRCAM;
-	if (strcasecmp(name, "NeXT")==0) return SF_FORMAT_AU;
-	if (strcasecmp(name, "raw")==0) return SF_FORMAT_RAW;
-	if (strcasecmp(name, "MAT4")==0) return SF_FORMAT_MAT4;
-	if (strcasecmp(name, "MAT5")==0) return SF_FORMAT_MAT5;
-	if (strcasecmp(name, "PAF")==0) return SF_FORMAT_PAF;
-	if (strcasecmp(name, "SVX")==0) return SF_FORMAT_SVX;
-	if (strcasecmp(name, "NIST")==0) return SF_FORMAT_NIST;
-	if (strcasecmp(name, "VOC")==0) return SF_FORMAT_VOC;
-	if (strcasecmp(name, "W64")==0) return SF_FORMAT_W64;
-	if (strcasecmp(name, "PVF")==0) return SF_FORMAT_PVF;
-	if (strcasecmp(name, "XI")==0) return SF_FORMAT_XI;
-	if (strcasecmp(name, "HTK")==0) return SF_FORMAT_HTK;
-	if (strcasecmp(name, "SDS")==0) return SF_FORMAT_SDS;
-	if (strcasecmp(name, "AVR")==0) return SF_FORMAT_AVR;
-	if (strcasecmp(name, "SD2")==0) return SF_FORMAT_SD2;
-	if (strcasecmp(name, "FLAC")==0) return SF_FORMAT_FLAC;
-// TODO allow other platforms to know vorbis once libsndfile 1.0.18 is established
-#if defined(__APPLE__) || defined(_WIN32) || LIBSNDFILE_1018
-	if (strcasecmp(name, "vorbis")==0) return SF_FORMAT_VORBIS;
-#endif
-	if (strcasecmp(name, "CAF")==0) return SF_FORMAT_CAF;
-	if (strcasecmp(name, "RF64")==0) return SF_FORMAT_RF64;
-	return 0;
-}
-
-int sndfileFormatInfoFromStrings(struct SF_INFO *info, const char *headerFormatString, const char *sampleFormatString)
-{
-	int headerFormat = headerFormatFromString(headerFormatString);
-	if (!headerFormat) return kSCErr_Failed;
-
-	int sampleFormat = sampleFormatFromString(sampleFormatString);
-	if (!sampleFormat) return kSCErr_Failed;
-
-	info->format = (unsigned int)(headerFormat | sampleFormat);
-	return kSCErr_None;
-}
-
-#else // NO_LIBSNDFILE
-
-int sndfileFormatInfoFromStrings(struct SF_INFO *info, const char *headerFormatString, const char *sampleFormatString) {
-	return kSCErr_Failed;
-}
-
-#endif // NO_LIBSNDFILE
 
 #include "scsynthsend.h"
 

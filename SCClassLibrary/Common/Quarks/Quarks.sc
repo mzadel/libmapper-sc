@@ -333,7 +333,7 @@ QuarksView {
 				views.do({ |view| view.remove });
 			});
 			scrollview.decorator.reset;
-			views = quarks.collect{|quark|
+			views = quarks.sort( _.name < _.name ).collect{|quark|
 				var qView = QuarkView.new(scrollview, 500@20, quark,
 					quarksCtrl.installed.detect{|it| it == quark}.notNil);
 				scrollview.decorator.nextLine;
@@ -361,16 +361,16 @@ QuarksView {
 
 		if ( quarks.size == 0 ){
 			GUI.button.new(window, Rect(0, 0, 229, 20))
-			.states_([["checkout Quarks DIRECTORY", nil, Color.gray(0.5, 0.8)]])
+			.states_([["checkout Quarks DIRECTORY"]])
 			.action_({ quarksCtrl.checkoutDirectory; });
 		}{
 			GUI.button.new(window, Rect(0, 0, 229, 20))
-			.states_([["update Quarks DIRECTORY", nil, Color.gray(0.5, 0.8)]])
+			.states_([["update Quarks DIRECTORY"]])
 			.action_({ quarksCtrl.updateDirectory;});
 		};
 
 		GUI.button.new(window, Rect(0, 0, 200, 20))
-		.states_([["refresh Quarks listing", nil, Color.gray(0.5, 0.8)]])
+		.states_([["refresh Quarks listing"]])
 		.action_({
 			window.close;
 			quarksCtrl.gui;
@@ -379,18 +379,18 @@ QuarksView {
 		window.view.decorator.nextLine;
 
 		GUI.button.new(window, Rect(0, 0, 150, 20))
-			.states_([["browse all help", nil, Color.gray(0.5, 0.8)]])
+			.states_([["browse all help"]])
 			.action_({ HelpBrowser.openBrowsePage("Quarks") });
 
 		GUI.button.new(window, Rect(15,15,150,20))
-		.states_([["open quark directory", nil, Color.gray(0.5, 0.8)]])
+		.states_([["open quark directory"]])
 		.action_{ arg butt;
 			openOS(quarksCtrl.local.path.escapeChar($ ))
 		};
 
 		resetButton = GUI.button.new(window, Rect(15,15,75,20));
 		resetButton.states = [
-			["reset", nil, Color.gray(0.5, 0.8)]
+			["reset"]
 		];
 		resetButton.action = { arg butt;
 			views.do(_.reset);
@@ -398,7 +398,7 @@ QuarksView {
 
 		saveButton = GUI.button.new(window, Rect(15,15,75,20));
 		saveButton.states = [
-			["save", nil, Color.blue(1, 0.5)]
+			["save", nil, Color.blue(1, 0.2)]
 		];
 		saveButton.action = { arg butt;
 			Task{
@@ -478,12 +478,12 @@ QuarksViewQt {
 		};
 
 		msgWorking = { arg msg;
-			lblStatus.background = palette.buttonColor.blend(Color.yellow,0.2);
+			lblStatus.background = palette.button.blend(Color.yellow,0.2);
 			lblStatus.string = msg;
 		};
 
 		msgDone =  { arg msg;
-			lblStatus.background = palette.buttonColor.blend(Color.green,0.2);
+			lblStatus.background = palette.button.blend(Color.green,0.2);
 			lblStatus.string = msg;
 		};
 
@@ -543,7 +543,7 @@ QuarksViewQt {
 			.toolTip_("Clear the marked changes")
 			.action_({ arg butt; views.do(_.reset) });
 
-		btnApply = Button().states_([["Apply",nil,Color.blue.blend(palette.buttonColor,0.6)]])
+		btnApply = Button().states_([["Apply",nil,Color.blue.blend(palette.button,0.6)]])
 			.toolTip_("Apply the marked changes")
 			.action_({ arg butt;
 				quarksView.enabled = false;

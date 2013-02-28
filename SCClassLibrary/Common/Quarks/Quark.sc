@@ -265,7 +265,7 @@ QuarkView {
 	}
 	updateButtonStates {
 		var palette = GUI.current.tryPerform(\palette);
-		var c = palette !? {palette.buttonColor};
+		var c = palette !? {palette.button};
 
 		isInstalled.if({
 			// Quark is currently installed
@@ -337,7 +337,7 @@ QuarkViewQt {
 		installButton = Button().fixedSize_(Size(20,20));
 		treeItem = parent.addItem([
 			nil, quark.name,
-			quark.summary.replace("\n"," ").replace($\t.asString,"")
+			quark.summary !? { quark.summary.replace("\n"," ").replace("\t","") }
 		]).setView( 0, installButton );
 
 		this.updateButtonStates;
@@ -345,7 +345,7 @@ QuarkViewQt {
 
 	updateButtonStates {
 		var palette = GUI.current.tryPerform(\palette);
-		var c = palette !? {palette.buttonColor};
+		var c = palette !? {palette.button};
 
 		isInstalled.if({
 			// Quark is currently installed

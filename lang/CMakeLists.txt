@@ -8,7 +8,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include/common
                     ${CMAKE_SOURCE_DIR}/external_libraries/boost_lockfree
                     ${CMAKE_SOURCE_DIR}/external_libraries/boost
                     ${CMAKE_SOURCE_DIR}/external_libraries/threadpool
-                    ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.2.6/include
+                    ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.3.0/include
                     ${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src
                     ${MAPPER_INCLUDE_DIR}
                     LangSource/Bison)
@@ -17,16 +17,12 @@ if(APPLE)
 	include_directories("LangPrimSource/${HID_UTIL_DIR}")
 elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	find_package(ALSA)
+elseif(WIN32)
+	find_package(Portmidi)
 endif()
 
-if(APPLE)
-	# apple bundles an old nongpl readline so we say no even though it is usually detectable
-	set(READLINE_FOUND false)
-elseif(WIN32)
-	set(READLINE_FOUND false)
-else()
-	find_package(Readline)
-endif()
+find_package(Readline 5.0)
+
 find_package(Sndfile)
 
 set(sclang_sources
@@ -74,6 +70,7 @@ set(sclang_sources
 	${CMAKE_SOURCE_DIR}/common/fftlib.c
 	${CMAKE_SOURCE_DIR}/common/SC_AllocPool.cpp
 	${CMAKE_SOURCE_DIR}/common/SC_DirUtils.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_Reply.cpp
 	${CMAKE_SOURCE_DIR}/common/SC_Sem.cpp
 	${CMAKE_SOURCE_DIR}/common/SC_StandAloneInfo_Darwin.cpp
 	${CMAKE_SOURCE_DIR}/common/SC_StringBuffer.cpp
@@ -87,7 +84,7 @@ file(GLOB boost_fs_sources ../external_libraries/boost/libs/filesystem/v3/src/*c
 file(GLOB boost_regex_sources ../external_libraries/boost/libs/regex/src/*cpp)
 list(APPEND sclang_sources ${boost_fs_sources} ${boost_system_sources} ${boost_regex_sources})
 
-file(GLOB yaml_sources ../external_libraries/yaml-cpp-0.2.6/src/*cpp)
+file(GLOB yaml_sources ../external_libraries/yaml-cpp-0.3.0/src/*cpp)
 list(APPEND sclang_sources ${yaml_sources})
 
 if(NOT WIN32)
@@ -144,6 +141,11 @@ endif(UNIX)
 if(WIN32)
 	include_directories (../platform/windows/compat_stuff)
 	list(APPEND sclang_sources ../platform/windows/compat_stuff/getopt.c)
+	if(PORTMIDI_FOUND)
+		include_directories (${PORTMIDI_INCLUDE_DIRS})
+		add_definitions(-DHAVE_PORTMIDI)
+		list(APPEND sclang_sources LangPrimSource/SC_PortMidi.cpp)
+	endif()
 endif()
 
 if (SC_WII OR APPLE)
@@ -163,6 +165,14 @@ if (SC_WII OR APPLE)
 		list(APPEND sclang_sources LangPrimSource/WiiMote_OSX/wiiremote.c)
 		include_directories(LangPrimSource/WiiMote_OSX)
 	endif()
+endif()
+
+include(../SCDoc/CMakeLists.txt)
+list(APPEND sclang_sources ${SCDOC_SRCS})
+
+if(SC_IDE)
+	add_definitions(-DSC_IDE)
+	list(APPEND sclang_sources ../editors/sc-ide/primitives/sc_ipc_client.cpp)
 endif()
 
 if(SC_QT)
@@ -210,6 +220,7 @@ if(READLINE_FOUND)
 	set_property(TARGET libsclang
 		APPEND
 		PROPERTY COMPILE_DEFINITIONS HAVE_READLINE)
+	include_directories(${READLINE_INCLUDE_DIR})
 	target_link_libraries(libsclang ${READLINE_LIBRARY})
 endif(READLINE_FOUND)
 
@@ -243,6 +254,9 @@ endif()
 
 if (WIN32)
 	target_link_libraries(libsclang wsock32 ws2_32)
+	if(PORTMIDI_FOUND)
+		target_link_libraries(libsclang ${PORTMIDI_LIBRARIES})
+	endif()
 endif()
 
 if (GC_SANITYCHECK)
@@ -253,7 +267,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	target_link_libraries(libsclang rt)
 endif()
 
-target_link_libraries(libsclang ${PTHREADS_LIBRARY} supercollider_boost_thread)
+target_link_libraries(libsclang ${PTHREADS_LIBRARY} boost_thread)
 
 if(SC_QT)
 	target_link_libraries(libsclang ${QT_COLLIDER_LIBS})
@@ -282,8 +296,7 @@ if(APPLE)
 
 	install(TARGETS sclang
 			DESTINATION "${scappauxresourcesdir}"
-			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-			COMPONENT app)
+			PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 elseif(WIN32)
 	install(TARGETS sclang
 			DESTINATION "SuperCollider"

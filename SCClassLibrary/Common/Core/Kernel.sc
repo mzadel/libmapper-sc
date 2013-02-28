@@ -178,6 +178,11 @@ Process {
 	var schedulerQueue;
 	var <>nowExecutingPath;
 
+	// SCVersion.sc overrides these for Main
+	*scVersionMajor { ^123 }
+	*scVersionMinor { ^0 }
+	*scVersionPostfix { ^"unknown" }
+
 	startup {
 		var time;
 
@@ -450,8 +455,8 @@ FunctionDef {
 	makeEnvirFromArgs {
 		var argNames, argVals;
 		argNames = this.argNames;
-		argVals = this.prototypeFrame;
-		^().putPairs([argNames, argVals].flop.flat)
+		argVals = this.prototypeFrame.keep(argNames.size);
+		^().putPairs([argNames, argVals].flop.flatten)
 	}
 
 }

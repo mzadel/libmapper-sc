@@ -133,11 +133,13 @@ SimpleNumber : Number {
 	degrad { ^this*pi/180 }
 	raddeg { ^this*180/pi }
 
-	fontID { ^this }
-
-	performBinaryOpOnSimpleNumber { arg aSelector, aNumber; ^error("Math operation failed.\n") }
+	performBinaryOpOnSimpleNumber { arg aSelector, aNumber, adverb;
+		 BinaryOpFailureError(this, aSelector, [aNumber, adverb]).throw;
+	}
 	performBinaryOpOnComplex { arg aSelector, aComplex, adverb; ^aComplex.perform(aSelector, this.asComplex, adverb) }
-	performBinaryOpOnSignal { arg aSelector, aSignal; ^error("Math operation failed.\n") }
+	performBinaryOpOnSignal { arg aSelector, aSignal, adverb;
+		BinaryOpFailureError(this, aSelector, [aSignal, adverb]).throw;
+	}
 
 	nextPowerOfTwo { ^this.nextPowerOf(2) }
 	nextPowerOf { arg base; ^pow(base, ceil(log(this) / log(base))) }
@@ -411,9 +413,7 @@ SimpleNumber : Number {
 	}
 
 	keyToDegree { arg scale, stepsPerOctave=12;
-		var n = this div: stepsPerOctave * scale.size;
-		var key = this % stepsPerOctave;
-		^scale.indexInBetween(key) + n
+		^scale.performKeyToDegree(this, stepsPerOctave)
 	}
 
 	nearestInList { arg list;  // collection is sorted

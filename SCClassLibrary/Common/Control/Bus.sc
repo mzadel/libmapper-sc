@@ -107,7 +107,7 @@ Bus {
 
 	getSynchronous {
 		if (not(this.isSettable)) {
-			error ("Bus-getSynchronous only works for control-rate busses");
+			Error("Bus-getSynchronous only works for control-rate busses").throw;
 		} {
 			^server.getControlBusValue(index);
 		}
@@ -115,7 +115,7 @@ Bus {
 
 	getnSynchronous {|count|
 		if (not(this.isSettable)) {
-			error ("Bus-getnSynchronous only works for control-rate busses");
+			Error("Bus-getnSynchronous only works for control-rate busses").throw;
 		} {
 			^server.getControlBusValues(index, count ? numChannels);
 		}
@@ -123,19 +123,19 @@ Bus {
 
 	setSynchronous { |... values|
 		if (not(this.isSettable)) {
-			error ("Bus-getSynchronous only works for control-rate busses");
+			Error("Bus-setSynchronous only works for control-rate busses").throw;
 		} {
 			if (values.size == 1) {
-				server.getControlBusValue(index, values[0])
+				server.setControlBusValue(index, values[0])
 			} {
-				server.getControlBusValues(index, values)
+				server.setControlBusValues(index, values)
 			}
 		}
 	}
 
 	setnSynchronous {|values|
 		if (not(this.isSettable)) {
-			error ("Bus-getnSynchronous only works for control-rate busses");
+			Error("Bus-setnSynchronous only works for control-rate busses").throw;
 		} {
 			server.setControlBusValues(index, values)
 		}

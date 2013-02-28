@@ -1,7 +1,6 @@
 QSlider : QAbstractStepValue {
   //compatibility stuff:
   var <orientation;
-  var <> thumbSize;
 
   *qtClass { ^"QcSlider" }
 
@@ -22,12 +21,25 @@ QSlider : QAbstractStepValue {
     action.value(this);
   }
 
+  step { ^this.getProperty(\step) }
+
+  thumbSize { ^this.getProperty(\handleLength) }
+  thumbSize_ { arg pixels; this.setProperty(\handleLength, pixels) }
+
   knobColor {
-    ^this.palette.buttonColor;
+    ^this.palette.buttonText;
   }
 
   knobColor_ { arg color;
-    this.setProperty( \palette, this.palette.buttonColor_(color) );
+    this.palette = this.palette.buttonText_(color);
+  }
+
+  background {
+    ^this.getProperty(\grooveColor);
+  }
+
+  background_ { arg color;
+    this.setProperty(\grooveColor, color);
   }
 
   initQSlider { arg bounds;
@@ -42,17 +54,14 @@ QSlider : QAbstractStepValue {
     }
   }
 
-  pixelStep {
-    // FIXME for now we are using step instead
-    ^this.step;
-  }
+  pixelStep { ^this.getProperty(\pixelStep) }
 
   orientation_ { arg aSymbol;
     orientation = aSymbol;
     this.setProperty( \orientation, QOrientation(aSymbol) );
   }
 
-  defaultKeyDownAction {  arg char, modifiers, unicode, keycode;
+  defaultKeyDownAction {  arg char, modifiers, unicode, keycode, key;
     var scale = this.getScale( modifiers );
     switch( char,
       $r, { this.valueAction = 1.0.rand },
@@ -60,7 +69,7 @@ QSlider : QAbstractStepValue {
       $x, { this.valueAction = 1.0 },
       $c, { this.valueAction = 0.5 },
       {
-        switch( keycode,
+        switch( key,
           16r5d, { this.increment(scale) },
           16r1000013, { this.increment(scale) },
           16r1000014, { this.increment(scale) },

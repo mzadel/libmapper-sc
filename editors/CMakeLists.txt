@@ -9,6 +9,10 @@ else()
     option(SC_VIM "Build vim-based IDE." OFF)
 endif()
 
+if(SC_IDE)
+	message(STATUS "Building the Qt IDE")
+	add_subdirectory(sc-ide)
+endif()
 
 if(SC_EL)
 	add_subdirectory(scel)

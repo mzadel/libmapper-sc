@@ -29,7 +29,9 @@
 #include <QEvent>
 #include <QMutex>
 #include <QWaitCondition>
+#include <QVector>
 
+#include <SCBase.h>
 #include <PyrSymbol.h>
 #include <PyrObject.h>
 
@@ -43,6 +45,8 @@ struct VariantList {
 
 Q_DECLARE_METATYPE( VariantList );
 Q_DECLARE_METATYPE( PyrObject * );
+Q_DECLARE_METATYPE( QVector<double> );
+Q_DECLARE_METATYPE( QVector<int> );
 
 namespace QtCollider {
 
@@ -56,6 +60,7 @@ namespace QtCollider {
     Event_SCRequest_Sched,
     Event_SCRequest_Quit,
     Event_SCRequest_Recompile,
+    Event_SCRequest_Stop,
     Event_ScMethodCall,
     Event_Refresh,
     Event_Proxy_SetProperty,
@@ -92,6 +97,8 @@ namespace QtCollider {
 
   int wrongThreadError ();
 
+  QPalette systemPalette();
+
   extern PyrSymbol *s_interpretCmdLine;
   extern PyrSymbol *s_interpretPrintCmdLine;
   extern PyrSymbol *s_doFunction;
@@ -123,6 +130,8 @@ namespace QtCollider {
 #define class_QObject s_QObject->u.classobj
 #define class_QLayout s_QLayout->u.classobj
 #define class_QTreeViewItem s_QTreeViewItem->u.classobj
+
+#define SC_CLASS( SYM ) getsym(#SYM)->u.classobj
 
 }
 

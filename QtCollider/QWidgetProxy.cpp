@@ -32,8 +32,12 @@
 #include <QUrl>
 
 #ifdef Q_WS_X11
-#include <QX11Info>
-#include "hacks/hacks_x11.hpp"
+# include "hacks/hacks_x11.hpp"
+# include <QX11Info>
+# include <X11/Xlib.h>
+// X11 defines the following, clashing with QEvent::Type enum
+# undef KeyPress
+# undef KeyRelease
 #endif
 
 using namespace QtCollider;
@@ -371,13 +375,44 @@ bool QWidgetProxy::interpretKeyEvent( QObject *o, QEvent *e, QList<QVariant> &ar
 
   QKeyEvent *ke = static_cast<QKeyEvent*>( e );
 
-  QString text = ke->text();
-  int unicode = ( text.count() == 1 ? text[0].unicode() : 0 );
+  int key = ke->key();
 
-  args << text;
-  args << (int) ke->modifiers();
+  int mods = ke->modifiers();
+
+  QChar character;
+
+#ifdef Q_WS_MAC
+  bool isLetter = key >= Qt::Key_A && key <= Qt::Key_Z;
+  if (mods & Qt::MetaModifier && isLetter)
+  {
+      character = QChar(key - Qt::Key_A + 1);
+  }
+  else if(mods & Qt::AltModifier && isLetter)
+  {
+      character = (mods & Qt::ShiftModifier) ? QChar(key) : QChar(key - Qt::Key_A + 97 );
+  }
+  else
+#endif
+  {
+      QString text( ke->text() );
+      if (text.count()) character = text[0];
+  }
+
+  int unicode = character.unicode();
+
+#ifdef Q_WS_X11
+  KeySym sym = ke->nativeVirtualKey();
+  int keycode = XKeysymToKeycode( QX11Info::display(), sym );
+#else
+  // FIXME: On Mac OS X, this does not work for modifier keys
+  int keycode = ke->nativeVirtualKey();
+#endif
+
+  args << character;
+  args << mods;
   args << unicode;
-  args << ke->key();
+  args << keycode;
+  args << key;
   args << ke->spontaneous();
 
   return true;

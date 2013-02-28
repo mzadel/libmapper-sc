@@ -24,18 +24,21 @@ set( QT_COLLIDER_HDRS
   ${QT_COLLIDER_DIR}/widgets/QcSlider2D.h
   ${QT_COLLIDER_DIR}/widgets/QcRangeSlider.h
   ${QT_COLLIDER_DIR}/widgets/QcMultiSlider.h
+  ${QT_COLLIDER_DIR}/widgets/QcKnob.hpp
   ${QT_COLLIDER_DIR}/widgets/QcTextEdit.h
   ${QT_COLLIDER_DIR}/widgets/QcScope.h
   ${QT_COLLIDER_DIR}/widgets/QcScopeShm.h
   ${QT_COLLIDER_DIR}/widgets/QcGraph.h
   ${QT_COLLIDER_DIR}/widgets/QcLevelIndicator.h
   ${QT_COLLIDER_DIR}/widgets/QcCanvas.h
-  ${QT_COLLIDER_DIR}/widgets/QcSoundFileView.h
+  ${QT_COLLIDER_DIR}/widgets/soundfileview/view.hpp
   ${QT_COLLIDER_DIR}/widgets/QcFileDialog.h
   ${QT_COLLIDER_DIR}/widgets/QcPenPrinter.h
   ${QT_COLLIDER_DIR}/widgets/QcWebView.h
   ${QT_COLLIDER_DIR}/widgets/QcWindow.h
   ${QT_COLLIDER_DIR}/layouts/layouts.hpp
+  ${QT_COLLIDER_DIR}/layouts/stack_layout.hpp
+  ${QT_COLLIDER_DIR}/style/style.hpp
 )
 
 set( QT_COLLIDER_SRCS
@@ -54,6 +57,7 @@ set( QT_COLLIDER_SRCS
   ${QT_COLLIDER_DIR}/primitives/prim_QPen.cpp
   ${QT_COLLIDER_DIR}/primitives/prim_misc.cpp
   ${QT_COLLIDER_DIR}/primitives/prim_QWidget.cpp
+  ${QT_COLLIDER_DIR}/primitives/prim_QPalette.cpp
   ${QT_COLLIDER_DIR}/widgets/BasicWidgets.cpp
   ${QT_COLLIDER_DIR}/widgets/QcTreeWidget.cpp
   ${QT_COLLIDER_DIR}/widgets/QcScrollArea.cpp
@@ -63,6 +67,7 @@ set( QT_COLLIDER_SRCS
   ${QT_COLLIDER_DIR}/widgets/QcSlider2D.cpp
   ${QT_COLLIDER_DIR}/widgets/QcRangeSlider.cpp
   ${QT_COLLIDER_DIR}/widgets/QcMultiSlider.cpp
+  ${QT_COLLIDER_DIR}/widgets/QcKnob.cpp
   ${QT_COLLIDER_DIR}/widgets/QcTextEdit.cpp
   ${QT_COLLIDER_DIR}/widgets/QcScope.cpp
   ${QT_COLLIDER_DIR}/widgets/QcScopeShm.cpp
@@ -70,13 +75,17 @@ set( QT_COLLIDER_SRCS
   ${QT_COLLIDER_DIR}/widgets/QcWindow.cpp
   ${QT_COLLIDER_DIR}/widgets/QcGraph.cpp
   ${QT_COLLIDER_DIR}/widgets/QcCanvas.cpp
-  ${QT_COLLIDER_DIR}/widgets/QcSoundFileView.cpp
+  ${QT_COLLIDER_DIR}/widgets/soundfileview/view.cpp
+  ${QT_COLLIDER_DIR}/widgets/soundfileview/filestream.cpp
+  ${QT_COLLIDER_DIR}/widgets/soundfileview/cachestream.cpp
   ${QT_COLLIDER_DIR}/widgets/QcFileDialog.cpp
   ${QT_COLLIDER_DIR}/widgets/QcPenPrinter.cpp
   ${QT_COLLIDER_DIR}/widgets/QcWebView.cpp
   ${QT_COLLIDER_DIR}/layouts/classic_layouts.cpp
   ${QT_COLLIDER_DIR}/layouts/layouts.cpp
+  ${QT_COLLIDER_DIR}/layouts/stack_layout.cpp
   ${QT_COLLIDER_DIR}/style/ProxyStyle.cpp
+  ${QT_COLLIDER_DIR}/style/style.cpp
 )
 
 if(QT_COLLIDER_LANG_CLIENT)
