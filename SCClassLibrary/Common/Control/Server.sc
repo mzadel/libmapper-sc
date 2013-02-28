@@ -187,6 +187,11 @@ ServerShmInterface {
 		^super.new.connect(port)
 	}
 
+	copy {
+		// never ever copy! will cause duplicate calls to the finalizer!
+		^this
+	}
+
 	connect {
 		_ServerShmInterface_connectSharedMem
 		^this.primitiveFailed
@@ -609,7 +614,7 @@ Server {
 		this.doWhenBooted({
 			serverBooting = false;
 			if (sendQuit.isNil) {
-				sendQuit = not(this.inProcess) and: {this.isLocal};
+				sendQuit = this.inProcess or: {this.isLocal};
 			};
 
 			if (this.inProcess) {

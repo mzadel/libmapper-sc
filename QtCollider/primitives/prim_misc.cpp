@@ -1,6 +1,6 @@
 /************************************************************************
 *
-* Copyright 2010 Jakob Leben (jakob.leben@gmail.com)
+* Copyright 2010-2012 Jakob Leben (jakob.leben@gmail.com)
 *
 * This file is part of SuperCollider Qt GUI.
 *
@@ -28,6 +28,10 @@
 #include "../style/ProxyStyle.hpp"
 #include "QtCollider.h"
 
+#ifdef Q_WS_MAC
+# include "../hacks/hacks_mac.hpp"
+#endif
+
 #include <PyrKernel.h>
 
 #include <QFontMetrics>
@@ -36,7 +40,7 @@
 #include <QStyleFactory>
 #include <QWebSettings>
 
-using namespace QtCollider;
+namespace QtCollider {
 
 QC_LANG_PRIMITIVE( QtGUI_SetDebugLevel, 1, PyrSlot *r, PyrSlot *a, VMGlobals *g )
 {
@@ -120,6 +124,13 @@ QC_LANG_PRIMITIVE( Qt_FocusWidget, 0,  PyrSlot *r, PyrSlot *a, VMGlobals *g )
 
   QWidget *w = QApplication::focusWidget();
 
+#ifdef Q_WS_MAC
+  // On Mac we need to make additional checks, as Qt does not monitor
+  // focus changes to native Cocoa windows in the same application.
+  if( w && !QtCollider::Mac::isKeyWindow( w ) )
+    w = 0;
+#endif
+
   if( w ) {
     QObjectProxy *proxy = QObjectProxy::fromObject(w);
     if( proxy && proxy->scObject() ) {
@@ -167,3 +178,22 @@ QC_LANG_PRIMITIVE( QWebView_ClearMemoryCaches, 0, PyrSlot *r, PyrSlot *a, VMGlob
 
   return errNone;
 }
+
+void defineMiscPrimitives()
+{
+  LangPrimitiveDefiner definer;
+  definer.define<QtGUI_SetDebugLevel>();
+  definer.define<QtGUI_DebugLevel>();
+  definer.define<QWindow_ScreenBounds>();
+  definer.define<QWindow_AvailableGeometry>();
+  definer.define<Qt_StringBounds>();
+  definer.define<Qt_AvailableFonts>();
+  definer.define<Qt_GlobalPalette>();
+  definer.define<Qt_SetGlobalPalette>();
+  definer.define<Qt_FocusWidget>();
+  definer.define<Qt_SetStyle>();
+  definer.define<Qt_AvailableStyles>();
+  definer.define<QWebView_ClearMemoryCaches>();
+}
+
+} // namespace QtCollider

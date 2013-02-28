@@ -353,12 +353,15 @@ Process {
 
 	interpretCmdLine {
 		// interpret some text from the command line
-		interpreter.cmdLine = this.getCurrentSelection;
 		interpreter.interpretCmdLine;
 	}
 
 	interpretPrintCmdLine {
 		// interpret some text from the command line and print result
+		interpreter.interpretPrintCmdLine;
+	}
+
+	interpretPrintSelectedText {
 		interpreter.cmdLine = this.getCurrentSelection;
 		interpreter.interpretPrintCmdLine;
 	}
@@ -377,6 +380,8 @@ Process {
 		stream << "thisProcess";
 	}
 	archiveAsCompileString { ^true }
+
+	prSchedulerQueue { ^schedulerQueue }
 }
 
 

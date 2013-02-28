@@ -1,6 +1,6 @@
 /************************************************************************
 *
-* Copyright 2010-2012 Jakob Leben (jakob.leben@gmail.com)
+* Copyright 2011-2012 Jakob Leben (jakob.leben@gmail.com)
 *
 * This file is part of SuperCollider Qt GUI.
 *
@@ -19,15 +19,17 @@
 *
 ************************************************************************/
 
+#include "hacks_mac.hpp"
 
-#include "QcObjectFactory.h"
+#import <Cocoa/Cocoa.h>
 
 namespace QtCollider {
+namespace Mac {
 
-  QcFactoryHash & factories ()
-  {
-    static QcFactoryHash *factoryHash = new QcFactoryHash();
-    return *factoryHash;
-  }
-
+bool isKeyWindow ( QWidget *w )
+{
+  return [[reinterpret_cast<NSView *>(w->winId()) window] isKeyWindow];
 }
+
+} // namespace Mac
+} // namespace QtCollider

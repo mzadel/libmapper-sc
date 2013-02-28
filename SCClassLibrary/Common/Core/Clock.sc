@@ -21,8 +21,13 @@ Clock {
 
 SystemClock : Clock {
 	*clear {
-		_SystemClock_Clear
-		^this.primitiveFailed
+		var queue = thisProcess.prSchedulerQueue;
+		if (queue.size > 1) {
+			forBy(1, queue.size-1, 3) {|i|
+				queue[i+1].removedFromScheduler
+			};
+		};
+		this.prClear;
 	}
 	*sched { arg delta, item;
 		_SystemClock_Sched
@@ -32,7 +37,10 @@ SystemClock : Clock {
 		_SystemClock_SchedAbs
 		^this.primitiveFailed
 	}
-
+	*prClear {
+		_SystemClock_Clear
+		^this.primitiveFailed
+	}
 }
 
 AppClock : Clock {
@@ -241,7 +249,7 @@ elapsed time is whatever the system clock says it is right now. elapsed time is 
 		// nodes are already freed
 		// NOTE: queue is an Array, not a PriorityQueue, but it's used as such internally. That's why each item uses 3 slots.
 		if (queue.size > 1) {
-			forBy(1, queue.size, 3) {|i|
+			forBy(1, queue.size-1, 3) {|i|
 				queue[i+1].removedFromScheduler(releaseNodes)
 			};
 		};
