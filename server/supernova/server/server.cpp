@@ -27,7 +27,7 @@
 
 #include "nrt_synthesis.hpp"
 
-#include "sc/sc_synth_prototype.hpp"
+#include "sc/sc_synth_definition.hpp"
 #include "sc/sc_ugen_factory.hpp"
 
 #ifdef __APPLE__
@@ -42,8 +42,8 @@ namespace nova
 class nova_server * instance = 0;
 
 nova_server::nova_server(server_arguments const & args):
-    scheduler<nova::scheduler_hook, thread_init_functor>(args.threads, !args.non_rt),
     server_shared_memory_creator(args.port(), args.control_busses),
+    scheduler<nova::scheduler_hook, thread_init_functor>(args.threads, !args.non_rt),
     buffer_manager(1024), sc_osc_handler(args), dsp_queue_dirty(false)
 {
     assert(instance == 0);
@@ -105,6 +105,9 @@ abstract_synth * nova_server::add_synth(const char * name, int id, node_position
 
     if (ret == 0)
         return 0;
+
+    if (constraints.second == replace)
+        notification_node_ended(constraints.first);
 
     node_graph::add_node(ret, constraints);
     update_dsp_queue();
@@ -168,26 +171,26 @@ void nova_server::run_nonrt_synthesis(server_arguments const & args)
 namespace
 {
 
-struct register_prototype_cb:
+struct register_definition_cb:
     public audio_sync_callback
 {
-    register_prototype_cb (synth_prototype_ptr const & prototype):
+    register_definition_cb (synth_definition_ptr const & prototype):
         prototype(prototype)
     {}
 
     void run(void)
     {
-        instance->synth_factory::register_prototype(prototype);
+        instance->synth_factory::register_definition(prototype);
     }
 
-    synth_prototype_ptr prototype;
+    synth_definition_ptr prototype;
 };
 
 } /* namespace */
 
-void nova_server::register_prototype(synth_prototype_ptr const & prototype)
+void nova_server::register_definition(synth_definition_ptr const & prototype)
 {
-    scheduler<scheduler_hook, thread_init_functor>::add_sync_callback(new register_prototype_cb(prototype));
+    scheduler<scheduler_hook, thread_init_functor>::add_sync_callback(new register_definition_cb(prototype));
 }
 
 
@@ -250,7 +253,7 @@ void thread_init_functor::operator()(int thread_index)
     }
 
     if (!thread_set_affinity(thread_index))
-        std::cerr << "Warning: cannot set thread affinity of dsp thread" << std::endl;
+        std::cerr << "Warning: cannot set thread affinity of audio helper thread" << std::endl;
 }
 
 void io_thread_init_functor::operator()() const
@@ -266,10 +269,10 @@ void io_thread_init_functor::operator()() const
     name_thread("Network Send");
 }
 
-void synth_prototype_deleter::dispose(synth_prototype * ptr)
+void synth_definition_deleter::dispose(synth_definition * ptr)
 {
     if (instance) /// todo: hack to fix test suite
-        instance->add_system_callback(new delete_callback<synth_prototype>(ptr));
+        instance->add_system_callback(new delete_callback<synth_definition>(ptr));
     else
         delete ptr;
 }
@@ -277,7 +280,7 @@ void synth_prototype_deleter::dispose(synth_prototype * ptr)
 void realtime_engine_functor::init_thread(void)
 {
     if (!thread_set_affinity(0))
-        std::cerr << "Warning: cannot set thread affinity of jack thread" << std::endl;
+        std::cerr << "Warning: cannot set thread affinity of main audio thread" << std::endl;
 
     name_current_thread(0);
 }

@@ -20,18 +20,10 @@
 
 
 #include "SC_PlugIn.h"
+#include "SIMD_Unit.hpp"
 #include <limits.h>
 #include <cstdio>
-
-#ifdef NOVA_SIMD
-#include "simd_memory.hpp"
-#include "simd_ternary_arithmetic.hpp"
-
-using nova::slope_argument;
-
 #include "function_attributes.h"
-
-#endif
 
 static InterfaceTable *ft;
 
@@ -166,11 +158,6 @@ struct InRect : public Unit
 //	float m_leftScale, m_rightScale, m_a, m_b, m_c, m_d;
 //};
 
-struct K2A : public Unit
-{
-	float mLevel;
-};
-
 struct A2K : public Unit
 {
 
@@ -184,11 +171,6 @@ struct T2K : public Unit
 struct T2A : public Unit
 {
 	float mLevel;
-};
-
-struct DC : public Unit
-{
-	float m_val;
 };
 
 struct EnvGen : public Unit
@@ -255,9 +237,6 @@ extern "C"
 	void SyncSaw_next_ka(SyncSaw *unit, int inNumSamples);
 	void SyncSaw_next_kk(SyncSaw *unit, int inNumSamples);
 	void SyncSaw_Ctor(SyncSaw* unit);
-
-	void K2A_next(K2A *unit, int inNumSamples);
-	void K2A_Ctor(K2A* unit);
 
 	void A2K_next(A2K *unit, int inNumSamples);
 	void A2K_Ctor(A2K* unit);
@@ -1226,69 +1205,37 @@ void SyncSaw_Ctor(SyncSaw* unit)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-void K2A_next(K2A *unit, int inNumSamples)
+struct K2A:
+	SIMD_Unit
 {
-	float *out = ZOUT(0);
-	float in = ZIN0(0);
+	ControlRateInput<0> mLevel;
 
-	float level = unit->mLevel;
-	float slope = CALCSLOPE(in, level);
-
-	LOOP1(inNumSamples,
-		ZXP(out) = level += slope;
-	);
-	unit->mLevel = level;
-}
-
-#ifdef NOVA_SIMD
-FLATTEN void K2A_next_nova(K2A *unit, int inNumSamples)
-{
-	float in = ZIN0(0);
-	float level = unit->mLevel;
-
-	if (level == in)
-		nova::setvec_simd(OUT(0), level, inNumSamples);
-	else
+	K2A(void)
 	{
-		float slope = CALCSLOPE(in, level);
-		nova::set_slope_vec_simd(OUT(0), level, slope, inNumSamples);
+		mLevel.init(this);
+		if (inRate(0) == calc_ScalarRate)
+			set_unrolled_calc_function<K2A, &K2A::next_i<unrolled_64>, &K2A::next_i<unrolled>, &K2A::next_i<scalar> >();
+		else
+			set_unrolled_calc_function<K2A, &K2A::next_k<unrolled_64>, &K2A::next_k<unrolled>, &K2A::next_k<scalar> >();
 	}
 
-	unit->mLevel = in;
-}
-
-FLATTEN void K2A_next_nova_64(K2A *unit, int inNumSamples)
-{
-	float in = ZIN0(0);
-	float level = unit->mLevel;
-
-	if (level == in)
-		nova::setvec_simd<64>(OUT(0), level);
-	else
+	template <int type>
+	void next_k(int inNumSamples)
 	{
-		float slope = CALCSLOPE(in, level);
-		nova::set_slope_vec_simd(OUT(0), level, slope, 64);
+		if (mLevel.changed(this))
+			slope_vec<type>(out(0), mLevel.slope(this), inNumSamples);
+		else
+			next_i<type>(inNumSamples);
 	}
 
-	unit->mLevel = in;
-}
+	template <int type>
+	void next_i(int inNumSamples)
+	{
+		set_vec<type>(out(0), mLevel, inNumSamples);
+	}
+};
 
-#endif
-
-void K2A_Ctor(K2A* unit)
-{
-#ifdef NOVA_SIMD
-	if (BUFLENGTH == 64)
-		SETCALC(K2A_next_nova_64);
-	else if (!(BUFLENGTH & 15))
-		SETCALC(K2A_next_nova);
-	else
-#endif
-	SETCALC(K2A_next);
-	unit->mLevel = ZIN0(0);
-
-	ZOUT0(0) = unit->mLevel;
-}
+DEFINE_XTORS(K2A)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1384,49 +1331,32 @@ void T2A_Ctor(T2A* unit)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef NOVA_SIMD
-FLATTEN static void DC_next_nova(DC *unit, int inNumSamples)
+struct DC:
+	SIMD_Unit
 {
-	float val = unit->m_val;
-	nova::setvec_simd(OUT(0), val, inNumSamples);
-}
+	float value;
 
-FLATTEN static void DC_next_nova_64(DC *unit, int inNumSamples)
-{
-	float val = unit->m_val;
-	nova::setvec_simd<64>(OUT(0), val);
-}
-#endif
+	DC(void) {
+		value = in0(0);
+		if (value == 0)
+			set_unrolled_calc_function<DC, &DC::next_i<unrolled_64, true>,
+									   &DC::next_i<unrolled, true>, &DC::next_i<scalar, true> >();
+		else
+			set_unrolled_calc_function<DC, &DC::next_i<unrolled_64, false>,
+									   &DC::next_i<unrolled, false>, &DC::next_i<scalar, false> >();
+	}
 
-static void DC_next(DC *unit, int inNumSamples)
-{
-	float val = unit->m_val;
-	float *out = ZOUT(0);
-	LOOP1(inNumSamples, ZXP(out) = val;)
-}
+	template <int type, bool isZero>
+	void next_i(int inNumSamples)
+	{
+		if (isZero)
+			zero_vec<type>(out(0), inNumSamples);
+		else
+			set_vec<type>(out(0), value, inNumSamples);
+	}
+};
 
-static void DC_next_1(DC *unit, int inNumSamples)
-{
-	ZOUT0(0) = unit->m_val;
-}
-
-static void DC_Ctor(DC* unit)
-{
-	unit->m_val = IN0(0);
-#ifdef NOVA_SIMD
-	if (BUFLENGTH == 64)
-		SETCALC(DC_next_nova_64);
-	if (!(BUFLENGTH & 15))
-		SETCALC(DC_next_nova);
-	else
-#endif
-	if (BUFLENGTH == 1)
-		SETCALC(DC_next_1);
-	else
-		SETCALC(DC_next);
-	ZOUT0(0) = unit->m_val;
-}
-
+DEFINE_XTORS(DC)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2025,8 +1955,8 @@ void Clip_next_k(Clip* unit, int inNumSamples)
 {
 	float *out = ZOUT(0);
 	float *in  = ZIN(0);
-	float lo = unit->m_lo;
-	float hi = unit->m_hi;
+	float lo = ZIN0(1);
+	float hi = ZIN0(2);
 
 	ZXP(out) = sc_clip(ZXP(in), lo, hi);
 }
@@ -2411,6 +2341,7 @@ void InRect_Ctor(InRect* unit)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 void LinExp_next(LinExp *unit, int inNumSamples)
 {
 	float *out = ZOUT(0);
@@ -2469,7 +2400,7 @@ FLATTEN static void LinExp_next_nova_kk(LinExp *unit, int inNumSamples)
 	float dstlo = ZIN0(3);
 	float dsthi = ZIN0(4);
 	float dstratio = dsthi/dstlo;
-	float rsrcrange = 1. / (srchi - srclo);
+	float rsrcrange = sc_reciprocal(srchi - srclo);
 	float rrminuslo = rsrcrange * -srclo;
 
 	LinExp_next_nova_loop(out, in, inNumSamples, dstlo, dstratio, rsrcrange, rrminuslo);
@@ -2485,8 +2416,8 @@ void LinExp_next_kk(LinExp *unit, int inNumSamples)
 	float srchi = ZIN0(2);
 	float dstlo = ZIN0(3);
 	float dsthi = ZIN0(4);
-	float dstratio = dsthi/dstlo;
-	float rsrcrange = 1. / (srchi - srclo);
+	float dstratio = dsthi * sc_reciprocal(dstlo);
+	float rsrcrange = sc_reciprocal(srchi - srclo);
 	float rrminuslo = rsrcrange * -srclo;
 
 	LOOP1(inNumSamples,
@@ -2510,7 +2441,7 @@ void LinExp_next_aa(LinExp *unit, int inNumSamples)
 		float zsrchi = ZXP(srchi);
 		float zsrclo = ZXP(srclo);
 		float dstratio = zdsthi/zdstlo;
-		float rsrcrange = 1. / (zsrchi - zsrclo);
+		float rsrcrange = sc_reciprocal(zsrchi - zsrclo);
 		float rrminuslo = rsrcrange * -zsrclo;
 		ZXP(out) = zdstlo * pow(dstratio, ZXP(in) * rsrcrange + rrminuslo);
 	);
@@ -2530,7 +2461,7 @@ void LinExp_next_ak(LinExp *unit, int inNumSamples)
 		float zsrchi = ZXP(srchi);
 		float zsrclo = ZXP(srclo);
 
-		float rsrcrange = 1. / (zsrchi - zsrclo);
+		float rsrcrange = sc_reciprocal(zsrchi - zsrclo);
 		float rrminuslo = rsrcrange * -zsrclo;
 		ZXP(out) = dstlo * pow(dstratio, ZXP(in) * rsrcrange + rrminuslo);
 	);
@@ -2544,7 +2475,7 @@ void LinExp_next_ka(LinExp *unit, int inNumSamples)
 	float srchi = ZIN0(2);
 	float *dstlo = ZIN(3);
 	float *dsthi = ZIN(4);
-	float rsrcrange = 1. / (srchi - srclo);
+	float rsrcrange = sc_reciprocal(srchi - srclo);
 	float rrminuslo = rsrcrange * -srclo;
 
 	LOOP1(inNumSamples,
@@ -2600,7 +2531,7 @@ static void LinExp_SetCalc(LinExp* unit)
 	float dsthi = ZIN0(4);
 	unit->m_dstlo = dstlo;
 	unit->m_dstratio = dsthi/dstlo;
-	unit->m_rsrcrange = 1. / (srchi - srclo);
+	unit->m_rsrcrange = sc_reciprocal(srchi - srclo);
 	unit->m_rrminuslo = unit->m_rsrcrange * -srclo;
 }
 
@@ -3181,7 +3112,7 @@ FLATTEN void EnvGen_next_ak_nova(EnvGen *unit, int inNumSamples)
 		case shape_Linear : {
 			double slope = unit->m_grow;
 			nova::set_slope_vec_simd(OUT(0), (float)level, (float)slope, inNumSamples);
-			level += 64 * slope;
+			level += inNumSamples * slope;
 			remain = 0;
 			counter -= inNumSamples;
 		} break;
@@ -3400,7 +3331,7 @@ FLATTEN void EnvGen_next_ak_nova(EnvGen *unit, int inNumSamples)
 #endif
 
 #define CHECK_GATE \
-        prevGate = gate; \
+        float prevGate = gate; \
         gate = ZXP(gatein); \
         if (prevGate <= 0.f && gate > 0.f) { \
                 gatein--; \
@@ -3439,8 +3370,7 @@ void EnvGen_next_aa(EnvGen *unit, int inNumSamples)
 	float *gatein = ZIN(kEnvGen_gate);
 	int counter = unit->m_counter;
 	double level = unit->m_level;
-	float prevGate = unit->m_prevGate;
-	float gate = prevGate;
+	float gate = unit->m_prevGate;
 	int remain = inNumSamples;
 	while (remain)
 	{
@@ -3956,11 +3886,11 @@ void IEnvGen_Ctor(IEnvGen *unit)
 	unit->m_envvals = (float*)RTAlloc(unit->mWorld, (int)(numvals + 1.) * sizeof(float));
 
 	unit->m_envvals[0] = IN0(2);
-//	Print("%3.3f\n", unit->m_envvals[0]);
+	//	Print("offset of and initial  values %3,3f, %3.3f\n", offset, unit->m_envvals[0]);
 	// fill m_envvals with the values;
 	for (int i = 1; i <= numvals; i++) {
 	    unit->m_envvals[i] = IN0(4 + i);
-//	    Print("%3.3f\n", unit->m_envvals[i]);
+		//	    Print("val for: %d, %3.3f\n", i, unit->m_envvals[i]);
 	}
 
 //	float out = OUT0(0);
@@ -4057,26 +3987,27 @@ void IEnvGen_next_a(IEnvGen *unit, int inNumSamples)
 	}
 }
 
-
 void IEnvGen_next_k(IEnvGen *unit, int inNumSamples)
 {
 	float* out = OUT(0);
 	float level = unit->m_level;
-	float pointin = sc_max(IN0(0) - unit->m_offset, 0);
+	float pointin = IN0(0);
+	float offset = unit->m_offset;
 	int numStages = (int)IN0(3);
-
+	float point; // = unit->m_pointin;
+	
 	float totalDur = IN0(4);
+	
+	int stagemul;
 	// pointer, offset
 	// level0, numstages, totaldur,
-	float point = unit->m_pointin;
-
 	// [initval, [dur, shape, curve, level] * N ]
-
-	if (pointin == unit->m_pointin) {
-		Fill(inNumSamples, out, level);
-	} else {
-		float pointslope = CALCSLOPE(pointin, point);
-		for( int i = 0; i < inNumSamples; i++) {
+	
+	for( int i = 0; i < inNumSamples; i++) {
+		if (pointin == unit->m_pointin){
+			out[i] = level;
+		} else {
+			unit->m_pointin = point = sc_max(pointin - offset, 0.0);
 			float newtime = 0.f;
 			int stage = 0;
 			float seglen = 0.f;
@@ -4087,32 +4018,28 @@ void IEnvGen_next_k(IEnvGen *unit, int inNumSamples)
 					unit->m_level = level = unit->m_envvals[0];
 				} else {
 					float segpos = point;
-					// determine which segment the current time pointer needs calculated
+					// determine which segment the current time pointer needs
 					for(int j = 0; point >= newtime; j++) {
 						seglen = unit->m_envvals[(j * 4) + 1];
 						newtime += seglen;
 						segpos -= seglen;
 						stage = j;
-						}
-
+					}
+					stagemul = stage * 4;
 					segpos = segpos + seglen;
-					float begLevel = unit->m_envvals[(stage * 4)];
-					int shape = (int)unit->m_envvals[(stage * 4) + 2];
-					float curve = unit->m_envvals[(stage * 4) + 3];
-					float endLevel = unit->m_envvals[(stage * 4) + 4];
+					float begLevel = unit->m_envvals[stagemul];
+					int shape = (int)unit->m_envvals[stagemul + 2];
+					int curve = (int)unit->m_envvals[stagemul + 3];
+					float endLevel = unit->m_envvals[stagemul + 4];
 					float pos = (segpos / seglen);
-
+					
 					GET_ENV_VAL
 				}
 			}
 			out[i] = level;
-			point += pointslope;
 		}
-
-		unit->m_pointin = pointin;
 	}
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 

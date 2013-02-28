@@ -354,14 +354,25 @@ SimpleNumber : Number {
 	rate { ^'scalar' } // scalarRate constant
 	asAudioRateInput { ^if(this == 0) { Silent.ar } { DC.ar(this) } }
 
+	madd   { arg mul, add; ^(this * mul) + add; }
+
+	lag    { ^this }
+	lag2   { ^this }
+	lag3   { ^this }
+	lagud  { ^this }
+	lag2ud { ^this }
+	lag3ud { ^this }
+	varlag { ^this }
+	slew   { ^this }
+
 	// support for writing synth defs
 	writeInputSpec { arg file, synth;
 		var constIndex = synth.constants.at(this.asFloat);
 		if (constIndex.isNil) {
-			Error("SimpleNumber-writeInputSpec constant not found: " ++ this.asFloat).throw;		};
-		//[\inpspc, this.class.name, constIndex, this].postln;
-		file.putInt16(-1);
-		file.putInt16(constIndex);
+			Error("SimpleNumber-writeInputSpec constant not found: " ++ this.asFloat).throw;
+		};
+		file.putInt32(-1);
+		file.putInt32(constIndex);
 	}
 
 	series { arg second, last;

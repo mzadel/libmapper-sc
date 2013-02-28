@@ -27,38 +27,25 @@
 
 #include <QWidget>
 
-QC_DECLARE_QOBJECT_FACTORY(QcStackLayout);
+namespace QtCollider {
 
-QcStackLayout::QcStackLayout() :
+StackLayout::StackLayout() :
   _index(-1),
   _mode(StackOne),
   _gotParent(false)
 {}
 
-QcStackLayout::QcStackLayout( const VariantList &items ) :
-  _index(-1),
-  _mode(StackOne),
-  _gotParent(false)
-{
-  Q_FOREACH(QVariant var, items.data) {
-    QObjectProxy *p = var.value<QObjectProxy*>();
-    if(!p) return;
-    QWidget *w = qobject_cast<QWidget*>( p->object() );
-    if(w) addWidget(w);
-  }
-}
-
-QcStackLayout::~QcStackLayout()
+StackLayout::~StackLayout()
 {
   qDeleteAll(_list);
 }
 
-int QcStackLayout::addWidget(QWidget *widget)
+int StackLayout::addWidget(QWidget *widget)
 {
   return insertWidget(_list.count(), widget);
 }
 
-int QcStackLayout::insertWidget(int index, QWidget *widget)
+int StackLayout::insertWidget(int index, QWidget *widget)
 {
     addChildWidget(widget);
     index = qMin(index, _list.count());
@@ -79,12 +66,12 @@ int QcStackLayout::insertWidget(int index, QWidget *widget)
     return index;
 }
 
-QLayoutItem *QcStackLayout::itemAt(int index) const
+QLayoutItem *StackLayout::itemAt(int index) const
 {
     return _list.value(index);
 }
 
-QLayoutItem *QcStackLayout::takeAt(int index)
+QLayoutItem *StackLayout::takeAt(int index)
 {
     if (index < 0 || index >= _list.size())
         return 0;
@@ -103,7 +90,7 @@ QLayoutItem *QcStackLayout::takeAt(int index)
     return item;
 }
 
-void QcStackLayout::setCurrentIndex(int index)
+void StackLayout::setCurrentIndex(int index)
 {
     QWidget *prev = currentWidget();
     QWidget *next = widget(index);
@@ -159,65 +146,87 @@ void QcStackLayout::setCurrentIndex(int index)
     }
     if (reenableUpdates)
         parent->setUpdatesEnabled(true);
+
+    if (_mode == StackOne)
+      // expandingDirections() might have changed, so invalidate():
+      invalidate();
 }
 
-int QcStackLayout::currentIndex() const
+int StackLayout::currentIndex() const
 {
     return _index;
 }
 
-void QcStackLayout::setCurrentWidget(QWidget *widget)
+void StackLayout::setCurrentWidget(QWidget *widget)
 {
     int index = indexOf(widget);
     if (index == -1) {
-        qWarning("QcStackLayout::setCurrentWidget: Widget %p not contained in stack", widget);
+        qWarning("StackLayout::setCurrentWidget: Widget %p not contained in stack", widget);
         return;
     }
     setCurrentIndex(index);
 }
 
-QWidget *QcStackLayout::currentWidget() const
+QWidget *StackLayout::currentWidget() const
 {
     return _index >= 0 ? _list.at(_index)->widget() : 0;
 }
 
-QWidget *QcStackLayout::widget(int index) const
+QWidget *StackLayout::widget(int index) const
 {
      if (index < 0 || index >= _list.size())
         return 0;
     return _list.at(index)->widget();
 }
 
-int QcStackLayout::count() const
+int StackLayout::count() const
 {
     return _list.size();
 }
 
-void QcStackLayout::addItem(QLayoutItem *item)
+void StackLayout::addItem(QLayoutItem *item)
 {
     QWidget *widget = item->widget();
     if (widget) {
         addWidget(widget);
         delete item;
     } else {
-        qWarning("QcStackLayout::addItem: Only widgets can be added");
+        qWarning("StackLayout::addItem: Only widgets can be added");
     }
 }
 
-QSize QcStackLayout::sizeHint() const
+QSize StackLayout::sizeHint() const
 {
     QSize s(0, 0);
-    int n = _list.count();
 
-    for (int i = 0; i < n; ++i)
-        if (QWidget *widget = _list.at(i)->widget()) {
-            QSize ws(widget->sizeHint());
-            if (widget->sizePolicy().horizontalPolicy() == QSizePolicy::Ignored)
-                ws.setWidth(0);
-            if (widget->sizePolicy().verticalPolicy() == QSizePolicy::Ignored)
-                ws.setHeight(0);
-            s = s.expandedTo(ws);
-        }
+    switch (_mode)
+    {
+    case StackOne:
+        if (_index >= 0)
+            if (QWidget *w = _list.at(_index)->widget()) {
+                if (w->sizePolicy().horizontalPolicy() != QSizePolicy::Ignored)
+                  s.setWidth(w->sizeHint().width());
+                if (w->sizePolicy().verticalPolicy() != QSizePolicy::Ignored)
+                  s.setHeight(w->sizeHint().height());
+            }
+        break;
+
+    case StackAll:
+    {
+        int n = _list.count();
+        for (int i = 0; i < n; ++i)
+            if (QWidget *w = _list.at(i)->widget()) {
+                QSize ws(w->sizeHint());
+                if (w->sizePolicy().horizontalPolicy() == QSizePolicy::Ignored)
+                    ws.setWidth(0);
+                if (w->sizePolicy().verticalPolicy() == QSizePolicy::Ignored)
+                    ws.setHeight(0);
+                s = s.expandedTo(ws);
+            }
+        break;
+    }
+    }
+
     return s;
 }
 
@@ -251,21 +260,60 @@ static QSize smartMinSize(const QSize &sizeHint, const QSize &minSizeHint,
     return s.expandedTo(QSize(0,0));
 }
 
-QSize QcStackLayout::minimumSize() const
+QSize StackLayout::minimumSize() const
 {
     QSize s(0, 0);
-    int n = _list.count();
 
-    for (int i = 0; i < n; ++i)
-        if (QWidget *w = _list.at(i)->widget())
-            s = s.expandedTo(
-              smartMinSize(w->sizeHint(), w->minimumSizeHint(),
-                            w->minimumSize(), w->maximumSize(),
-                            w->sizePolicy()));
+    switch (_mode)
+    {
+    case StackOne:
+        if (_index >= 0)
+            if (QWidget *w = _list.at(_index)->widget())
+                s = smartMinSize(w->sizeHint(), w->minimumSizeHint(),
+                                 w->minimumSize(), w->maximumSize(),
+                                 w->sizePolicy());
+        break;
+
+    case StackAll:
+    {
+        int n = _list.count();
+        for (int i = 0; i < n; ++i)
+            if (QWidget *w = _list.at(i)->widget())
+                s = s.expandedTo(
+                  smartMinSize(w->sizeHint(), w->minimumSizeHint(),
+                               w->minimumSize(), w->maximumSize(),
+                               w->sizePolicy()));
+        break;
+    }
+    }
+
     return s;
 }
 
-void QcStackLayout::setGeometry(const QRect &rect)
+Qt::Orientations StackLayout::expandingDirections () const
+{
+    Qt::Orientations directions;
+
+    switch (_mode)
+    {
+    case StackOne:
+        directions = _index >= 0 ? _list.at(_index)->expandingDirections() : (Qt::Orientations) 0;
+        break;
+
+    case StackAll:
+    {
+        Qt::Orientations directions = 0;
+        int n = _list.count();
+        for (int i = 0; i < n; ++i)
+            directions |= _list.at(i)->expandingDirections();
+        break;
+    }
+    }
+
+    return directions;
+}
+
+void StackLayout::setGeometry(const QRect &rect)
 {
     switch (_mode) {
     case StackOne:
@@ -281,12 +329,12 @@ void QcStackLayout::setGeometry(const QRect &rect)
     }
 }
 
-QcStackLayout::StackingMode QcStackLayout::stackingMode() const
+StackLayout::StackingMode StackLayout::stackingMode() const
 {
     return _mode;
 }
 
-void QcStackLayout::setStackingMode(StackingMode stackingMode)
+void StackLayout::setStackingMode(StackingMode stackingMode)
 {
     if (_mode == stackingMode)
         return;
@@ -320,9 +368,11 @@ void QcStackLayout::setStackingMode(StackingMode stackingMode)
     }
         break;
     }
+
+    invalidate();
 }
 
-void QcStackLayout::invalidate()
+void StackLayout::invalidate()
 {
   QWidget *pw = parentWidget();
 
@@ -364,3 +414,5 @@ void QcStackLayout::invalidate()
 
   QLayout::invalidate();
 }
+
+} // namespace QtCollider

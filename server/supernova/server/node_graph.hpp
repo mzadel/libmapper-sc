@@ -29,8 +29,7 @@
 
 #include "dsp_thread_queue/dsp_thread_queue.hpp"
 
-namespace nova
-{
+namespace nova {
 
 class node_graph
 {
@@ -48,8 +47,8 @@ public:
      *
      * - initialize root node */
     node_graph(void):
-        root_group_(0), synth_count_(0), group_count_(1),
-        node_set(node_set_type::bucket_traits(node_buckets, node_set_bucket_count)), generated_id(-2)
+        root_group_(0), generated_id(-2), synth_count_(0), group_count_(1),
+        node_set(node_set_type::bucket_traits(node_buckets, node_set_bucket_count))
     {
         root_group_.add_ref();
         node_set.insert(root_group_);
@@ -81,11 +80,7 @@ public:
         return &root_group_/* .get() */;
     }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
     typedef std::unique_ptr<dsp_thread_queue> dsp_thread_queue_ptr;
-#else
-    typedef std::auto_ptr<dsp_thread_queue> dsp_thread_queue_ptr;
-#endif
 
     dsp_thread_queue_ptr generate_dsp_queue(void);
 
@@ -132,8 +127,14 @@ public:
 
     bool group_free_all(abstract_group * group)
     {
-        size_t synths, groups;
-        boost::tie(synths, groups) = group->child_count_deep();
+        size_t synths = 0, groups = 0;
+        group->apply_deep_on_children([&](server_node & node) {
+            release_node_id(&node);
+            if (node.is_synth())
+                synths += 1;
+            else
+                groups += 1;
+        });
 
         group->free_children();
         synth_count_ -= synths;
@@ -143,12 +144,22 @@ public:
 
     bool group_free_deep(abstract_group * group)
     {
-        size_t synths, groups;
-        boost::tie(synths, groups) = group->child_count_deep();
+        size_t synths;
+        group->apply_deep_on_children([&](server_node & node) {
+             if (node.is_synth()) {
+                 release_node_id(&node);
+                 synths += 1;
+             }
+        });
 
         group->free_synths_deep();
         synth_count_ -= synths;
         return true;
+    }
+
+    void release_node_id(server_node * node)
+    {
+        node_set.erase(*node);
     }
 
 private:

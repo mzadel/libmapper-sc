@@ -3,20 +3,21 @@ HTML renderer
 */
 SCDocHTMLRenderer {
     classvar currentClass, currentImplClass, currentMethod, currArg;
+    classvar currentNArgs;
     classvar footNotes;
     classvar noParBreak;
     classvar currDoc;
-    classvar methArgsMismatch;
-    classvar <>baseDir;
+    classvar minArgs;
+    classvar baseDir;
 
     *escapeSpecialChars {|str|
         var x = "";
         var beg = -1, end = 0;
         str.do {|chr, i|
             switch(chr,
-                $&, { x = x ++ str[beg..i-1] ++ "&amp;"; beg = i+1; },
-                $<, { x = x ++ str[beg..i-1] ++ "&lt;"; beg = i+1; },
-                $>, { x = x ++ str[beg..i-1] ++ "&gt;"; beg = i+1; },
+                $&, { x = x ++ str.copyRange(beg, i-1) ++ "&amp;"; beg = i+1; },
+                $<, { x = x ++ str.copyRange(beg, i-1) ++ "&lt;"; beg = i+1; },
+                $>, { x = x ++ str.copyRange(beg, i-1) ++ "&gt;"; beg = i+1; },
                 { end = i }
             );
         };
@@ -49,7 +50,7 @@ SCDocHTMLRenderer {
                         // link to other file?
                         if(File.exists(SCDoc.helpTargetDir+/+n).not) {
                             "SCDoc: In %\n"
-                            "       Broken link: '%'"
+                            "  Broken link: '%'"
                             .format(currDoc.fullPath, link).warn;
                         };
                     };
@@ -72,7 +73,7 @@ SCDocHTMLRenderer {
         };
     }
 
-    *makeArgString {|m|
+    *makeArgString {|m, par=true|
         var res = "";
         var value;
         var l = m.argNames;
@@ -80,26 +81,22 @@ SCDocHTMLRenderer {
         l.do {|a,i|
             if (i>0) { //skip 'this' (first arg)
                 if(i==last and: {m.varArgs}) {
-                    res = res ++ " <span class='argstr'>";
-                    res = res ++ "... " ++ a;
+                    res = res ++ " <span class='argstr'>" ++ "... " ++ a;
                 } {
                     if (i>1) { res = res ++ ", " };
-                    res = res ++ "<span class='argstr'>";
-                    res = res ++ a;
-                    value = m.prototypeFrame[i];
-                    value !? {
+                    res = res ++ "<span class='argstr'>" ++ a;
+                    (value = m.prototypeFrame[i]) !? {
                         value = if(value.class===Float) { value.asString } { value.cs };
-                        res = res ++ " = " ++ value;
+                        res = res ++ ": " ++ value;
                     };
                 };
                 res = res ++ "</span>";
             };
         };
-        if (res.notEmpty) {
+        if (res.notEmpty and: par) {
             ^("("++res++")");
-        } {
-            ^"";
         };
+        ^res;
     }
 
     *renderHeader {|stream, doc|
@@ -108,8 +105,9 @@ SCDocHTMLRenderer {
         var undocumented = false;
         if(folder==".",{folder=""});
         
+        // FIXME: use SCDoc.helpTargetDir relative to baseDir
         baseDir = ".";
-        doc.path.occurrencesOf(Platform.pathSeparator).do {
+        doc.path.occurrencesOf($/).do {
             baseDir = baseDir ++ "/..";
         };
 
@@ -161,7 +159,8 @@ SCDocHTMLRenderer {
             if(currentClass.notNil) {
                 m = currentClass.filenameSymbol.asString;
                 stream << "<div id='filename'>Source: "
-                << m.dirname << "/<a href='file://" << m << "'>" << m.basename << "</a></div>";
+                << m.dirname << "/<a href='" << URI.fromLocalPath(m).asString << "'>"
+                << m.basename << "</a></div>";
                 if(currentClass != Object) {
                     stream << "<div id='superclasses'>"
                     << "Inherits from: "
@@ -220,7 +219,11 @@ SCDocHTMLRenderer {
         var args = node.text ?? ""; // only outside class/instance methods
         var names = node.children[0].children.collect(_.text);
         var mstat, sym, m, m2, mname2;
-        var args1, args2;
+        var lastargs, args2;
+        var x, maxargs = -1;
+        var methArgsMismatch = false;
+        minArgs = inf;
+        currentMethod = nil;
         names.do {|mname|
             mname2 = this.escapeSpecialChars(mname);
             if(cls.notNil) {
@@ -239,46 +242,70 @@ SCDocHTMLRenderer {
                 m2 = m2 ?? {cls.findRespondingMethodFor(sym.asSetter)};
                 m2 !? {
                     mstat = mstat | 2;
-                    args = m2.argNames !? {m2.argNames[1..].join(", ")} ?? {"value"};
+                    args = m2.argNames !? {this.makeArgString(m2,false)} ?? {"value"};
                     args2 = m2.argNames !? {m2.argNames[1..]};
                 };
-                if(args1.notNil and: {args1 != args2}) {
-                    args1 = false;
-                } {
-                    args1 = args2;
+                maxargs.do {|i|
+                    var a = args2[i];
+                    var b = lastargs[i];
+                    if(a!=b and: {a!=nil} and: {b!=nil}) {
+                        methArgsMismatch = true;
+                    }
                 };
+                lastargs = args2;
+                case
+                    {args2.size>maxargs} {
+                        maxargs = args2.size;
+                        currentMethod = m2 ?? m;
+                    }
+                    {args2.size<minArgs} {
+                        minArgs = args2.size;
+                    }
+                ;
             } {
                 m = nil;
                 m2 = nil;
                 mstat = 1;
             };
 
-            stream << "<h3 class='" << css << "'>"
-            << "<span class='methprefix'>" << (pfx??"&nbsp;") << "</span>"
-            << "<a name='" << (pfx??".") << mname << "' href='"
-            << baseDir << "/Overviews/Methods.html#"
-            << mname2 << "'>" << mname2 << "</a>";
+            x = {
+                stream << "<h3 class='" << css << "'>"
+                << "<span class='methprefix'>" << (pfx??"&nbsp;") << "</span>"
+                << "<a name='" << (pfx??".") << mname << "' href='"
+                << baseDir << "/Overviews/Methods.html#"
+                << mname2 << "'>" << mname2 << "</a>"
+            };
 
-            stream << switch (mstat,
+            x.value;
+            switch (mstat,
                 // getter only
-                1, { " "++args++"</h3>\n" },
-                // setter only
-                2, { " = "++args++"</h3>\n" },
+                1, { stream << " " << args << "</h3>\n"; },
                 // getter and setter
-                3, { " [= "++args++"]</h3>\n" },
+                3, { stream << "</h3>\n"; },
                 // method not found
                 0, {
                     "SCDoc: In %\n"
-                    "       Method %% not found.".format(currDoc.fullPath,pfx,mname2).warn;
-                    ": METHOD NOT FOUND!</h3>\n"
+                    "  Method %% not found.".format(currDoc.fullPath,pfx,mname2).warn;
+                    stream << ": METHOD NOT FOUND!</h3>\n";
                 }
             );
+
+            // has setter
+            if(mstat & 2 > 0) {
+                x.value;
+                if(args2.size<2) {
+                    stream << " = " << args << "</h3>\n";
+                } {
+                    stream << "_ (" << args << ")</h3>\n";
+                }
+            };
 
             m = m ?? m2;
             m !? {
                 if(m.isExtensionOf(cls) and: {icls.isNil or: {m.isExtensionOf(icls)}}) {
                     stream << "<div class='extmethod'>From extension in <a href='"
-                    << m.filenameSymbol << "'>" << m.filenameSymbol << "</a></div>\n";
+                    << URI.fromLocalPath(m.filenameSymbol.asString).asString << "'>"
+                    << m.filenameSymbol << "</a></div>\n";
                 } {
                     if(m.ownerClass == icls) {
                         stream << "<div class='supmethod'>From implementing class</div>\n";
@@ -294,19 +321,34 @@ SCDocHTMLRenderer {
             };
         };
         
-        methArgsMismatch = if(args1 == false) {names};
+        if(methArgsMismatch) {
+            "SCDoc: In %\n"
+            "  Grouped methods % does not have the same argument signature."
+            .format(currDoc.fullPath, names).warn;
+        };
+        
+        // ignore trailing mul add arguments
+        if(currentMethod.notNil) {
+            currentNArgs = currentMethod.argNames.size;
+            if(currentNArgs > 2
+            and: {currentMethod.argNames[currentNArgs-1] == \add}
+            and: {currentMethod.argNames[currentNArgs-2] == \mul}) {
+                currentNArgs = currentNArgs - 2;
+            }
+        } {
+            currentNArgs = 0;
+        };    
 
         if(node.children.size > 1) {
-            currentMethod = m2 ?? m;
             stream << "<div class='method'>";
             this.renderChildren(stream, node.children[1]);
             stream << "</div>";
-            currentMethod = nil;
         };
+        currentMethod = nil;
     }
 
     *renderSubTree {|stream, node|
-        var f;
+        var f, z;
         switch(node.id,
             \PROSE, {
                 if(noParBreak) {
@@ -486,20 +528,15 @@ SCDocHTMLRenderer {
             \CCOPYMETHOD, {},
             \ICOPYMETHOD, {},
             \ARGUMENTS, {
-                methArgsMismatch !? {
-                    "SCDoc: In %\n"
-                    "       Grouped methods % does not have the same argument signature."
-                    .format(currDoc.fullPath, methArgsMismatch).warn;
-                };
                 stream << "<h4>Arguments:</h4>\n<table class='arguments'>\n";
                 currArg = 0;
-                if(currentMethod.notNil and: {node.children.size < (currentMethod.argNames.size-1)}) {
+                if(currentMethod.notNil and: {node.children.size < (currentNArgs-1)}) {
                     "SCDoc: In %\n"
-                    "       Method %% has % args, but doc has % argument:: tags.".format(
+                    "  Method %% has % args, but doc has % argument:: tags.".format(
                         currDoc.fullPath,
                         if(currentMethod.ownerClass.isMetaClass) {"*"} {"-"},
                         currentMethod.name,
-                        currentMethod.argNames.size-1,
+                        currentNArgs-1,
                         node.children.size,
                     ).warn;
                 };
@@ -515,24 +552,39 @@ SCDocHTMLRenderer {
                             stream << "... ";
                         };
                         stream << if(currArg < currentMethod.argNames.size) {
-                            currentMethod.argNames[currArg];
+                            if(currArg > minArgs) {
+                                "("++currentMethod.argNames[currArg]++")";
+                            } {
+                                currentMethod.argNames[currArg];
+                            }
                         } {
                             "(arg"++currArg++")" // excessive arg
                         };
                     };
                 } {
                     stream << if(currentMethod.isNil or: {currArg < currentMethod.argNames.size}) {
-                        if(currentMethod.notNil and: {currentMethod.argNames[currArg] != node.text.asSymbol}) {
-                            "SCDoc: In %\n"
-                            "       Method %% has arg named '%', but doc has 'argument:: %'.".format(
-                                currDoc.fullPath,
-                                if(currentMethod.ownerClass.isMetaClass) {"*"} {"-"},
-                                currentMethod.name,
-                                currentMethod.argNames[currArg],
-                                node.text,
-                            ).warn;
+                        currentMethod !? {
+                            f = currentMethod.argNames[currArg].asString;
+                            if(
+                                (z = if(currentMethod.varArgs and: {currArg==(currentMethod.argNames.size-1)})
+                                        {"... "++f} {f}
+                                ) != node.text;
+                            ) {
+                                "SCDoc: In %\n"
+                                "  Method %% has arg named '%', but doc has 'argument:: %'.".format(
+                                    currDoc.fullPath,
+                                    if(currentMethod.ownerClass.isMetaClass) {"*"} {"-"},
+                                    currentMethod.name,
+                                    z,
+                                    node.text,
+                                ).warn;
+                            };
                         };
-                        node.text;
+                        if(currArg > minArgs) {
+                            "("++node.text++")";
+                        } {
+                            node.text;
+                        };
                     } {
                         "("++node.text++")" // excessive arg
                     };
@@ -595,7 +647,7 @@ SCDocHTMLRenderer {
             },
             {
                 "SCDoc: In %\n"
-                "       Unknown SCDocNode id: %".format(currDoc.fullPath, node.id).warn;
+                "  Unknown SCDocNode id: %".format(currDoc.fullPath, node.id).warn;
                 this.renderChildren(stream, node);
             }
         );
@@ -719,8 +771,8 @@ SCDocHTMLRenderer {
     *renderFooter {|stream, doc|
         stream << "<div class='doclink'>";
         doc.fullPath !? {
-            stream << "source: <a href='file://"
-            << doc.fullPath << "'>" << doc.fullPath << "</a><br>"
+            stream << "source: <a href='" << URI.fromLocalPath(doc.fullPath).asString << "'>"
+            << doc.fullPath << "</a><br>"
         };
         stream << "link::" << doc.path << "::<br>"
         << "sc version: " << Main.version << "</div>"

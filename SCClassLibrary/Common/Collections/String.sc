@@ -72,12 +72,12 @@ String[char] : RawArray {
 	}
 
 	compare { arg aString, ignoreCase=false; _StringCompare }
-	< { arg aString; ^this.compare(aString, true) < 0 }
-	> { arg aString; ^this.compare(aString, true) > 0 }
-	<= { arg aString; ^this.compare(aString, true) <= 0 }
-	>= { arg aString; ^this.compare(aString, true) >= 0 }
-	== { arg aString; ^this.compare(aString, true) == 0 }
-	!= { arg aString; ^this.compare(aString, true) != 0 }
+	< { arg aString; ^this.compare(aString, false) < 0 }
+	> { arg aString; ^this.compare(aString, false) > 0 }
+	<= { arg aString; ^this.compare(aString, false) <= 0 }
+	>= { arg aString; ^this.compare(aString, false) >= 0 }
+	== { arg aString; ^this.compare(aString, false) == 0 }
+	!= { arg aString; ^this.compare(aString, false) != 0 }
 	hash { _StringHash }
 
 	// no sense doing collect as per superclass collection
@@ -133,8 +133,8 @@ String[char] : RawArray {
 		});
 		Error(this).throw;
 	}
-	error { "ERROR:\n".post; this.postln; }
-	warn { "WARNING:\n".post; this.postln }
+	error { "ERROR: ".post; this.postln; }
+	warn { "WARNING: ".post; this.postln }
 	inform { ^this.postln }
 	++ { arg anObject; ^this prCat: anObject.asString; }
 	+ { arg anObject; ^this prCat: " " prCat: anObject.asString; }

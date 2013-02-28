@@ -118,25 +118,18 @@ QAbstractStepValue : QView {
 /////////////////////// CONTAINERS ////////////////////////////////
 
 QHLayoutView : QView {
-  *qtClass { ^"QcHLayoutWidget" }
+  *qtClass { ^'QcHLayoutWidget' }
 }
 
 QVLayoutView : QView {
-  *qtClass { ^"QcVLayoutWidget" }
+  *qtClass { ^'QcVLayoutWidget' }
 }
 
 QScrollCanvas : QObject {
   *qtClass { ^'QcScrollWidget' }
 
-  background {
-    ^this.getProperty(\palette).window;
-  }
-
-  background_ { arg color;
-    // Do not autoFillBackground; the widget will paint it if necessary.
-    var p = this.getProperty(\palette);
-    this.setProperty( \palette, p.window_(color) );
-  }
+  background { ^this.getProperty(\background); }
+  background_ { arg color; this.setProperty(\background, color); }
 }
 
 QScrollView : QAbstractScroll {
@@ -148,7 +141,7 @@ QScrollView : QAbstractScroll {
     ^super.new( parent, bounds ).initQScrollView;
   }
 
-  *qtClass { ^"QcScrollArea" }
+  *qtClass { ^'QcScrollArea' }
 
   children { arg class = QView;
     ^canvas.children( class );
@@ -196,7 +189,7 @@ QScrollView : QAbstractScroll {
 /////////////////////////// WIDGETS ///////////////////////////////
 
 QStaticText : QTextViewBase {
-  *qtClass { ^"QLabel" }
+  *qtClass { ^'QLabel' }
 
   *new { arg aParent, aBounds;
     var obj = super.new( aParent, aBounds );
@@ -204,11 +197,16 @@ QStaticText : QTextViewBase {
     ^obj;
   }
 
-  background_ { arg aColor;
-    if( this.background.isNil ) {
-      this.setProperty( \autoFillBackground, true);
-    };
-    super.background_( aColor );
+  background {
+    var p = this.palette;
+    ^if(p.hasColor(\window)) {p.window} {nil}
+  }
+
+  background_ { arg color;
+    var p = this.palette;
+    if(p.hasColor(\window).not)
+      { this.setProperty( \autoFillBackground, true) };
+    this.palette = p.window_(color);
   }
 
   string { ^this.getProperty(\text) }
@@ -224,7 +222,7 @@ QStaticText : QTextViewBase {
 }
 
 QTextField : QTextViewBase {
-  *qtClass { ^"QcTextField" }
+  *qtClass { ^'QcTextField' }
 
   string {
     ^this.getProperty( \text );
@@ -273,7 +271,7 @@ QTextField : QTextViewBase {
 QButton : QView {
   var <states;
 
-  *qtClass { ^"QcButton" }
+  *qtClass { ^'QcButton' }
 
   value {
     ^this.getProperty( \value );
@@ -317,7 +315,7 @@ QButton : QView {
 
 QCheckBox : QView {
 
-  *qtClass { ^"QcCheckBox" }
+  *qtClass { ^'QcCheckBox' }
 
   *new{ |parent,bounds,text|
     ^super.new(parent,bounds).init(text)
@@ -357,7 +355,7 @@ QCheckBox : QView {
 
 QPopUpMenu : QItemViewBase {
 
-  *qtClass { ^"QcPopUpMenu" }
+  *qtClass { ^'QcPopUpMenu' }
 
   allowsReselection { ^this.getProperty( \reactivationEnabled ) }
 
@@ -371,6 +369,10 @@ QPopUpMenu : QItemViewBase {
   value_ { arg val;
     this.setProperty( \currentIndex, val ? -1 );
   }
+
+  background { ^this.palette.button; }
+
+  background_ { arg color; this.palette = this.palette.button_(color); }
 
   stringColor {
     ^this.palette.buttonText;

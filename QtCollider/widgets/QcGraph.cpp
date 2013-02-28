@@ -64,12 +64,12 @@ QcGraph::QcGraph() :
   _drawLines( true ),
   _drawRects( true ),
   _editable( true ),
-  _step( 0.f ),
+  _step( 0.01 ),
   _selectionForm( ElasticSelection ),
   _xOrder( NoOrder ),
   _gridOn( false ),
-  _curIndex( -1 ),
-  _geometryDirty( false )
+  _geometryDirty( false ),
+  _lastIndex(-1)
 {
   QPalette plt( palette() );
 
@@ -97,18 +97,27 @@ VariantList QcGraph::value() const
   return values;
 }
 
+QcGraphElement *QcGraph::currentElement() const
+{
+  return _selection.count() ? _selection.elems.first().elem : 0;
+}
+
+int QcGraph::index() const
+{
+  QcGraphElement *e = currentElement();
+  return e ? _model.elements().indexOf(e) : -1;
+}
+
 float QcGraph::currentX() const
 {
-  if( _curIndex < 0 ) return 0.f;
-  QcGraphElement *e = _model.elementAt(_curIndex);
-  return e->value.x();
+  QcGraphElement *e = currentElement();
+  return e ? e->value.x() : 0.f;
 }
 
 float QcGraph::currentY() const
 {
-  if( _curIndex < 0 ) return 0.f;
-  QcGraphElement *e = _model.elementAt(_curIndex);
-  return e->value.y();
+  QcGraphElement *e = currentElement();
+  return e ? e->value.y() : 0.f;
 }
 
 void QcGraph::setValue( const VariantList &list )
@@ -144,8 +153,6 @@ void QcGraph::setValue( const VariantList &list )
   }
 
   if( newc ) ensureOrder();
-
-  _curIndex = -1;
 
   _geometryDirty = true;
 
@@ -223,10 +230,7 @@ void QcGraph::connectElements( int src, VariantList targets )
 }
 
 void QcGraph::setIndex( int i ) {
-  if( i >= -1 && i < _model.elementCount() ) {
-    _curIndex = i;
-    update();
-  }
+  select(i);
 }
 
 void QcGraph::select( int i, bool exclusive ) {
@@ -250,25 +254,29 @@ void QcGraph::deselectAll() {
 
 void QcGraph::setCurrentX( float f )
 {
-  if( _curIndex < 0 ) return;
-  QcGraphElement *e = _model.elementAt(_curIndex);
+  QcGraphElement *e = currentElement();
+  if(!e) return;
+
   QPointF val = e->value;
   val.setX( f );
   if( _xOrder != NoOrder ) orderRestrictValue(e,val,true);
   else restrictValue(val);
   e->value = val;
+
   update();
 }
 
 void QcGraph::setCurrentY( float f )
 {
-  if( _curIndex < 0 ) return;
-  QcGraphElement *e = _model.elementAt(_curIndex);
+  QcGraphElement *e = currentElement();
+  if(!e) return;
+
   QPointF val = e->value;
   val.setY( f );
   if( _xOrder != NoOrder ) orderRestrictValue(e,val,true);
   else restrictValue(val);
   e->value = val;
+
   update();
 }
 
@@ -435,6 +443,7 @@ void QcGraph::setIndexSelected( int index, bool select )
       ++i;
     }
     _selection.elems.insert( si, SelectedElement(e) );
+    _lastIndex = index;
   }
   else {
     e->selected = false;
@@ -629,6 +638,55 @@ void QcGraph::addCurve( QPainterPath &path, QcGraphElement *e1, QcGraphElement *
     path.moveTo( pt1 );
     path.lineTo( pt2 );
     break;
+
+  case QcGraphElement::Quadratic: {
+    path.moveTo( pt1 );
+    const qreal sqrtBegin = std::sqrt(pt1.y());
+    const qreal sqrtEnd   = std::sqrt(pt2.y());
+    const qreal n = 100.f;
+    const qreal grow = (sqrtEnd - sqrtBegin) / n;
+
+    qreal x = pt1.x();
+    qreal y = pt1.y();
+
+    const float dx = (pt2.x() - pt1.x()) / n;
+
+    for (int i = 0; i != n; ++i) {
+        x += dx;
+        y += grow;
+        qreal yCoord = y*y;
+        path.lineTo( x, yCoord );
+    }
+
+    path.lineTo( pt2 );
+
+    break;
+  }
+
+  case QcGraphElement::Cubic: {
+    path.moveTo( pt1 );
+    const qreal cubrtBegin = std::pow(pt1.y(), qreal(1/3.0));
+    const qreal cubrtEnd   = std::pow(pt2.y(), qreal(1/3.0));
+    const qreal n = 100.f;
+    const qreal grow = (cubrtEnd - cubrtBegin) / n;
+
+    qreal x = pt1.x();
+    qreal y = pt1.y();
+
+    const float dx = (pt2.x() - pt1.x()) / n;
+
+    for (int i = 0; i != n; ++i) {
+        x += dx;
+        y += grow;
+        qreal yCoord = y*y*y;
+        path.lineTo( x, yCoord );
+    }
+
+    path.lineTo( pt2 );
+
+    break;
+  }
+
   case QcGraphElement::Sine: {
     // half of difference between end points
     float dx = (pt2.x() - pt1.x()) * 0.5f;
@@ -773,27 +831,18 @@ void QcGraph::paintEvent( QPaintEvent * )
   using QtCollider::Style::RoundRect;
 
   QPainter p( this );
-  QPalette plt( palette() );
+  const QPalette & plt = palette();
 
   p.setRenderHint( QPainter::Antialiasing, true );
   RoundRect frame(rect(), 2);
-  drawSunken( &p, plt, frame, plt.color(QPalette::Base), hasFocus() ? focusColor() : QColor() );
+  drawSunken( &p, plt, frame, background(), hasFocus() ? focusColor() : QColor() );
   p.setRenderHint( QPainter::Antialiasing, false );
 
   QRect contentsRect( valueRect() );
 
-  QColor strokeColor = _strokeColor.isValid() ? _strokeColor :  plt.color(QPalette::Text);
-  QColor gridColor;
-  if(_gridColor.isValid())
-    gridColor = _gridColor;
-  else {
-    gridColor = plt.color(QPalette::Text);
-    gridColor.setAlpha(40);
-  }
-
   //draw grid;
 
-  p.setPen(gridColor);
+  p.setPen( gridColor() );
   p.setBrush( Qt::NoBrush );
   p.drawRect( contentsRect );
 
@@ -831,7 +880,9 @@ void QcGraph::paintEvent( QPaintEvent * )
   int c = elems.count();
   if( !c ) return;
 
-  p.setPen( strokeColor );
+  const QColor & strokeClr = strokeColor();
+
+  p.setPen( strokeClr );
 
   // draw lines;
   if( _drawLines ) {
@@ -876,6 +927,7 @@ void QcGraph::paintEvent( QPaintEvent * )
     QColor rectColor = plt.color(QPalette::Button).lighter(105);
     QColor circleColor = rectColor; circleColor.setAlpha(70);
     QColor dotColor = plt.color(QPalette::Text);
+    const QColor & selectClr = selectionColor();
     QRectF rect;
     QPointF pt;
     int i;
@@ -891,10 +943,10 @@ void QcGraph::paintEvent( QPaintEvent * )
 
       if( _style == DotElements )
           drawDotElement(e, rect, contentsRect,
-                         dotColor, circleColor, strokeColor,
+                         dotColor, circleColor, strokeClr, selectClr,
                          plt, fm, &p);
       else
-          drawRectElement(e, rect, rectColor, strokeColor, plt, &p  );
+          drawRectElement(e, rect, rectColor, strokeClr, selectClr, plt, &p  );
 
     }
 
@@ -904,7 +956,7 @@ void QcGraph::paintEvent( QPaintEvent * )
 void QcGraph::drawDotElement
 ( QcGraphElement *e, const QRectF &rect, const QRect & bounds,
   const QColor & dotColor, const QColor & circleColor,
-  const QColor & textColor,
+  const QColor & textColor, const QColor & selectColor,
   const QPalette &plt, const QFontMetrics &fm, QPainter *p )
 {
   using namespace QtCollider::Style;
@@ -925,7 +977,7 @@ void QcGraph::drawDotElement
   // selection indicator
   if( e->selected ) {
     p->setBrush(Qt::NoBrush);
-    p->setPen( plt.color(QPalette::Highlight) );
+    p->setPen( selectColor );
     p->drawEllipse( thumb._rect.adjusted(1,1,-1,-1) );
   }
 
@@ -943,6 +995,7 @@ void QcGraph::drawRectElement
   QcGraphElement *e, const QRectF &rect,
   const QColor & fillColor,
   const QColor & textColor,
+  const QColor & selectColor,
   const QPalette &plt, QPainter *p )
 {
   using namespace QtCollider::Style;
@@ -955,7 +1008,7 @@ void QcGraph::drawRectElement
   // selection indicator
   if( e->selected ) {
     p->setBrush(Qt::NoBrush);
-    p->setPen( plt.color(QPalette::Highlight) );
+    p->setPen( selectColor );
     p->drawRoundedRect( base._rect, 5, 5 );
   }
 
@@ -987,7 +1040,6 @@ void QcGraph::mousePressEvent( QMouseEvent *ev )
     QPointF pt( Style::pos( e->value, valueRect ) );
     r.moveCenter( pt );
     if( r.contains( mpos ) ) {
-      _curIndex = i;
 
       if( ev->modifiers() & Qt::ShiftModifier ) {
         setIndexSelected( i, !e->selected );
@@ -1018,7 +1070,6 @@ void QcGraph::mousePressEvent( QMouseEvent *ev )
   _selection.shallMove = false;
 
   if( !(ev->modifiers() & Qt::ShiftModifier) ) {
-    _curIndex = 0;
     setAllDeselected();
   }
 
@@ -1054,14 +1105,76 @@ void QcGraph::mouseMoveEvent( QMouseEvent *ev )
 
 void QcGraph::keyPressEvent( QKeyEvent *event )
 {
-  if( _curIndex < 0 ) return;
+  int mods = event->modifiers();
+  if( mods & Qt::AltModifier || mods & Qt::ShiftModifier )
+  {
+    // selection mode
 
-  if( event->modifiers() & Qt::AltModifier ) {
+    int c = _model.elementCount();
+    if(!c) return;
+
+    switch( event->key() ) {
+      case Qt::Key_Right:
+      {
+          // select the index after the last selected one (wrapping)
+          // or extend selection to the right
+
+          int i = -1;
+          if(_selection.count()) {
+              for (i = c - 1; i >= 0; --i) {
+                  if(_model.elementAt(i)->selected)
+                      break;
+              }
+          }
+
+          if( event->modifiers() & Qt::ShiftModifier ) {
+              i = qMin(i + 1, c - 1);
+              setIndexSelected( i, true );
+          }
+          else {
+              ++i;
+              if (i >= c) i = 0;
+              setAllDeselected();
+              setIndexSelected( i, true );
+          }
+
+          break;
+      }
+      case Qt::Key_Left:
+      {
+          // select the index before the first selected one (wrapping)
+          // or extend selection to the left
+          int i = c;
+          if(_selection.count()) {
+              for(i = 0; i < c; ++i) {
+                  if(_model.elementAt(i)->selected)
+                      break;
+              }
+          }
+
+          if( event->modifiers() & Qt::ShiftModifier ) {
+              i = qMax(i - 1, 0);
+              setIndexSelected( i, true );
+          }
+          else {
+              --i;
+              if (i < 0) i = c - 1;
+              setAllDeselected();
+              setIndexSelected( i, true );
+          }
+
+          break;
+      }
+      default: break;
+    }
+  }
+  else
+  {
     // editing mode
 
     if( !_editable || !_selection.size() ) return;
 
-    QPointF dValue;;
+    QPointF dValue;
 
     switch( event->key() ) {
       case Qt::Key_Up:
@@ -1084,26 +1197,6 @@ void QcGraph::keyPressEvent( QKeyEvent *event )
 
     update();
     doAction( event->modifiers() );
-
-  }
-  else {
-    // selection mode
-
-    switch( event->key() ) {
-      case Qt::Key_Right:
-        setIndex( _curIndex+1 );
-        if( !(event->modifiers() & Qt::ShiftModifier) ) setAllDeselected();
-        setIndexSelected( _curIndex, true );
-        break;
-      case Qt::Key_Left:
-        // always keep an index current:
-        if( _curIndex > 0 ) setIndex( _curIndex-1 );
-        if( !(event->modifiers() & Qt::ShiftModifier) ) setAllDeselected();
-        setIndexSelected( _curIndex, true );
-        break;
-      default: break;
-    }
-
   }
 }
 

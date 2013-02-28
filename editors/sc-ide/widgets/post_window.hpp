@@ -23,34 +23,58 @@
 
 #include <QAction>
 #include <QDockWidget>
-#include <QPointer>
-#include <QTextBrowser>
+#include <QPlainTextEdit>
 
 namespace ScIDE {
 
+namespace Settings { class Manager; }
+
+class PostDock;
+
 class PostWindow:
-    public QTextBrowser
+    public QPlainTextEdit
 {
     Q_OBJECT
 
 public:
-    explicit PostWindow(QWidget* parent = 0):
-        QTextBrowser(parent)
-    {
-        QFont f( font() );
-        f.setFamily("monospace");
-        f.setStyleHint(QFont::TypeWriter);
-        setFont(f);
+    explicit PostWindow(QWidget* parent = 0);
 
-        setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    void applySettings( Settings::Manager * );
+    void storeSettings( Settings::Manager * );
 
-        mClearAction = new QAction(tr("Clear Post Window"), this);
-        connect(mClearAction, SIGNAL(triggered()), this, SLOT(clear()));
-        addAction(mClearAction);
-        setContextMenuPolicy(Qt::ActionsContextMenu);
-    }
+    QSize sizeHint() const { return mSizeHint; }
+    QSize minimumSizeHint() const { return QSize(50,50); }
+    QString symbolUnderCursor();
 
+signals:
+    void scrollToBottomRequest();
+
+public slots:
+    void post(const QString &text);
+    void scrollToBottom();
+    void zoomIn(int steps = 1);
+    void zoomOut(int steps = 1);
+
+    bool openDocumentation();
+    void openDefinition();
+    void findReferences();
+
+private slots:
+    void onAutoScrollTriggered(bool);
+    void setLineWrap(bool on);
+
+private:
+    friend class PostDock;
+
+    void zoomFont(int steps);
+    void wheelEvent( QWheelEvent * );
+    void focusOutEvent (QFocusEvent *e);
+    void mouseDoubleClickEvent(QMouseEvent *e);
+
+    QAction * mAutoScrollAction;
     QAction * mClearAction;
+    QAction * mLineWrapAction;
+    QSize mSizeHint;
 };
 
 
@@ -60,34 +84,15 @@ class PostDock:
     Q_OBJECT
 
 public:
-    explicit PostDock(QWidget* parent = 0):
-        QDockWidget(tr("Post Window"), parent)
-    {
-        setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea);
-        mPostWindow = new PostWindow(this);
-        setWidget(mPostWindow);
+    PostDock(QWidget* parent = 0);
 
-        setFeatures(DockWidgetFloatable | DockWidgetMovable);
-
-        connect(this, SIGNAL(topLevelChanged(bool)), this, SLOT(onFloatingChanged(bool)));
-    }
-
-private Q_SLOTS:
-
-    void onFloatingChanged(bool floating)
-    {
-        // HACK: After undocking when main window maximized, the dock widget can not be
-        // resized anymore. Apparently it has to do something with the fact that the dock
-        // widget spans from edge to edge of the screen.
-        // The issue is avoided by slightly shrinking the dock widget.
-        if (floating)
-            resize(size() - QSize(1,1));
-    }
+private slots:
+    void onFloatingChanged(bool floating);
 
 public:
     PostWindow * mPostWindow;
 };
 
-}
+} // namespace ScIDE
 
 #endif

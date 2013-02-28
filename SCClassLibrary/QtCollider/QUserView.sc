@@ -1,7 +1,7 @@
 QUserView : QView {
   var <drawFunc, <drawingEnabled=true;
 
-  *qtClass { ^"QcCustomPainted" }
+  *qtClass { ^'QcCustomPainted' }
 
   *new { arg parent, bounds;
     var me = super.new(parent, bounds ?? {this.sizeHint} );
@@ -42,11 +42,6 @@ QUserView : QView {
   frameRate { ^this.getProperty( \frameRate ); }
 
   frame { ^this.getProperty( \frameCount ); }
-
-  background_ { arg color;
-    // Do not autoFillBackground; the widget will paint it if necessary.
-    this.palette = this.palette.window_(color);
-  }
 
   // override QView's action_ to not connect to 'action()' signal
   action_ { arg func;

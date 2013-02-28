@@ -1,5 +1,5 @@
 QRangeSlider : QAbstractStepValue {
-  *qtClass { ^"QcRangeSlider" }
+  *qtClass { ^'QcRangeSlider' }
 
   *new { arg parent, bounds;
     ^super.new( parent, bounds ).initQRangeSlider( bounds );
@@ -80,21 +80,11 @@ QRangeSlider : QAbstractStepValue {
     this.hi_( average + deviation );
   }
 
-  knobColor {
-    ^this.palette.buttonText;
-  }
+  knobColor { ^this.getProperty(\knobColor) }
+  knobColor_ { arg color; this.setProperty(\knobColor, color) }
 
-  knobColor_ { arg color;
-    this.palette = this.palette.buttonText_(color);
-  }
-
-  background {
-    ^this.getProperty(\grooveColor);
-  }
-
-  background_ { arg color;
-    this.setProperty(\grooveColor, color);
-  }
+  background { ^this.getProperty(\grooveColor) }
+  background_ { arg color; this.setProperty(\grooveColor, color) }
 
   defaultGetDrag { ^Point(this.lo,this.hi); }
   defaultCanReceiveDrag { ^(QView.currentDrag.class === Point); }

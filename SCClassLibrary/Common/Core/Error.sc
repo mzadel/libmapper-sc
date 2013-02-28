@@ -20,7 +20,8 @@ Exception {
 		this.errorString.postln;
 		if(protectedBacktrace.notNil, { this.postProtectedBacktrace });
 		this.dumpBackTrace;
-		this.adviceLink.postln;
+		// this.adviceLink.postln;
+		"^^ The preceding error dump is for %\n".postf(this.errorString);
 	}
 	adviceLink {
 		^("For advice: [http://supercollider.sf.net/wiki/index.php/%]"
@@ -101,7 +102,8 @@ MethodError : Error {
 		this.errorPathString.post;
 		if(protectedBacktrace.notNil, { this.postProtectedBacktrace });
 		this.dumpBackTrace;
-		this.adviceLink.postln;
+		// this.adviceLink.postln;
+		"^^ The preceding error dump is for %\nRECEIVER: %\n".postf(this.errorString, receiver);
 	}
 	adviceLinkPage {
 		^this.class.name
@@ -161,7 +163,8 @@ DoesNotUnderstandError : MethodError {
 		this.errorPathString.post;
 		if(protectedBacktrace.notNil, { this.postProtectedBacktrace });
 		this.dumpBackTrace;
-		this.adviceLink.postln;
+		// this.adviceLink.postln;
+		"^^ The preceding error dump is for %\nRECEIVER: %\n".postf(this.errorString, receiver);
 	}
 	adviceLinkPage {
 		^"%#%".format(this.class.name, selector)
@@ -263,7 +266,7 @@ DeprecatedError : MethodError {
 	reportError {
 		this.errorString.postln;
 		this.errorPathString.post;
-		this.adviceLink.postln;
+		// this.adviceLink.postln;
 	}
 
 	throw {

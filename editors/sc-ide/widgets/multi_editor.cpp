@@ -19,310 +19,1014 @@
 */
 
 #include "multi_editor.hpp"
-#include "code_edit.hpp"
+#include "editor_box.hpp"
+#include "main_window.hpp"
+#include "lookup_dialog.hpp"
+#include "code_editor/sc_editor.hpp"
+#include "util/multi_splitter.hpp"
 #include "../core/doc_manager.hpp"
 #include "../core/sig_mux.hpp"
 #include "../core/main.hpp"
+#include "../core/sc_process.hpp"
+#include "../core/session_manager.hpp"
+
+#include "yaml-cpp/node.h"
+#include "yaml-cpp/parser.h"
+
+#include <QApplication>
+#include <QDebug>
+#include <QDialog>
+#include <QFileInfo>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QListView>
+#include <QMenu>
+#include <QPainter>
+#include <QStandardItemModel>
+#include <QShortcut>
+#include <QStyle>
+#include <QTreeWidget>
+#include <QVBoxLayout>
+
 
 namespace ScIDE {
 
-MultiEditor::MultiEditor( Main *main, QWidget * parent ) :
-    QTabWidget(parent),
-    mMain(main),
-    mDocManager(main->documentManager()),
-    mSigMux(new SignalMultiplexer(this))
+class DocumentSelectPopUp : public QDialog
 {
-    setDocumentMode(true);
-    setTabsClosable(true);
-    setMovable(true);
+public:
+    DocumentSelectPopUp(const CodeEditorBox::History & history, QWidget * parent):
+        QDialog(parent, Qt::Popup)
+    {
+        mModel = new QStandardItemModel(this);
+        populateModel(history);
 
-    connect(mDocManager, SIGNAL(opened(Document*)),
-            this, SLOT(onOpen(Document*)));
-    connect(mDocManager, SIGNAL(closed(Document*)),
-            this, SLOT(onClose(Document*)));
-    connect(mDocManager, SIGNAL(saved(Document*)),
-            this, SLOT(update(Document*)));
+        mListView = new QListView();
+        mListView->setModel(mModel);
+        mListView->setFrameShape(QFrame::NoFrame);
 
-    connect(this, SIGNAL(currentChanged(int)),
-            this, SLOT(onCurrentChanged(int)));
-    connect(this, SIGNAL(tabCloseRequested(int)),
-            this, SLOT(onCloseRequest(int)));
+        QHBoxLayout *layout = new QHBoxLayout(this);
+        layout->addWidget(mListView);
+        layout->setContentsMargins(1,1,1,1);
 
-    connect(&mModificationMapper, SIGNAL(mapped(QWidget*)),
-            this, SLOT(onModificationChanged(QWidget*)));
+        connect(mListView, SIGNAL(activated(QModelIndex)), this, SLOT(accept()));
 
-    connect(main, SIGNAL(applySettingsRequest(QSettings*)),
-            this, SLOT(applySettings(QSettings*)));
+        mListView->setFocus(Qt::OtherFocusReason);
+
+        QModelIndex nextIndex = mModel->index(1, 0);
+        mListView->setCurrentIndex(nextIndex);
+
+        mListView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    }
+
+    Document * exec( const QPoint & pos )
+    {
+        move(pos);
+        if (QDialog::exec())
+            return currentDocument();
+        else
+            return 0;
+    }
+
+private:
+    bool event(QEvent * event)
+    {
+        if (event->type() == QEvent::ShortcutOverride) {
+            event->accept();
+            return true;
+        }
+        return QWidget::event(event);
+    }
+
+    void keyReleaseEvent (QKeyEvent * ke)
+    {
+        // adapted from qtcreator
+        if (ke->modifiers() == 0
+            /*HACK this is to overcome some event inconsistencies between platforms*/
+            || (ke->modifiers() == Qt::AltModifier
+                && (ke->key() == Qt::Key_Alt || ke->key() == -1))) {
+            ke->accept();
+            accept();
+        }
+        QDialog::keyReleaseEvent(ke);
+    }
+
+    void keyPressEvent(QKeyEvent * ke)
+    {
+        switch (ke->key()) {
+        case Qt::Key_Down:
+        case Qt::Key_Tab:
+            cycleDown();
+            ke->accept();
+            return;
+
+        case Qt::Key_Up:
+        case Qt::Key_Backtab:
+            cycleUp();
+            ke->accept();
+            return;
+
+        case Qt::Key_Escape:
+            reject();
+            return;
+
+        default:
+            ;
+        }
+
+        QDialog::keyPressEvent(ke);
+    }
+
+    void paintEvent( QPaintEvent * )
+    {
+        QPainter painter(this);
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(palette().color(QPalette::Dark));
+        painter.drawRect(rect().adjusted(0,0,-1,-1));
+    }
+
+    void cycleDown()
+    {
+        int row = mListView->currentIndex().row() + 1;
+        if (!mModel->hasIndex(row, 0))
+            row = 0;
+
+        QModelIndex nextIndex = mModel->index(row, 0);
+        mListView->setCurrentIndex(nextIndex);
+    }
+
+    void cycleUp()
+    {
+        int row = mListView->currentIndex().row() - 1;
+        if (!mModel->hasIndex(row, 0))
+            row = mModel->rowCount() - 1;
+
+        QModelIndex nextIndex = mModel->index(row, 0);
+        mListView->setCurrentIndex(nextIndex);
+    }
+
+    Document * currentDocument()
+    {
+        QStandardItem * currentItem = mModel->itemFromIndex(mListView->currentIndex());
+        return currentItem ? currentItem->data().value<Document*>()
+                           : NULL;
+    }
+
+    void populateModel( const CodeEditorBox::History & history )
+    {
+        QList<Document*> displayDocuments;
+        foreach(GenericCodeEditor *editor, history)
+            displayDocuments << editor->document();
+
+        QList<Document*> managerDocuments =  Main::documentManager()->documents();
+        foreach(Document *document, managerDocuments)
+            if (!displayDocuments.contains(document))
+                displayDocuments << document;
+
+        foreach (Document * document, displayDocuments) {
+            QStandardItem * item = new QStandardItem(document->title());
+            item->setData(QVariant::fromValue(document));
+            mModel->appendRow(item);
+        }
+    }
+
+    QListView *mListView;
+    QStandardItemModel *mModel;
+};
+
+MultiEditor::MultiEditor( Main *main, QWidget * parent ) :
+    QWidget(parent),
+    mEditorSigMux(new SignalMultiplexer(this)),
+    mBoxSigMux(new SignalMultiplexer(this)),
+    mDocModifiedIcon( QApplication::style()->standardIcon(QStyle::SP_DialogSaveButton) )
+{
+    mTabs = new QTabBar;
+    mTabs->setDocumentMode(true);
+    mTabs->setTabsClosable(true);
+    mTabs->setMovable(true);
+    mTabs->setUsesScrollButtons(true);
+    mTabs->setDrawBase(true);
+
+    CodeEditorBox *defaultBox = newBox();
+
+    mSplitter = new MultiSplitter();
+    mSplitter->addWidget(defaultBox);
+
+    QVBoxLayout *l = new QVBoxLayout;
+    l->setContentsMargins(0,0,0,0);
+    l->setSpacing(0);
+    l->addWidget(mTabs);
+    l->addWidget(mSplitter);
+    setLayout(l);
+
+    makeSignalConnections();
+
+    mBoxSigMux->connect(SIGNAL(currentChanged(GenericCodeEditor*)),
+                        this, SLOT(onCurrentEditorChanged(GenericCodeEditor*)));
+
+    connect( &mDocModifiedSigMap, SIGNAL(mapped(QObject*)), this, SLOT(onDocModified(QObject*)) );
 
     createActions();
-    updateActions();
-    applySettings(main->settings());
+
+    setCurrentBox( defaultBox ); // will updateActions();
+}
+
+void MultiEditor::makeSignalConnections()
+{
+    DocumentManager *docManager = Main::documentManager();
+
+    connect(docManager, SIGNAL(opened(Document*, int, int)),
+            this, SLOT(onOpen(Document*, int, int)));
+    connect(docManager, SIGNAL(closed(Document*)),
+            this, SLOT(onClose(Document*)));
+    connect(docManager, SIGNAL(saved(Document*)),
+            this, SLOT(update(Document*)));
+    connect(docManager, SIGNAL(showRequest(Document*, int, int)),
+            this, SLOT(show(Document*, int, int)));
+
+    connect(mTabs, SIGNAL(currentChanged(int)),
+            this, SLOT(onCurrentTabChanged(int)));
+    connect(mTabs, SIGNAL(tabCloseRequested(int)),
+            this, SLOT(onCloseRequest(int)));
+}
+
+void MultiEditor::breakSignalConnections()
+{
+    DocumentManager *docManager = Main::documentManager();
+    docManager->disconnect(this);
+    mTabs->disconnect(this);
 }
 
 void MultiEditor::createActions()
 {
-    QAction * act;
+    Settings::Manager *settings = Main::settings();
 
-    // File
-
-    mActions[DocNew] = act = new QAction(
-        QIcon::fromTheme("document-new"), tr("&New"), this);
-    act->setShortcuts(QKeySequence::New);
-    act->setStatusTip(tr("Create a new document"));
-    connect(act, SIGNAL(triggered()), this, SLOT(newDocument()));
-
-    mActions[DocOpen] = act = new QAction(
-        QIcon::fromTheme("document-open"), tr("&Open..."), this);
-    act->setShortcuts(QKeySequence::Open);
-    act->setStatusTip(tr("Open an existing file"));
-    connect(act, SIGNAL(triggered()), this, SLOT(openDocument()));
-
-    mActions[DocSave] = act = new QAction(
-        QIcon::fromTheme("document-save"), tr("&Save"), this);
-    act->setShortcuts(QKeySequence::Save);
-    act->setStatusTip(tr("Save the current document"));
-    connect(act, SIGNAL(triggered()), this, SLOT(saveDocument()));
-
-    mActions[DocSaveAs] = act = new QAction(
-        QIcon::fromTheme("document-save-as"), tr("Save &As..."), this);
-    act->setShortcuts(QKeySequence::SaveAs);
-    act->setStatusTip(tr("Save the current document into a different file"));
-    connect(act, SIGNAL(triggered()), this, SLOT(saveDocumentAs()));
-
-    mActions[DocClose] = act = new QAction(
-        QIcon::fromTheme("window-close"), tr("&Close"), this);
-    act->setShortcuts(QKeySequence::Close);
-    act->setStatusTip(tr("Close the current document"));
-    connect(act, SIGNAL(triggered()), this, SLOT(closeDocument()));
+    QAction * action;
+    const QString editorCategory("Text Editor");
 
     // Edit
 
-    mActions[Undo] = act = new QAction(
+    mActions[Undo] = action = new QAction(
         QIcon::fromTheme("edit-undo"), tr("&Undo"), this);
-    act->setShortcuts(QKeySequence::Undo);
-    act->setStatusTip(tr("Undo last editing action"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(undo()));
-    mSigMux->connect(SIGNAL(undoAvailable(bool)), act, SLOT(setEnabled(bool)));
+    action->setShortcut(tr("Ctrl+Z", "Undo"));
+    action->setStatusTip(tr("Undo last editing action"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(undo()));
+    mEditorSigMux->connect(SIGNAL(undoAvailable(bool)), action, SLOT(setEnabled(bool)));
+    settings->addAction( action, "editor-undo", editorCategory);
 
-    mActions[Redo] = act = new QAction(
+    mActions[Redo] = action = new QAction(
         QIcon::fromTheme("edit-redo"), tr("Re&do"), this);
-    act->setShortcuts(QKeySequence::Redo);
-    act->setStatusTip(tr("Redo next editing action"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(redo()));
-    mSigMux->connect(SIGNAL(redoAvailable(bool)), act, SLOT(setEnabled(bool)));
+    action->setShortcut(tr("Ctrl+Shift+Z", "Redo"));
+    action->setStatusTip(tr("Redo next editing action"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(redo()));
+    mEditorSigMux->connect(SIGNAL(redoAvailable(bool)), action, SLOT(setEnabled(bool)));
+    settings->addAction( action, "editor-redo", editorCategory);
 
-    mActions[Cut] = act = new QAction(
+    mActions[Cut] = action = new QAction(
         QIcon::fromTheme("edit-cut"), tr("Cu&t"), this);
-    act->setShortcuts(QKeySequence::Cut);
-    act->setStatusTip(tr("Cut text to clipboard"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(cut()));
-    mSigMux->connect(SIGNAL(copyAvailable(bool)), act, SLOT(setEnabled(bool)));
+    action->setShortcut(tr("Ctrl+X", "Cut"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    action->setStatusTip(tr("Cut text to clipboard"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(cut()));
+    mEditorSigMux->connect(SIGNAL(copyAvailable(bool)), action, SLOT(setEnabled(bool)));
+    settings->addAction( action, "editor-cut", editorCategory);
 
-    mActions[Copy] = act = new QAction(
+    mActions[Copy] = action = new QAction(
         QIcon::fromTheme("edit-copy"), tr("&Copy"), this);
-    act->setShortcuts(QKeySequence::Copy);
-    act->setStatusTip(tr("Copy text to clipboard"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(copy()));
-    mSigMux->connect(SIGNAL(copyAvailable(bool)), act, SLOT(setEnabled(bool)));
+    action->setShortcut(tr("Ctrl+C", "Copy"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    action->setStatusTip(tr("Copy text to clipboard"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(copy()));
+    mEditorSigMux->connect(SIGNAL(copyAvailable(bool)), action, SLOT(setEnabled(bool)));
+    settings->addAction( action, "editor-copy", editorCategory);
 
-    mActions[Paste] = act = new QAction(
+    mActions[Paste] = action = new QAction(
         QIcon::fromTheme("edit-paste"), tr("&Paste"), this);
-    act->setShortcuts(QKeySequence::Paste);
-    act->setStatusTip(tr("Paste text from clipboard"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(paste()));
+    action->setShortcut(tr("Ctrl+V", "Paste"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    action->setStatusTip(tr("Paste text from clipboard"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(paste()));
+    settings->addAction( action, "editor-paste", editorCategory);
 
-    mActions[IndentMore] = act = new QAction(
-        QIcon::fromTheme("format-indent-more"), tr("Indent &More"), this);
-    act->setStatusTip(tr("Increase indentation of selected lines"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(indentMore()));
+    mActions[IndentLineOrRegion] = action = new QAction(
+        QIcon::fromTheme("format-indent-line"), tr("Autoindent Line or Region"), this);
+    action->setStatusTip(tr("Autoindent Line or Region"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(indent()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-indent-auto", editorCategory);
 
-    mActions[IndentLess] = act = new QAction(
-        QIcon::fromTheme("format-indent-less"), tr("Indent &Less"), this);
-    act->setStatusTip(tr("Decrease indentation of selected lines"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(indentLess()));
+    mActions[TriggerAutoCompletion] = action = new QAction(tr("Trigger Autocompletion"), this);
+    action->setStatusTip(tr("Suggest possible completions of text at cursor"));
+    action->setShortcut(tr("Ctrl+Space", "Trigger Autocompletion"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(triggerAutoCompletion()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-autocompletion", editorCategory);
+
+    mActions[TriggerMethodCallAid] = action = new QAction(tr("Trigger Method Call Aid"), this);
+    action->setStatusTip(tr("Show arguments for currently typed method call"));
+    action->setShortcut(tr("Ctrl+Shift+Space", "Trigger Method Call Aid"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(triggerMethodCallAid()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-method-call-assist", editorCategory);
+
+    mActions[ToggleComment] = action = new QAction(
+        QIcon::fromTheme("edit-comment"), tr("Toggle &Comment"), this);
+    action->setShortcut(tr("Ctrl+/", "Toggle Comment"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    action->setStatusTip(tr("Toggle Comment"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(toggleComment()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-toggle-comment", editorCategory);
+
+    mActions[ToggleOverwriteMode] = action = new QAction(
+        QIcon::fromTheme("edit-overwrite"), tr("Toggle &Overwrite Mode"), this);
+    action->setShortcut(tr("Insert", "Toggle Overwrite Mode"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(toggleOverwriteMode()));
+    settings->addAction( action, "editor-toggle-overwrite", editorCategory);
+
+    mActions[CopyLineUp] = action = new QAction(
+        QIcon::fromTheme("edit-copylineup"), tr("Copy Line Up"), this);
+    action->setShortcut(tr("Ctrl+Alt+Up", "Copy Line Up"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(copyLineUp()));
+    settings->addAction( action, "editor-copy-line-up", editorCategory);
+
+    mActions[CopyLineDown] = action = new QAction(
+        QIcon::fromTheme("edit-copylinedown"), tr("Copy Line Down"), this);
+    action->setShortcut(tr("Ctrl+Alt+Down", "Copy Line Up"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(copyLineDown()));
+    settings->addAction( action, "editor-copy-line-down", editorCategory);
+
+    mActions[MoveLineUp] = action = new QAction(
+        QIcon::fromTheme("edit-movelineup"), tr("move Line Up"), this);
+    action->setShortcut(tr("Ctrl+Shift+Up", "Move Line Up"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(moveLineUp()));
+    settings->addAction( action, "editor-move-line-up", editorCategory);
+
+    mActions[MoveLineDown] = action = new QAction(
+        QIcon::fromTheme("edit-movelinedown"), tr("Move Line Down"), this);
+    action->setShortcut(tr("Ctrl+Shift+Down", "Move Line Up"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(moveLineDown()));
+    settings->addAction( action, "editor-move-line-down", editorCategory);
+
+    mActions[GotoPreviousBlock] = action = new QAction(
+        QIcon::fromTheme("edit-gotopreviousblock"), tr("Go to Previous Block"), this);
+    action->setShortcut(tr("Ctrl+[", "Go to Previous Block"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(gotoPreviousBlock()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-go-to-prev-block", editorCategory);
+
+    mActions[GotoNextBlock] = action = new QAction(
+        QIcon::fromTheme("edit-gotonextblock"), tr("Go to Next Block"), this);
+    action->setShortcut(tr("Ctrl+]", "Go to Next Block"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(gotoNextBlock()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-go-to-next-block", editorCategory);
+
+    mActions[GotoPreviousRegion] = action = new QAction(
+        QIcon::fromTheme("edit-gotopreviousregion"), tr("Go to Previous Region"), this);
+    action->setShortcut(tr("Alt+[", "Go to Previous Region"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(gotoPreviousRegion()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-go-to-prev-region", editorCategory);
+
+    mActions[GotoNextRegion] = action = new QAction(
+        QIcon::fromTheme("edit-gotonextregion"), tr("Go to Next Region"), this);
+    action->setShortcut(tr("Alt+]", "Go to Next Region"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(gotoNextRegion()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-go-to-next-region", editorCategory);
+
+    mActions[GotoPreviousEmptyLine] = action = new QAction( tr("Go to Previous Empty Line"), this);
+    action->setShortcut(tr("Ctrl+Up", "Go to Previous Empty Line"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(gotoPreviousEmptyLine()));
+    settings->addAction( action, "editor-go-to-prev-empty-line", editorCategory);
+
+    mActions[GotoNextEmptyLine] = action = new QAction( tr("Go to Next Empty Line"), this);
+    action->setShortcut(tr("Ctrl+Down", "Go to Next Empty Line"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(gotoNextEmptyLine()));
+    settings->addAction( action, "editor-go-to-next-empty-line", editorCategory);
+
+    mActions[SelectRegion] = action = new QAction( tr("Select Region"), this);
+    action->setShortcut(tr("Ctrl+Shift+R", "Select Region"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(selectCurrentRegion()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-select-region", editorCategory);
 
     // View
 
-    mActions[EnlargeFont] = act = new QAction(
+    mActions[EnlargeFont] = action = new QAction(
         QIcon::fromTheme("zoom-in"), tr("&Enlarge Font"), this);
-    act->setShortcut(QKeySequence(tr("CTRL++", "View|Enlarge Font")));
-    act->setStatusTip(tr("Increase displayed font size"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(zoomIn()));
+    action->setShortcut(tr("Ctrl++", "Enlarge font"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    action->setStatusTip(tr("Increase displayed font size"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(zoomIn()));
+    settings->addAction( action, "editor-enlarge-font", editorCategory);
 
-    mActions[ShrinkFont] = act = new QAction(
+    mActions[ShrinkFont] = action = new QAction(
         QIcon::fromTheme("zoom-out"), tr("&Shrink Font"), this);
-    act->setShortcut(QKeySequence(tr("Ctrl+-", "View|Shrink Font")));
-    act->setStatusTip(tr("Decrease displayed font size"));
-    mSigMux->connect(act, SIGNAL(triggered()), SLOT(zoomOut()));
+    action->setShortcut( tr("Ctrl+-", "Shrink font"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    action->setStatusTip(tr("Decrease displayed font size"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(zoomOut()));
+    settings->addAction( action, "editor-shrink-font", editorCategory);
 
-    mActions[ShowWhitespace] = act = new QAction(tr("Show Spaces and Tabs"), this);
-    act->setCheckable(true);
-    mSigMux->connect(act, SIGNAL(triggered(bool)), SLOT(setShowWhitespace(bool)));
+    mActions[ResetFontSize] = action = new QAction(
+        QIcon::fromTheme("zoom-reset"), tr("&Reset Font Size"), this);
+    action->setShortcut( tr("Ctrl+0", "Reset font"));
+    action->setStatusTip(tr("Reset displayed font size"));
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(resetFontSize()));
+    settings->addAction( action, "editor-reset-font-size", editorCategory);
+
+    mActions[ShowWhitespace] = action = new QAction(tr("Show Spaces and Tabs"), this);
+    action->setCheckable(true);
+    mEditorSigMux->connect(action, SIGNAL(triggered(bool)), SLOT(setShowWhitespace(bool)));
+    settings->addAction( action, "editor-toggle-show-whitespace", editorCategory);
+
+    mActions[NextDocument] = action = new QAction(tr("Next Document"), this);
+#ifndef Q_OS_MAC
+    action->setShortcut( tr("Alt+Right", "Next Document"));
+#else
+    action->setShortcut( tr("Ctrl+Alt+Right", "Next Document"));
+#endif
+    connect(action, SIGNAL(triggered()), this, SLOT(showNextDocument()));
+    settings->addAction( action, "editor-document-next", editorCategory);
+
+    mActions[PreviousDocument] = action = new QAction(tr("Previous Document"), this);
+#ifndef Q_OS_MAC
+    action->setShortcut( tr("Alt+Left", "Previous Document"));
+#else
+    action->setShortcut( tr("Ctrl+Alt+Left", "Previous Document"));
+#endif
+    connect(action, SIGNAL(triggered()), this, SLOT(showPreviousDocument()));
+    settings->addAction( action, "editor-document-previous", editorCategory);
+
+    mActions[SwitchDocument] = action = new QAction(tr("Switch Document"), this);
+#ifndef Q_OS_MAC
+    action->setShortcut( tr("Ctrl+Tab", "Switch Document"));
+#else
+    action->setShortcut( tr("Meta+Tab", "Switch Document"));
+#endif
+    connect(action, SIGNAL(triggered()), this, SLOT(switchDocument()));
+    settings->addAction( action, "editor-document-switch", editorCategory);
+
+    mActions[SplitHorizontally] = action = new QAction(tr("Split To Right"), this);
+    action->setShortcut( tr("Ctrl+P, 3", "Split To Right"));
+    connect(action, SIGNAL(triggered()), this, SLOT(splitHorizontally()));
+    settings->addAction( action, "editor-split-right", editorCategory);
+
+    mActions[SplitVertically] = action = new QAction(tr("Split To Bottom"), this);
+    action->setShortcut( tr("Ctrl+P, 2", "Split To Bottom"));
+    connect(action, SIGNAL(triggered()), this, SLOT(splitVertically()));
+    settings->addAction( action, "editor-split-bottom", editorCategory);
+
+    mActions[RemoveCurrentSplit] = action = new QAction(tr("Remove Current Split"), this);
+    action->setShortcut( tr("Ctrl+P, 1", "Remove Current Split"));
+    connect(action, SIGNAL(triggered()), this, SLOT(removeCurrentSplit()));
+    settings->addAction( action, "editor-split-remove", editorCategory);
+
+    mActions[RemoveAllSplits] = action = new QAction(tr("Remove All Splits"), this);
+    action->setShortcut( tr("Ctrl+P, 0", "Remove All Splits"));
+    connect(action, SIGNAL(triggered()), this, SLOT(removeAllSplits()));
+    settings->addAction( action, "editor-split-remove-all", editorCategory);
+
+    // Language
+
+    mActions[EvaluateCurrentDocument] = action = new QAction(
+        QIcon::fromTheme("media-playback-start"), tr("Evaluate &File"), this);
+    action->setStatusTip(tr("Evaluate current File"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(evaluateDocument()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-eval-file", editorCategory);
+
+    mActions[EvaluateRegion] = action = new QAction(
+    QIcon::fromTheme("media-playback-start"), tr("&Evaluate Selection, Line or Region"), this);
+    action->setShortcut(tr("Ctrl+Return", "Evaluate region"));
+    action->setStatusTip(tr("Evaluate current region"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(evaluateRegion()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-eval-smart", editorCategory);
+
+    mActions[EvaluateLine] = action = new QAction(
+    QIcon::fromTheme("media-playback-startline"), tr("&Evaluate Line"), this);
+    action->setShortcut(tr("Shift+Ctrl+Return", "Evaluate line"));
+    action->setStatusTip(tr("Evaluate current line"));
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(evaluateLine()),
+                           SignalMultiplexer::ConnectionOptional);
+    settings->addAction( action, "editor-eval-line", editorCategory);
+
+    // These actions are not added to any menu, so they have to be added
+    // at least to this widget, in order for the shortcuts to always respond:
+    addAction(mActions[TriggerAutoCompletion]);
+    addAction(mActions[TriggerMethodCallAid]);
+    addAction(mActions[SwitchDocument]);
+
+    // These actions have to be added because to the widget because they have
+    // Qt::WidgetWithChildrenShortcut context:
+    addAction(mActions[Cut]);
+    addAction(mActions[Copy]);
+    addAction(mActions[Paste]);
+    addAction(mActions[EnlargeFont]);
+    addAction(mActions[ShrinkFont]);
+    addAction(mActions[EvaluateCurrentDocument]);
+    addAction(mActions[EvaluateRegion]);
+    addAction(mActions[EvaluateLine]);
+    addAction(mActions[ToggleComment]);
+    addAction(mActions[ToggleOverwriteMode]);
+    addAction(mActions[CopyLineUp]);
+    addAction(mActions[CopyLineDown]);
+    addAction(mActions[MoveLineUp]);
+    addAction(mActions[MoveLineDown]);
+    addAction(mActions[GotoPreviousBlock]);
+    addAction(mActions[GotoNextBlock]);
+    addAction(mActions[GotoPreviousRegion]);
+    addAction(mActions[GotoNextRegion]);
+    addAction(mActions[GotoPreviousEmptyLine]);
+    addAction(mActions[GotoNextEmptyLine]);
+    addAction(mActions[SelectRegion]);
 }
 
 void MultiEditor::updateActions()
 {
-    CodeEditor *editor = currentEditor();
-    QTextDocument *doc = editor ? editor->document()->textDocument() : 0;
+    GenericCodeEditor *editor = currentEditor();
+    QTextDocument *doc = editor ? editor->textDocument() : 0;
 
-    mActions[DocSave]->setEnabled( doc );
-    mActions[DocSaveAs]->setEnabled( doc );
-    mActions[DocClose]->setEnabled( doc );
     mActions[Undo]->setEnabled( doc && doc->isUndoAvailable() );
     mActions[Redo]->setEnabled( doc && doc->isRedoAvailable() );
     mActions[Copy]->setEnabled( editor && editor->textCursor().hasSelection() );
     mActions[Cut]->setEnabled( mActions[Copy]->isEnabled() );
     mActions[Paste]->setEnabled( editor );
-    mActions[IndentMore]->setEnabled( editor );
-    mActions[IndentLess]->setEnabled( editor );
+    mActions[ToggleOverwriteMode]->setEnabled( editor );
+    mActions[CopyLineUp]->setEnabled( editor );
+    mActions[CopyLineDown]->setEnabled( editor );
+    mActions[MoveLineUp]->setEnabled( editor );
+    mActions[MoveLineDown]->setEnabled( editor );
+    mActions[GotoPreviousEmptyLine]->setEnabled( editor );
+    mActions[GotoNextEmptyLine]->setEnabled( editor );
     mActions[EnlargeFont]->setEnabled( editor );
     mActions[ShrinkFont]->setEnabled( editor );
+    mActions[ResetFontSize]->setEnabled( editor );
     mActions[ShowWhitespace]->setEnabled( editor );
     mActions[ShowWhitespace]->setChecked( editor && editor->showWhitespace() );
+
+    // ScLang-specific actions
+    bool editorIsScCodeEditor = qobject_cast<ScCodeEditor*>(editor); // NOOP at the moment, but
+    mActions[ToggleComment]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[GotoPreviousBlock]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[GotoNextBlock]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[GotoPreviousRegion]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[GotoNextRegion]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[SelectRegion]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[IndentLineOrRegion]->setEnabled( editor && editorIsScCodeEditor );
+
+    mActions[EvaluateCurrentDocument]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[EvaluateRegion]->setEnabled( editor && editorIsScCodeEditor );
+    mActions[EvaluateLine]->setEnabled( editor && editorIsScCodeEditor );
 }
 
-void MultiEditor::applySettings( QSettings *s )
+static QVariantList saveBoxState( CodeEditorBox *box, const QList<Document*> & documentList )
 {
-    s->beginGroup("IDE/editor");
-    mStepForwardEvaluation = s->value("stepForwardEvaluation", false).toBool();
-    s->endGroup();
+    // save editors in reverse order - first one is last shown.
+    QVariantList boxData;
+    int idx = box->history().count();
+    while(idx--) {
+        GenericCodeEditor *editor = box->history()[idx];
+        if (!editor->document()->filePath().isEmpty()) {
+            int documentIndex = documentList.indexOf( editor->document() );
+            Q_ASSERT(documentIndex >= 0);
+            QVariantMap editorData;
+            editorData.insert("documentIndex", documentIndex);
+            editorData.insert("position", editor->textCursor().position());
+            boxData.append( editorData );
+        }
+    }
+    return boxData;
+}
 
-    int c = count();
-    for( int i = 0; i < c; ++i )
+static QVariantMap saveSplitterState( QSplitter *splitter, const QList<Document*> & documentList )
+{
+    QVariantMap splitterData;
+
+    splitterData.insert( "state", splitter->saveState().toBase64() );
+
+    QVariantList childrenData;
+
+    int childCount = splitter->count();
+    for (int idx = 0; idx < childCount; idx++) {
+        QWidget *child = splitter->widget(idx);
+
+        CodeEditorBox *box = qobject_cast<CodeEditorBox*>(child);
+        if (box) {
+            QVariantList boxData = saveBoxState(box, documentList);
+            childrenData.append( QVariant(boxData) );
+            continue;
+        }
+
+        QSplitter *childSplitter = qobject_cast<QSplitter*>(child);
+        if (childSplitter) {
+            QVariantMap childSplitterData = saveSplitterState(childSplitter, documentList);
+            childrenData.append( QVariant(childSplitterData) );
+        }
+    }
+
+    splitterData.insert( "elements", childrenData );
+
+    return splitterData;
+}
+
+void MultiEditor::saveSession( Session *session )
+{
+    QList<Document*> documentList;
+
+    QVariantList tabsData;
+    int tabCount = mTabs->count();
+    for (int tabIdx = 0; tabIdx < tabCount; ++tabIdx) {
+        Document *doc = documentForTab(tabIdx);
+        documentList << doc;
+        tabsData << doc->filePath();
+    }
+
+    session->setValue( "documents", QVariant::fromValue(tabsData) );
+
+    session->remove( "editors" );
+    session->setValue( "editors", saveSplitterState(mSplitter, documentList) );
+}
+
+void MultiEditor::loadBoxState( CodeEditorBox *box,
+                                const QVariantList & data, const QList<Document*> & documentList )
+{
+    int docCount = documentList.count();
+    foreach( QVariant docVar, data )
     {
-        CodeEditor *editor = editorForTab(i);
-        if(!editor) continue;
-        editor->applySettings(s);
+        QVariantMap docData = docVar.value<QVariantMap>();
+        int docIndex = docData.value("documentIndex").toInt();
+        int docPos = docData.value("position").toInt();
+        if (docIndex >= 0 && docIndex < docCount)
+            box->setDocument( documentList[docIndex], docPos );
     }
 }
 
-void MultiEditor::newDocument()
+void MultiEditor::loadSplitterState( QSplitter *splitter,
+                                     const QVariantMap & data, const QList<Document*> & documentList )
 {
-    mDocManager->create();
+    QByteArray state = QByteArray::fromBase64( data.value("state").value<QByteArray>() );
+
+    QVariantList childrenData = data.value("elements").value<QVariantList>();
+    foreach (const QVariant & childVar, childrenData) {
+        if (childVar.type() == QVariant::List) {
+            CodeEditorBox *childBox = newBox();
+            splitter->addWidget(childBox);
+            QVariantList childBoxData = childVar.value<QVariantList>();
+            loadBoxState( childBox, childBoxData, documentList );
+        }
+        else if (childVar.type() == QVariant::Map) {
+            QSplitter *childSplitter = new QSplitter;
+            splitter->addWidget(childSplitter);
+            QVariantMap childSplitterData = childVar.value<QVariantMap>();
+            loadSplitterState( childSplitter, childSplitterData, documentList );
+        }
+    }
+
+    if (!splitter->restoreState(state))
+        qWarning("MultiEditor: could not restore splitter state!");
 }
 
-void MultiEditor::openDocument()
+void MultiEditor::switchSession( Session *session )
 {
-    mDocManager->open();
+    ///// Going offline...
+
+    breakSignalConnections();
+
+    DocumentManager *docManager = Main::documentManager();
+
+    QList<Document*> documentList = docManager->documents();
+
+    // close all docs
+    foreach (Document *doc, documentList)
+        docManager->close(doc);
+
+    // remove all tabs
+    while (mTabs->count())
+        mTabs->removeTab(0);
+
+    // remove all editors
+    delete mSplitter;
+
+    documentList.clear();
+
+    mSplitter = new MultiSplitter();
+
+    CodeEditorBox *firstBox = 0;
+
+    if (session)
+    {
+        // open documents saved in the session
+        QVariantList docDataList = session->value("documents").value<QVariantList>();
+        foreach( const QVariant & docData, docDataList ) {
+            QString filePath = docData.toString();
+            Document * doc = docManager->open(filePath, -1, 0, false);
+            documentList << doc;
+        }
+
+        // restore tabs
+        foreach ( Document * doc, documentList ) {
+            if (!doc)
+                continue;
+            addTab(doc);
+        }
+
+        // restore editors
+        if (session->contains("editors")) {
+            QVariantMap splitterData = session->value("editors").value<QVariantMap>();
+            loadSplitterState( mSplitter, splitterData, documentList );
+
+            if (mSplitter->count()) {
+                firstBox = mSplitter->findChild<CodeEditorBox>();
+                if (!firstBox) {
+                    qWarning("Session seems to contain invalid editor split data!");
+                    delete mSplitter;
+                    mSplitter = new MultiSplitter();
+                }
+            }
+        }
+    }
+
+    if (!firstBox) {
+        // Restoring the session didn't result in any editor box, so create one:
+        firstBox = newBox();
+        mSplitter->addWidget( firstBox );
+    }
+
+    layout()->addWidget(mSplitter);
+
+    makeSignalConnections();
+
+    ///// Back online.
+
+    mCurrentEditorBox = 0; // ensure complete update
+    setCurrentBox( firstBox );
+
+    if (!session)
+        // create a document on new session
+        docManager->create();
+
+    firstBox->setFocus(Qt::OtherFocusReason); // ensure focus
 }
 
-void MultiEditor::saveDocument()
+int MultiEditor::addTab( Document * doc )
 {
-    CodeEditor *editor = currentEditor();
-    if(!editor) return;
-
-    mDocManager->save( editor->document() );
-}
-
-void MultiEditor::saveDocumentAs()
-{
-    CodeEditor *editor = currentEditor();
-    if(!editor) return;
-
-    mDocManager->saveAs( editor->document() );
-}
-
-void MultiEditor::closeDocument()
-{
-    CodeEditor *editor = currentEditor();
-    if(!editor) return;
-
-    mDocManager->close(editor->document());
-}
-
-void MultiEditor::setCurrent( Document *doc )
-{
-    CodeEditor *editor = editorForDocument(doc);
-    if(editor)
-        setCurrentWidget(editor);
-}
-
-void MultiEditor::onOpen( Document *doc )
-{
-    CodeEditor *editor = new CodeEditor();
-    editor->setDocument(doc);
-    editor->applySettings(mMain->settings());
-
     QTextDocument *tdoc = doc->textDocument();
 
     QIcon icon;
     if(tdoc->isModified())
-        icon = QIcon::fromTheme("document-save");
+        icon = mDocModifiedIcon;
 
-    addTab( editor, icon, doc->title() );
-    setCurrentIndex( count() - 1 );
+    int newTabIndex = mTabs->addTab( icon, doc->title() );
+    mTabs->setTabData( newTabIndex, QVariant::fromValue<Document*>(doc) );
 
-    mModificationMapper.setMapping(tdoc, editor);
-    connect(tdoc, SIGNAL(modificationChanged(bool)),
-            &mModificationMapper, SLOT(map()));
+    mDocModifiedSigMap.setMapping(tdoc, doc);
+    connect( tdoc, SIGNAL(modificationChanged(bool)), &mDocModifiedSigMap, SLOT(map()) );
+
+    return newTabIndex;
+}
+
+void MultiEditor::setCurrent( Document *doc )
+{
+    int tabIdx = tabForDocument(doc);
+    if (tabIdx != -1)
+        mTabs->setCurrentIndex(tabIdx);
+}
+
+void MultiEditor::showNextDocument()
+{
+    int currentIndex = mTabs->currentIndex();
+    mTabs->setCurrentIndex( qMin(currentIndex + 1, mTabs->count() - 1) );
+}
+
+void MultiEditor::showPreviousDocument()
+{
+    int currentIndex = mTabs->currentIndex();
+    mTabs->setCurrentIndex( qMax(0, currentIndex - 1) );
+}
+
+void MultiEditor::switchDocument()
+{
+    CodeEditorBox *box = currentBox();
+
+    DocumentSelectPopUp * popup = new DocumentSelectPopUp(box->history(), this);
+
+    QRect popupRect(0,0,300,200);
+    popupRect.moveCenter(rect().center());
+    popup->resize(popupRect.size());
+    QPoint globalPosition = mapToGlobal(popupRect.topLeft());
+
+    Document * selectedDocument = popup->exec(globalPosition);
+
+    if (selectedDocument)
+        box->setDocument(selectedDocument);
+}
+
+void MultiEditor::onOpen( Document *doc, int initialCursorPosition, int selectionLength )
+{
+    addTab(doc);
+
+    currentBox()->setDocument(doc, initialCursorPosition, selectionLength);
+    currentBox()->setFocus(Qt::OtherFocusReason);
 }
 
 void MultiEditor::onClose( Document *doc )
 {
-    CodeEditor *editor = editorForDocument(doc);
-    delete editor;
+    int tabIdx = tabForDocument(doc);
+    if (tabIdx != -1)
+        mTabs->removeTab(tabIdx);
+    // TODO: each box should switch document according to their own history
+}
+
+void MultiEditor::onDocModified( QObject *object )
+{
+    Document *doc = qobject_cast<Document*>(object);
+    if (!doc) return;
+
+    int tabIdx = tabForDocument(doc);
+    if (tabIdx == -1) return;
+
+    QIcon icon;
+    if(doc->textDocument()->isModified())
+        icon = mDocModifiedIcon;
+
+    mTabs->setTabIcon( tabIdx, icon );
+}
+
+void MultiEditor::show( Document *doc, int pos, int selectionLength )
+{
+    currentBox()->setDocument(doc, pos, selectionLength);
+    currentBox()->setFocus(Qt::OtherFocusReason);
 }
 
 void MultiEditor::update( Document *doc )
 {
-    int c = count();
-    for(int i=0; i<c; ++i) {
-        CodeEditor *editor = editorForTab(i);
-        if(editor && editor->document() == doc)
-            setTabText(i, doc->title());
-    }
+    int tabIdx = tabForDocument(doc);
+    if (tabIdx != -1)
+        mTabs->setTabText(tabIdx, doc->title());
+
+    // update thisProcess.nowExecutingPath
+    GenericCodeEditor *editor = currentEditor();
+    if (editor->document() == doc)
+        Main::scProcess()->setActiveDocument(doc);
 }
 
 void MultiEditor::onCloseRequest( int index )
 {
-    CodeEditor *editor = editorForTab( index );
-    if(editor)
-        mDocManager->close(editor->document());
+    Document *doc = documentForTab(index);
+    if (doc)
+        MainWindow::close(doc);
 }
 
-void MultiEditor::onCurrentChanged( int index )
+void MultiEditor::onCurrentTabChanged( int index )
 {
-    CodeEditor *editor = editorForTab(index);
+    if (index == -1)
+        return;
 
-    if(editor) {
-        mSigMux->setCurrentObject(editor);
-        editor->setFocus(Qt::OtherFocusReason);
+    Document *doc = documentForTab(index);
+    if (!doc)
+        return;
+
+    CodeEditorBox *curBox = currentBox();
+    curBox->setDocument(doc);
+    curBox->setFocus(Qt::OtherFocusReason);
+}
+
+void MultiEditor::onCurrentEditorChanged(GenericCodeEditor *editor)
+{
+    setCurrentEditor(editor);
+}
+
+void MultiEditor::onBoxActivated(CodeEditorBox *box)
+{
+    setCurrentBox(box);
+}
+
+Document * MultiEditor::documentForTab( int index )
+{
+    return mTabs->tabData(index).value<Document*>();
+}
+
+int MultiEditor::tabForDocument( Document * doc )
+{
+    int tabCount = mTabs->count();
+    for (int idx = 0; idx < tabCount; ++idx) {
+        Document *tabDoc = documentForTab(idx);
+        if (tabDoc && tabDoc == doc)
+            return idx;
+    }
+    return -1;
+}
+
+CodeEditorBox *MultiEditor::newBox()
+{
+    CodeEditorBox *box = new CodeEditorBox();
+
+    connect(box, SIGNAL(activated(CodeEditorBox*)),
+            this, SLOT(onBoxActivated(CodeEditorBox*)));
+
+    return box;
+}
+
+void MultiEditor::setCurrentBox( CodeEditorBox * box )
+{
+    if (mCurrentEditorBox == box)
+        return;
+
+    mCurrentEditorBox = box;
+    mBoxSigMux->setCurrentObject(box);
+    setCurrentEditor( box->currentEditor() );
+
+    mCurrentEditorBox->setActive();
+}
+
+void MultiEditor::setCurrentEditor( GenericCodeEditor * editor )
+{
+    if (editor) {
+        int tabIndex = tabForDocument(editor->document());
+        if (tabIndex != -1)
+            mTabs->setCurrentIndex(tabIndex);
     }
 
+    mEditorSigMux->setCurrentObject(editor);
     updateActions();
 
-    if(editor)
-        Q_EMIT( currentChanged(editor->document()) );
+    Document *currentDocument = editor ? editor->document() : 0;
+    Main::scProcess()->setActiveDocument(currentDocument);
+    emit currentDocumentChanged(currentDocument);
 }
 
-void MultiEditor::onModificationChanged( QWidget *w )
+GenericCodeEditor *MultiEditor::currentEditor()
 {
-    CodeEditor *editor = qobject_cast<CodeEditor*>(w);
-    if(!editor) return;
-
-    int i = indexOf(editor);
-    if( i == -1 ) return;
-
-    QIcon icon;
-    if(editor->document()->textDocument()->isModified())
-        icon = QIcon::fromTheme("document-save");
-    setTabIcon( i, icon );
+    return currentBox()->currentEditor();
 }
 
-CodeEditor * MultiEditor::editorForTab( int index )
+void MultiEditor::split( Qt::Orientation splitDirection )
 {
-    return qobject_cast<CodeEditor*>( widget(index) );
+    CodeEditorBox *box = newBox();
+    CodeEditorBox *curBox = currentBox();
+    GenericCodeEditor *curEditor = curBox->currentEditor();
+
+    if (curEditor)
+        box->setDocument(curEditor->document(), curEditor->textCursor().position());
+
+    mSplitter->insertWidget(box, curBox, splitDirection);
+    box->setFocus( Qt::OtherFocusReason );
 }
 
-CodeEditor * MultiEditor::editorForDocument( Document *doc )
+void MultiEditor::removeCurrentSplit()
 {
-    int c = count();
-    for(int i = 0; i < c; ++i) {
-        CodeEditor *editor = editorForTab(i);
-        if( editor && editor->document() == doc)
-            return editor;
-    }
-    return 0;
+    int boxCount = mSplitter->findChildren<CodeEditorBox*>().count();
+    if (boxCount < 2)
+        // Do not allow removing the one and only box.
+        return;
+
+    CodeEditorBox *box = currentBox();
+    mSplitter->removeWidget(box);
+
+    // switch current box to first box found:
+    box = mSplitter->findChild<CodeEditorBox>();
+    Q_ASSERT(box);
+    setCurrentBox(box);
+    box->setFocus( Qt::OtherFocusReason );
+}
+
+void MultiEditor::removeAllSplits()
+{
+    CodeEditorBox *box = currentBox();
+    Q_ASSERT(box);
+    Q_ASSERT(mSplitter->count());
+    if (mSplitter->count() == 1 && mSplitter->widget(0) == box)
+        // Nothing to do.
+        return;
+
+    MultiSplitter *newSplitter = new MultiSplitter;
+    newSplitter->addWidget(box);
+
+    delete mSplitter;
+    mSplitter = newSplitter;
+    layout()->addWidget(newSplitter);
+
+    box->setFocus( Qt::OtherFocusReason );
 }
 
 } // namespace ScIDE

@@ -149,10 +149,24 @@ t.stop;
 
 method::defer
 
-Delay the evaluation of this Function by delta in seconds. Uses AppClock.
+Delay the evaluation of this Function by code::delta:: in seconds on AppClock.
+
+This is equivalent to code::AppClock.sched(0, function):: unless code::delta:: is code::nil::. In that case the function is only scheduled if current code is not running on AppClock, otherwise the function is evaluated immediately.
 
 code::
 { "2 seconds have passed.".postln; }.defer(2);
+
+(
+{ "chicken".postln }.defer(0); // schedules on the AppClock
+{ "egg".postln }.defer // evaluates immediately
+)
+
+(
+fork { // schedules on a TempoClock
+    { "chicken".postln }.defer // schedules on the AppClock
+};
+{ "egg".postln }.defer // evaluates immediately
+)
 ::
 
 method::dup
@@ -368,10 +382,12 @@ argument::fadeTime
 a fadein time. The default is 0.02 seconds, which is just enough to avoid a click. This will also be the fadeout time for a release if you do not specify.
 argument::addAction
 see Synth for a list of valid addActions. The default is \addToHead.
+argument::args
+arguments
 
 method::scope
 
-As play above, but plays it on the internal Server, and calls Server-scope to open a scope window in which to view the output. Currently only works on OSX.
+As play above, and calls Server-scope to open a scope window in which to view the output.
 
 code::
 { FSinOsc.ar(440, 0, 0.3) }.scope(1)
@@ -420,10 +436,14 @@ Returns a SynthDef based on this Function, adding a Linen and an Out ugen if nee
 
 argument::rates
 An Array of rates and lagtimes for the function's arguments (see SynthDef for more details).
+argument::prependArgs
+arguments
 argument::outClass
 The class of the output ugen as a symbol. The default is \Out.
 argument::fadeTime
 a fadein time. The default is 0.
+argument::name
+the name of the SynthDef
 
 method::asDefName
 

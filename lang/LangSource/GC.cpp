@@ -174,16 +174,16 @@ HOT void PyrGC::ScanSlots(PyrSlot *inSlots, long inNumToScan)
 				PyrObjectHdr * objPrev  = obj->prev;
 				PyrObjectHdr * objNext  = obj->next;
 
+				/* link in grey set */
+				greyNext->prev = obj;
+				grey->next = obj;
+				obj->prev = grey;
+				obj->next = greyNext;
+				greyNext = obj;
+
 				// remove from old set
 				objNext->prev = objPrev;
 				objPrev->next = objNext;
-
-				/* link in grey set */
-				obj->next = greyNext;
-				obj->prev = grey;
-				greyNext->prev = obj;
-				grey->next = obj;
-				greyNext = obj;
 
 				obj->gc_color = greyColor;
 				foundGreyObjects++;
@@ -674,7 +674,7 @@ void PyrGC::Collect(int32 inNumToScan)
 	Collect();	// collect space
 }
 
-void PyrGC::Collect()
+HOT void PyrGC::Collect()
 {
 	BEGINPAUSE
 	bool stackScanned = false;
@@ -752,6 +752,31 @@ void PyrGC::ScanFinalizers()
 
 	while (obj != firstFreeObj) {
 		Finalize((PyrObject*)obj);
+		obj = obj->next;
+	}
+}
+
+void PyrGC::RunAllFinalizers()
+{
+	GCSet *gcs = &mSets[kFinalizerSet];
+
+	PyrObjectHdr *obj = gcs->mBlack.next;
+	while (!IsMarker(obj)) {
+		Finalize((PyrObject*)obj);
+		obj = obj->next;
+	}
+
+	obj = gcs->mWhite.next;
+	PyrObjectHdr *firstFreeObj = gcs->mFree;
+	while (obj != firstFreeObj) {
+		Finalize((PyrObject*)obj);
+		obj = obj->next;
+	}
+
+	obj = mGrey.next;
+	while (!IsMarker(obj)) {
+		if (obj->classptr == class_finalizer)
+			Finalize((PyrObject*)obj);
 		obj = obj->next;
 	}
 }
@@ -1050,7 +1075,7 @@ bool PyrGC::SanityMarkObj(PyrObject *objA, PyrObject *fromObj, int level)
 	if (objA->IsPermanent()) return true;
 	if (objA->IsMarked()) return true;
 	if (objA->size > MAXINDEXSIZE(objA)) {
-		fprintf(stderr, "obj indexed size larger than max: %d > %d\n", objA->size, MAXINDEXSIZE(objA));
+		fprintf(stderr, "obj indexed size larger than max: %d > %ld\n", objA->size, MAXINDEXSIZE(objA));
 		//dumpObject((PyrObject*)objA);
 		return false;
 	}

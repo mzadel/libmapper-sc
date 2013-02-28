@@ -1,11 +1,11 @@
 QEnvelopeView : QView
 {
   var <editable, <step, <grid, <gridOn = false;
-  var <gridColor, <strokeColor, <fillColor, <selectionColor;
+  var <fillColor;
   var <drawLines = true, <drawRects = true;
   var <metaAction;
 
-  *qtClass {^"QcGraph"}
+  *qtClass {^'QcGraph'}
 
   editable_ { arg aBool;
     editable = aBool;
@@ -58,9 +58,7 @@ QEnvelopeView : QView
     ^this.setProperty( \index, index );
   }
 
-  lastIndex {
-    ^this.index;
-  }
+  lastIndex { ^this.getProperty( \lastIndex ); }
 
   selectIndex { arg index;
     if( index < 0 ){
@@ -130,27 +128,18 @@ QEnvelopeView : QView
     this.setProperty( \gridOn, aBool );
   }
 
-  gridColor_ { arg aColor;
-    gridColor = aColor;
-    this.setProperty( \gridColor, aColor );
-  }
-
   connect { arg source, targets;
     this.invokeMethod( \connectElements, [source, targets] );
   }
 
-  strokeColor_ { arg aColor;
-    strokeColor = aColor;
-    this.setProperty( \strokeColor, aColor );
-  }
+  gridColor { ^this.getProperty(\gridColor) }
+  gridColor_ { arg color; this.setProperty( \gridColor, color ) }
 
-  background {
-    ^this.palette.base;
-  }
+  selectionColor { ^this.getProperty(\selectionColor) }
+  selectionColor_ { arg color; this.setProperty(\selectionColor, color) }
 
-  background_ { arg color;
-    this.palette = this.palette.base_(color);
-  }
+  strokeColor { ^this.getProperty(\strokeColor) }
+  strokeColor_ { arg color; this.setProperty( \strokeColor, color ) }
 
   fillColor_ { arg aColor;
     fillColor = aColor;
@@ -164,10 +153,6 @@ QEnvelopeView : QView
   colors_ { arg strokeColor, fillColor;
     this.strokeColor_( strokeColor );
     this.fillColor_( fillColor );
-  }
-
-  selectionColor_ { arg color;
-    this.palette = this.palette.highlight_(color);
   }
 
   drawLines_ { arg aBool;

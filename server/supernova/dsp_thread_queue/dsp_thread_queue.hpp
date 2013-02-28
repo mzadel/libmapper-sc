@@ -20,29 +20,27 @@
 #define DSP_THREAD_QUEUE_DSP_THREAD_QUEUE_HPP
 
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <vector>
 
 #include <boost/atomic.hpp>
-#include <boost/cstdint.hpp>
-#include <boost/thread.hpp>
 #include <cstdio>
 
 #ifdef DEBUG_DSP_THREADS
-#include <boost/foreach.hpp>
 #include <cstdio>
 #endif
 
 #include <boost/lockfree/stack.hpp>
 
+#include "nova-tt/pause.hpp"
 #include "nova-tt/semaphore.hpp"
 
 #include "utilities/branch_hints.hpp"
 #include "utilities/utils.hpp"
 
-namespace nova
-{
+namespace nova {
 
 template <typename runnable, typename Alloc>
 class dsp_queue_interpreter;
@@ -72,7 +70,7 @@ class dsp_thread_queue_item:
     typedef typename Alloc::template rebind<dsp_thread_queue_item>::other new_allocator;
 
 public:
-    typedef boost::uint_fast16_t activation_limit_t;
+    typedef std::uint_fast16_t activation_limit_t;
 
     struct successor_list
     {
@@ -182,7 +180,7 @@ public:
 
         if (!successors.empty()) {
             printf("\tsuccessors:\n");
-            BOOST_FOREACH(dsp_thread_queue_item * item, successors) {
+            for(dsp_thread_queue_item * item : successors) {
                 printf("\t\t%p\n", item);
             }
         }
@@ -237,7 +235,7 @@ private:
 template <typename runnable, typename Alloc = std::allocator<void*> >
 class dsp_thread_queue
 {
-    typedef boost::uint_fast16_t node_count_t;
+    typedef std::uint_fast16_t node_count_t;
 
     typedef nova::dsp_thread_queue_item<runnable, Alloc> dsp_thread_queue_item;
     typedef std::vector<dsp_thread_queue_item*,
@@ -265,8 +263,8 @@ public:
 #endif
 
     /** preallocate node_count nodes */
-    dsp_thread_queue(std::size_t node_count):
-        total_node_count(0)
+    dsp_thread_queue(std::size_t node_count, bool has_parallelism = true):
+        total_node_count(0), has_parallelism_(has_parallelism)
     {
         initially_runnable_items.reserve(node_count);
         queue_items = item_allocator().allocate(node_count * sizeof(dsp_thread_queue_item));
@@ -309,10 +307,16 @@ public:
         return total_node_count;
     }
 
+    bool has_parallelism(void) const
+    {
+        return has_parallelism_;
+    }
+
 private:
     node_count_t total_node_count;          /* total number of nodes */
     item_vector_t initially_runnable_items; /* nodes without precedessor */
     dsp_thread_queue_item * queue_items;    /* all nodes */
+    const bool has_parallelism_;
 
     friend class dsp_queue_interpreter<runnable, Alloc>;
 };
@@ -331,14 +335,10 @@ public:
     typedef boost::uint_fast8_t thread_count_t;
     typedef boost::uint_fast16_t node_count_t;
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
     typedef std::unique_ptr<dsp_thread_queue> dsp_thread_queue_ptr;
-#else
-    typedef std::auto_ptr<dsp_thread_queue> dsp_thread_queue_ptr;
-#endif
 
     dsp_queue_interpreter(thread_count_t tc):
-        runnable_set(1024), node_count(0)
+        node_count(0)
     {
         if (!runnable_set.is_lock_free())
             std::cout << "Warning: scheduler queue is not lockfree!" << std::endl;
@@ -375,7 +375,6 @@ public:
         return ret;
     }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
     dsp_thread_queue_ptr reset_queue(dsp_thread_queue_ptr && new_queue)
     {
         dsp_thread_queue_ptr ret(std::move(queue));
@@ -390,39 +389,17 @@ public:
         queue->dump_queue();
 #endif
 
-        thread_count_t thread_number =
-            std::min(thread_count_t(std::min(total_node_count(),
-                                             node_count_t(std::numeric_limits<thread_count_t>::max()))),
-                     thread_count);
+        if (queue->has_parallelism()) {
+            thread_count_t thread_number =
+                    std::min(thread_count_t(std::min(total_node_count(),
+                                                     node_count_t(std::numeric_limits<thread_count_t>::max()))),
+                             thread_count);
 
-        used_helper_threads = thread_number - 1; /* this thread is not waked up */
+            used_helper_threads = thread_number - 1; /* this thread is not waked up */
+        } else
+            used_helper_threads = 0;
         return ret;
     }
-
-#else
-
-    dsp_thread_queue_ptr reset_queue(dsp_thread_queue_ptr & new_queue)
-    {
-        dsp_thread_queue_ptr ret(queue.release());
-        queue = new_queue;
-        if (queue.get() == 0)
-            return ret;
-
-        queue->reset_activation_counts();
-
-#ifdef DEBUG_DSP_THREADS
-        queue->dump_queue();
-#endif
-
-        thread_count_t thread_number =
-            std::min(thread_count_t(std::min(total_node_count(),
-                                             node_count_t(std::numeric_limits<thread_count_t>::max()))),
-                     thread_count);
-
-        used_helper_threads = thread_number - 1; /* this thread is not waked up */
-        return ret;
-    }
-#endif
 
     node_count_t total_node_count(void) const
     {
@@ -460,7 +437,7 @@ private:
         void run(void)
         {
             for (int i = 0; i != loops; ++i)
-                asm(""); // empty asm to avoid optimization
+                nova::detail::pause();
 
             loops = std::min(loops * 2, max);
         }
@@ -475,7 +452,7 @@ private:
 
     void run_item(thread_count_t index)
     {
-        backup b(256, 32768);
+        backup b(8, 32768);
         int poll_counts = 0;
 
         for (;;) {
@@ -575,7 +552,7 @@ private:
     thread_count_t thread_count;        /* number of dsp threads to be used by this queue */
     thread_count_t used_helper_threads; /* number of helper threads, which are actually used */
 
-    boost::lockfree::stack<dsp_thread_queue_item*> runnable_set;
+    boost::lockfree::stack<dsp_thread_queue_item*,  boost::lockfree::capacity<32768> > runnable_set;
     boost::atomic<node_count_t> node_count; /* number of nodes, that need to be processed during this tick */
 };
 

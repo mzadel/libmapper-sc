@@ -32,13 +32,13 @@ namespace ScIDE {
 class DocumentManager;
 class Document;
 
-class DocumentList : public QListWidget
+class DocumentListWidget : public QListWidget
 {
     Q_OBJECT
 
 public:
 
-    DocumentList(DocumentManager *, QWidget * parent = 0);
+    DocumentListWidget(DocumentManager *, QWidget * parent = 0);
 
 public Q_SLOTS:
 
@@ -50,7 +50,7 @@ Q_SIGNALS:
 
 private Q_SLOTS:
 
-    void onOpen( Document * );
+    void onOpen( Document *, int, int );
     void onClose( Document * );
     void onSaved( Document * );
     void onModificationChanged(QObject*);
@@ -58,7 +58,7 @@ private Q_SLOTS:
 
 protected:
 
-    virtual QSize sizeHint() const { return QSize(170,170); }
+    virtual QSize sizeHint() const { return QSize(200,200); }
 
 private:
     struct Item : public QListWidgetItem
@@ -68,9 +68,6 @@ private:
             mDoc(doc)
         {
             setText(doc->title());
-            QTextDocument *tdoc = doc->textDocument();
-            if(tdoc->isModified())
-                setIcon( QIcon::fromTheme("document-save") );
         }
 
         Document *mDoc;
@@ -80,6 +77,7 @@ private:
     Item *itemFor( Document * );
     Item *itemFor( QListWidgetItem * );
     QSignalMapper mModificationMapper;
+    QIcon mDocModifiedIcon;
 };
 
 class DocumentsDock : public QDockWidget
@@ -87,18 +85,18 @@ class DocumentsDock : public QDockWidget
 public:
     DocumentsDock(DocumentManager *manager, QWidget* parent = 0):
         QDockWidget(tr("Documents"), parent),
-        mDocList(new DocumentList(manager))
+        mDocList(new DocumentListWidget(manager))
     {
         setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
         setFeatures(DockWidgetFloatable | DockWidgetMovable | DockWidgetClosable);
         setWidget(mDocList);
     }
 
-    DocumentList *list() { return mDocList; }
+    DocumentListWidget *list() { return mDocList; }
 
 private:
 
-    DocumentList *mDocList;
+    DocumentListWidget *mDocList;
 };
 
 } // namespace ScIDE

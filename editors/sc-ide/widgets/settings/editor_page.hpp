@@ -22,13 +22,19 @@
 #define SCIDE_WIDGETS_SETTINGS_EDITOR_PAGE_HPP_INCLUDED
 
 #include <QWidget>
-#include <QSettings>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QTextCharFormat>
+
+class QFontDatabase;
 
 namespace Ui {
     class EditorConfigPage;
 }
 
 namespace ScIDE { namespace Settings {
+
+class Manager;
 
 class EditorPage : public QWidget
 {
@@ -39,14 +45,48 @@ public:
     ~EditorPage();
 
 public Q_SLOTS:
-    void load( QSettings * );
-    void store( QSettings * );
+    void load( Manager * );
+    void store( Manager * );
 
 private Q_SLOTS:
-    void execSyntaxFormatContextMenu(const QPoint &);
+    void onCurrentTabChanged(int);
+
+    void onMonospaceToggle(bool);
+    void updateFontPreview();
+
+    void updateTextFormatEdit();
+    void updateTextFormatDisplay();
+    void updateTextFormatDisplayCommons();
 
 private:
+    enum TextFormatListRole {
+        TextFormatConfigKeyRole = Qt::UserRole,
+        TextFormatRole,
+        DefaultTextFormatRole
+    };
+
+    void loadGeneralTextFormats( Manager * );
+    void loadSyntaxTextFormats( Manager * );
+
+    void populateFontList( bool onlyMonospaced = false );
+
+    QFont constructFont();
+    QTextCharFormat constructTextFormat();
+
+    QTreeWidgetItem * addTextFormat
+    ( QTreeWidgetItem * parent, const QString & name, const QString &key,
+      const QTextCharFormat & format, const QTextCharFormat & defaultFormat = QTextCharFormat() );
+
+    void updateTextFormatDisplay( QTreeWidgetItem * );
+
+    QFontDatabase *fontDatabase;
+
     Ui::EditorConfigPage *ui;
+
+    QStringList mFormatKeys;
+    QTreeWidgetItem *mGeneralFormatsItem;
+    QTreeWidgetItem *mSyntaxFormatsItem;
+    QTreeWidgetItem *mCommonTextFormatItem;
 };
 
 }} // namespace ScIDE::Settings

@@ -1134,7 +1134,6 @@ static void calcRowStats(PyrMethod** bigTable, ColumnDescriptor * sels, int numC
 {
 		//chunkSize = 0;
 		//chunkOffset = 0;
-	PyrMethod** methodPtr = bigTable;
 	for (int j=0; j<numClasses; ++j) {
 		for (int i=begin; i<end; ++i) {
 			PyrMethod* method = bigTable[j * numSelectors + i];
@@ -1165,7 +1164,7 @@ static void calcRowStats(PyrMethod** bigTable, ColumnDescriptor * sels, int numC
 
 void buildBigMethodMatrix()
 {
-	PyrMethod **bigTable, **temprow, **row;
+	PyrMethod **bigTable, **row;
 	PyrClass *classobj, **classes;
 	int i, j, k;
 	int popSum, widthSum;
@@ -1636,7 +1635,7 @@ void initClasses()
 	class_absfunc = makeIntrinsicClass(s_absfunc, s_object, 0, 0);
 	class_stream = makeIntrinsicClass(s_stream, s_absfunc, 0, 0);
 
-	class_thread = makeIntrinsicClass(s_thread, s_stream, 26, 0);
+	class_thread = makeIntrinsicClass(s_thread, s_stream, 27, 0);
 		addIntrinsicVar(class_thread, "state", &o_nil);
 		addIntrinsicVar(class_thread, "func", &o_nil);
 		addIntrinsicVar(class_thread, "stack", &o_nil);
@@ -1663,6 +1662,7 @@ void initClasses()
 
 		addIntrinsicVar(class_thread, "environment", &o_nil);
 		addIntrinsicVar(class_thread, "exceptionHandler", &o_nil);
+		addIntrinsicVar(class_thread, "threadPlayer", &o_nil);
 
 		addIntrinsicVar(class_thread, "executingPath", &o_nil);
 		addIntrinsicVar(class_thread, "oldExecutingPath", &o_nil);
@@ -2654,7 +2654,7 @@ int putIndexedSlot(VMGlobals *g, PyrObject *obj, PyrSlot *c, int index)
 	PyrSlot *slot;
 	switch (obj->obj_format) {
 		case obj_slot :
-			if (obj->obj_flags & obj_immutable) return errImmutableObject;
+			if (obj->IsImmutable()) return errImmutableObject;
 			slot = obj->slots + index;
 			slotCopy(slot, c);
 			g->gc->GCWrite(obj, slot);
@@ -2706,7 +2706,7 @@ int putIndexedFloat(PyrObject *obj, double val, int index)
 	PyrSlot *slot;
 	switch (obj->obj_format) {
 		case obj_slot :
-			if (obj->obj_flags & obj_immutable) return errImmutableObject;
+			if (obj->IsImmutable()) return errImmutableObject;
 			slot = obj->slots + index;
 			SetFloat(slot, val);
 			break;

@@ -125,8 +125,15 @@ Class {
 	helpFilePath {
 		^this.name.asString.findHelpFile
 	}
+	help {
+		this.openHelpFile
+	}
 	openHelpFile {
-		this.name.asString.openHelpFile
+		// NOTE: because wslib provided the shortcut "Object:*help --> Object:*openHelpFile", we do the same
+		// rather than moving the implementation to the future-compatible :help method.
+		// This prevents infinite recursions for people with wslib installed.
+		// In future (3.7) this method content should be moved to :help, but no sooner.
+		this.name.asString.help
 	}
 
 	shallowCopy { ^this }
@@ -174,7 +181,7 @@ Class {
 Process {
 	// A Process is a runtime environment.
 	var classVars, <interpreter;
-	var curThread, mainThread;
+	var curThread, <mainThread;
 	var schedulerQueue;
 	var <>nowExecutingPath;
 
@@ -372,7 +379,7 @@ Process {
 	}
 
 	showHelp {
-		this.getCurrentSelection.openHelpFile
+		this.getCurrentSelection.help
 	}
 
 	argv { ^[] }
@@ -473,7 +480,7 @@ Method : FunctionDef {
 		//can't add instance variables to Class
 		^this.name.asString.findHelpFile.notNil
 	}
-	openHelpFile {
+	help {
 		HelpBrowser.openHelpForMethod(this);
 	}
 	inspectorClass { ^MethodInspector }
@@ -551,12 +558,16 @@ Interpreter {
 	}
 
 	interpretPrintCmdLine {
-		var res, func, code = cmdLine, doc = Document.current;
+		var res, func, code = cmdLine, doc = Document.current, ideClass = \ScIDE.asClass;
 		"\n".post;
 		preProcessor !? { cmdLine = preProcessor.value(cmdLine, this) };
 		func = this.compile(cmdLine);
-		if(doc.tryPerform(\dataptr).notNil) {
-			thisProcess.nowExecutingPath = doc.tryPerform(\path);
+		if (ideClass.notNil) {
+			thisProcess.nowExecutingPath = ideClass.currentPath
+		} {
+			if(doc.tryPerform(\dataptr).notNil) {
+				thisProcess.nowExecutingPath = doc.tryPerform(\path);
+			}
 		};
 		res = func.value;
 		thisProcess.nowExecutingPath = nil;

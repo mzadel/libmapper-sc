@@ -116,9 +116,7 @@ Function : AbstractFunction {
 	}
 
 	dup { arg n = 2;
-		var array = Array(n);
-		n.do {|i| array.add(this.value(i)) };
-		^array
+		^Array.fill(n, this)
 	}
 	sum { arg n = 2;
 		var sum = 0;
@@ -126,11 +124,11 @@ Function : AbstractFunction {
 		^sum
 	}
 
-	defer { arg delta = 0;
-		if (delta == 0 and: {this.canCallOS}) {
+	defer { arg delta;
+		if (delta.isNil and: {this.canCallOS}) {
 			this.value
 		}{
-			AppClock.sched(delta, { this.value; nil })
+			AppClock.sched(delta ? 0, { this.value; nil })
 		}
 	}
 

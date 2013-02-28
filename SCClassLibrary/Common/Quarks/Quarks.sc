@@ -235,16 +235,18 @@ Quarks
 
 	help { |name|
 		var q;
-
-		q = local.findQuark(name);
-		if(q.isNil,{
-			Error(
-				name.asString +
-				"not found in local quarks.  Not yet downloaded from the repository ?"
-			).throw;
-		});
-
-		q.openHelpFile;
+		if(name.isNil){
+			"Quarks".help
+		}{
+			q = local.findQuark(name);
+			if(q.isNil,{
+				Error(
+					name.asString +
+					"not found in local quarks.  Not yet downloaded from the repository ?"
+				).throw;
+			});
+			q.help;
+		}
 	}
 
 	name { ^local.name }
@@ -333,12 +335,14 @@ QuarksView {
 				views.do({ |view| view.remove });
 			});
 			scrollview.decorator.reset;
-			views = quarks.sort( _.name < _.name ).collect{|quark|
-				var qView = QuarkView.new(scrollview, 500@20, quark,
-					quarksCtrl.installed.detect{|it| it == quark}.notNil);
-				scrollview.decorator.nextLine;
-				qView;
-			};
+			views = quarks.sort { |a, b| a.name < b.name }
+				.collect { |quark|
+					var qView = QuarkView.new(scrollview, 500@20, quark,
+						quarksCtrl.installed.detect { |it| it == quark }.notNil
+					);
+					scrollview.decorator.nextLine;
+					qView;
+				};
 			scrollview.visible = true;
 			views
 		};
@@ -613,7 +617,7 @@ QuarksViewQt {
 			.states_([["Help"]])
 			.toolTip_("Show help for this Quark")
 			.action_({
-				curQuark.openHelpFile
+				curQuark.help
 			});
 
 		btnQuarkOpen = Button()
@@ -634,7 +638,7 @@ QuarksViewQt {
 						cls[item.index].browse;
 					}),
 					Button().states_([["Help"]]).action_({
-						cls[item.index].openHelpFile;
+						cls[item.index].help;
 					}),
 					Button().states_([["Source"]]).action_({
 						cls[item.index].openCodeFile;
@@ -670,7 +674,7 @@ QuarksViewQt {
 						mets[item.index].ownerClass.browse;
 					}),
 					Button().states_([["Help"]]).action_({
-						mets[item.index].openHelpFile;
+						mets[item.index].help;
 					}),
 					Button().states_([["Source"]]).action_({
 						mets[item.index].openCodeFile;

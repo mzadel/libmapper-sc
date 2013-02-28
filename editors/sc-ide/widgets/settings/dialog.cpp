@@ -20,8 +20,12 @@
 
 #include "dialog.hpp"
 #include "ui_settings_dialog.h"
+#include "general_page.hpp"
 #include "sclang_page.hpp"
 #include "editor_page.hpp"
+#include "shortcuts_page.hpp"
+#include "../../core/settings/manager.hpp"
+#include "../../core/main.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -34,31 +38,47 @@
 
 namespace ScIDE { namespace Settings {
 
-Dialog::Dialog( QSettings *settings, QWidget * parent ):
+Dialog::Dialog( Manager *settings, QWidget * parent ):
     QDialog(parent),
-    mSettings(settings),
+    mManager(settings),
     ui( new Ui::ConfigDialog )
 {
     ui->setupUi(this);
 
-    QWidget *w = new SclangPage;
+    QWidget *w;
+
+    w = new GeneralPage;
+    ui->configPageStack->addWidget(w);
+    ui->configPageList->addItem (
+        new QListWidgetItem(QIcon::fromTheme("preferences-system"), "General"));
+    connect(this, SIGNAL(storeRequest(Manager*)), w, SLOT(store(Manager*)));
+    connect(this, SIGNAL(loadRequest(Manager*)), w, SLOT(load(Manager*)));
+
+    w = new SclangPage;
     ui->configPageStack->addWidget(w);
     ui->configPageList->addItem (
         new QListWidgetItem(QIcon::fromTheme("applications-system"), "Interpreter"));
-    connect(this, SIGNAL(storeRequest(QSettings*)), w, SLOT(store(QSettings*)));
-    connect(this, SIGNAL(loadRequest(QSettings*)), w, SLOT(load(QSettings*)));
+    connect(this, SIGNAL(storeRequest(Manager*)), w, SLOT(store(Manager*)));
+    connect(this, SIGNAL(loadRequest(Manager*)), w, SLOT(load(Manager*)));
 
     w = new EditorPage;
     ui->configPageStack->addWidget(w);
     ui->configPageList->addItem (
         new QListWidgetItem(QIcon::fromTheme("accessories-text-editor"), "Editor"));
-    connect(this, SIGNAL(storeRequest(QSettings*)), w, SLOT(store(QSettings*)));
-    connect(this, SIGNAL(loadRequest(QSettings*)), w, SLOT(load(QSettings*)));
+    connect(this, SIGNAL(storeRequest(Manager*)), w, SLOT(store(Manager*)));
+    connect(this, SIGNAL(loadRequest(Manager*)), w, SLOT(load(Manager*)));
+
+    w = new ShortcutsPage;
+    ui->configPageStack->addWidget(w);
+    ui->configPageList->addItem (
+        new QListWidgetItem(QIcon::fromTheme("input-keyboard"), "Shortcuts"));
+    connect(this, SIGNAL(storeRequest(Manager*)), w, SLOT(store(Manager*)));
+    connect(this, SIGNAL(loadRequest(Manager*)), w, SLOT(load(Manager*)));
 
     connect(ui->buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
     connect(ui->buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(ui->buttonBox->button(QDialogButtonBox::Reset), SIGNAL(clicked()),
-            this, SLOT(reset()));
+    connect(ui->buttonBox->button(QDialogButtonBox::Apply), SIGNAL(clicked()), this, SLOT(apply()));
+    connect(ui->buttonBox->button(QDialogButtonBox::Reset), SIGNAL(clicked()), this, SLOT(reset()));
 
     reset();
 }
@@ -70,7 +90,7 @@ Dialog::~Dialog()
 
 void Dialog::accept()
 {
-    Q_EMIT( storeRequest(mSettings) );
+    Q_EMIT( storeRequest(mManager) );
 
     QDialog::accept();
 }
@@ -80,9 +100,15 @@ void Dialog::reject()
     QDialog::reject();
 }
 
+void Dialog::apply()
+{
+    Q_EMIT( storeRequest(mManager) );
+    Main::instance()->applySettings();
+}
+
 void Dialog::reset()
 {
-    Q_EMIT( loadRequest(mSettings) );
+    Q_EMIT( loadRequest(mManager) );
 }
 
 }} // namespace ScIDE::Settings

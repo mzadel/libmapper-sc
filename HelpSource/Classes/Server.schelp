@@ -1,7 +1,7 @@
 class:: Server
 summary:: Object representing an sc-server application
 categories:: Server>Abstractions
-related:: Classes/ServerOptions
+related:: Classes/ServerOptions, Reference/Server-Architecture, Reference/Server-Command-Reference
 
 description::
 
@@ -102,6 +102,13 @@ query the system for any sc-server apps and hard quit them
 method:: freeAll
 free all nodes in all registered servers
 
+method:: supernova
+
+Switches server program to use supernova. Check link::Classes/ParGroup:: how to make use of multicore hardware with the supernova server.
+
+method:: scsynth
+
+Switches server program to use supernova.
 
 
 InstanceMethods::
@@ -149,6 +156,7 @@ method:: loadDirectory
 load all the SynthDefs in the directory dir.
 argument:: dir
 a link::Classes/String:: which is a valid path.
+argument:: completionMsg
 
 method:: nextNodeID
 get a unique nodeID.
@@ -254,6 +262,8 @@ table::
 ## 2 || print the contents in hexadecimal.
 ## 3 || print both the parsed and hexadecimal representations of the contents.
 ::
+
+note:: teletype::/status:: messages won't be posted, when dumping is enabled::
 
 method:: queryAllNodes
 Post a representation of this Server's current node tree to the post window. See link::#-plotTree:: for a graphical variant.
@@ -553,7 +563,7 @@ method:: sendMsgSync
 Send the following message to the wait until it has completed before resuming the thread.
 argument:: condition
 an optional instance of link::Classes/Condition:: used for evaluating this.
-argument:: args
+argument:: ... args
 one or more valid OSC messages.
 
 method:: sync
@@ -611,6 +621,6 @@ table::
 ## d || toggle dumpOSC
 ## n || post a representation of the node tree
 ## N || post a representation of the node tree and the current control values of any synths
-## s || scope (internal server only)
+## s || scope
 ::
 

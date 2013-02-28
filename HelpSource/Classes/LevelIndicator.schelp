@@ -99,7 +99,7 @@ An link::Classes/Image::. The default image is the SC cube.
 METHOD:: numTicks
 The number of ticks to display in the view's scale.
 
-argument:: ticks
+argument:: number
 An link::Classes/Integer:: >= 0.
 
 code::(
@@ -114,7 +114,7 @@ a.value = 0.5;
 METHOD:: numMajorTicks
 The number of ticks in the view's scale which will be large sized.
 
-argument:: ticks
+argument:: number
 An link::Classes/Integer:: >= 0.
 
 code::(
@@ -167,7 +167,7 @@ GUI.cocoa; // just to be sure
 
 // something to meter
 (
-b = Buffer.read(s, "sounds/a11wlk01.wav");
+b = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
 x = { var colum, noise, imp, delimp, mul = 1;
 	imp = Impulse.kr(10);
 	delimp = Delay1.kr(imp);

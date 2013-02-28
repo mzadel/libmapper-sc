@@ -313,7 +313,7 @@ ArrayedCollection : SequenceableCollection {
 		// rank is the number of dimensions in a multidimensional array.
 		// see also Object-rank
 		// this assumes every element has the same rank
-		^ 1 + this.first.rank
+		^1 + this.first.rank
 	}
 	shape {
 		// this assumes every element has the same shape
@@ -325,13 +325,6 @@ ArrayedCollection : SequenceableCollection {
 		shape[1..].reverseDo {|n| result = result.clump(n) };
 		^result
 	}
-	deepCollect { arg depth = 1, function;
-		if (depth <= 0) {
-			^function.value(this, 0)
-		};
-		depth = depth-1;
-		^this.collect {|item| item.deepCollect(depth, function) }
-	}
 	reshapeLike { arg another, indexing=\wrapAt;
 		var index = 0;
 		var flat = this.flat;
@@ -341,7 +334,31 @@ ArrayedCollection : SequenceableCollection {
 			item;
 		};
 	}
-
+	deepCollect { arg depth = 1, function, index = 0, rank = 0;
+		if(depth.isNil) {
+			rank = rank + 1;
+			^this.collect { |item, i| item.deepCollect(depth, function, i, rank) }
+		};
+		if (depth <= 0) {
+			^function.value(this, index, rank)
+		};
+		depth = depth - 1;
+		rank = rank + 1;
+		^this.collect { |item, i| item.deepCollect(depth, function, i, rank) }
+	}
+	deepDo { arg depth = 1, function, index = 0, rank = 0;
+		if(depth.isNil) {
+			rank = rank + 1;
+			^this.do { |item, i| item.deepDo(depth, function, i, rank) }
+		};
+		if (depth <= 0) {
+			function.value(this, index, rank);
+			^this
+		};
+		depth = depth - 1;
+		rank = rank + 1;
+		^this.do { |item, i| item.deepDo(depth, function, i, rank) }
+	}
 	unbubble { arg depth=0, levels=1;
 		if (depth <= 0) {
 			// converts a size 1 array to the item.
@@ -375,48 +392,6 @@ ArrayedCollection : SequenceableCollection {
 	}
 	*iota { arg ... sizes;
 		^(0..sizes.product-1).reshape(*sizes)
-	}
-	*fill2D { arg rows, cols, function;
-		var array = this.new(rows);
-		rows.do{|row|
-			var array2 = this.new(cols);
-			cols.do{|col|
-				array2 = array2.add(function.(row, col))
-			};
-			array = array.add(array2);
-		};
-		^array
-	}
-	*fill3D { arg planes, rows, cols, function;
-		var array = this.new(planes);
-		planes.do{|plane|
-			var array2 = this.new(rows);
-			rows.do{|row|
-				var array3 = this.new(cols);
-				cols.do{|col|
-					array3 = array3.add(function.(plane, row, col))
-				};
-				array2 = array2.add(array3);
-			};
-			array = array.add(array2);
-		};
-		^array
-	}
-	*fillND { arg dimensions, function, args=[]; // args are private
-		var n = dimensions.first;
-		var array = this.new(n);
-		var argIndex = args.size;
-		args = args ++ 0;
-		if(dimensions.size <= 1) {
-			n.do { |i| array.add(function.valueArray(args.put(argIndex, i))) };
-		} {
-			dimensions = dimensions.drop(1);
-			n.do { |i|
-				var array2 = this.fillND(dimensions, function, args.put(argIndex, i));
-				array = array.add(array2);
-			}
-		};
-		^array
 	}
 
 

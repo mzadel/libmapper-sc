@@ -22,6 +22,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <new> // for std::bad_alloc
+
 #include <boost/noncopyable.hpp>
 
 #ifdef __SSE2__
@@ -29,6 +31,10 @@
 #elif defined(HAVE_TBB)
 #include <tbb/cache_aligned_allocator.h>
 #endif /* HAVE_TBB */
+
+#ifdef _MSC_VER
+#include <malloc.h>
+#endif
 
 #include "function_attributes.h"
 
@@ -89,6 +95,20 @@ inline void free_aligned(void *ptr)
     _mm_free(ptr);
 }
 
+#elif defined(_MSC_VER)
+
+const int malloc_memory_alignment = 64;
+
+inline void* MALLOC malloc_aligned(std::size_t nbytes)
+{
+    return _aligned_malloc(nbytes, malloc_memory_alignment);
+}
+
+inline void free_aligned(void *ptr)
+{
+    _aligned_free(ptr);
+}
+
 #elif defined(HAVE_TBB)
 
 inline void* MALLOC malloc_aligned(std::size_t nbytes)
@@ -112,8 +132,7 @@ inline void* MALLOC malloc_aligned(std::size_t nbytes)
 {
     void* vec = malloc(nbytes+ (VECTORALIGNMENT/8-1) + sizeof(void *));
 
-    if (vec != NULL)
-    {
+    if (vec != NULL) {
         /* get alignment of first possible signal vector byte */
         long alignment = ((long)vec+sizeof(void *))&(VECTORALIGNMENT/8-1);
         /* calculate aligned pointer */
@@ -121,13 +140,15 @@ inline void* MALLOC malloc_aligned(std::size_t nbytes)
         /* save original memory location */
         *(void **)((unsigned char *)ret-sizeof(void *)) = vec;
         return ret;
-    }
-    else
+    } else
         return 0;
 }
 
 inline void free_aligned(void *ptr)
 {
+    if (ptr == NULL)
+        return;
+
     /* get original memory location */
     void *ori = *(void **)((unsigned char *)ptr-sizeof(void *));
     free(ori);

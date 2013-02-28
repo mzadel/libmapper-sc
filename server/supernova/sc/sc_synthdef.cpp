@@ -30,11 +30,11 @@
 #include "utilities/sized_array.hpp"
 #include "utilities/exists.hpp"
 
-namespace nova
-{
-typedef boost::int16_t int16;
-typedef boost::int32_t int32;
-typedef boost::int8_t int8;
+namespace nova {
+
+typedef std::int16_t int16;
+typedef std::int32_t int32;
+typedef std::int8_t int8;
 
 using boost::integer::big32_t;
 using boost::integer::big16_t;
@@ -114,11 +114,13 @@ std::vector<sc_synthdef> read_synthdefs(const char * buf_ptr)
 
     for (int i = 0; i != definition_count; ++i) {
         try {
-            sc_synthdef def(buf_ptr, version);
-            ret.push_back(def);
+            ret.emplace_back(buf_ptr, version);
         }
-        catch (std::runtime_error const & e) {
+        catch (std::exception const & e) {
             std::cerr << "Exception when reading synthdef: " << e.what() << std::endl;
+        }
+        catch (...) {
+            std::cerr << "Exception when reading synthdef" << std::endl;
         }
     }
     return ret;
@@ -221,10 +223,9 @@ void sc_synthdef::read_synthdef(const char *& ptr, int version)
     prepare();
 }
 
-namespace
-{
+namespace {
 
-template <typename Alloc = std::allocator<int16_t> >
+template <typename Alloc = std::allocator<int32_t> >
 class buffer_allocator
 {
     std::vector<size_t, Alloc> buffers; /* index: buffer id, value: last reference */
@@ -234,7 +235,7 @@ public:
      *
      *  reuse buffers, which are not used after the current ugen
      */
-    int16_t allocate_buffer(size_t current_ugen)
+    int32_t allocate_buffer(size_t current_ugen)
     {
         for (size_t i = 0; i != buffers.size(); ++i) {
             if (buffers[i] <= current_ugen)
@@ -248,7 +249,7 @@ public:
      *
      * reuse the buffers, which have been used before the current ugen
      */
-    int16_t allocate_buffer_noalias(size_t current_ugen)
+    int32_t allocate_buffer_noalias(size_t current_ugen)
     {
         for (size_t i = 0; i != buffers.size(); ++i) {
             if (buffers[i] < current_ugen)
@@ -263,7 +264,7 @@ public:
         return buffers.size();
     }
 
-    void set_last_reference (int16_t buffer_id, size_t ugen_index)
+    void set_last_reference (int32_t buffer_id, size_t ugen_index)
     {
         buffers[buffer_id] = ugen_index;
     }
@@ -327,7 +328,7 @@ void sc_synthdef::prepare(void)
         memory_requirement_ += ugen->memory_requirement();
 
         for (size_t output_index = 0; output_index != current_ugen_spec.output_specs.size(); ++output_index) {
-            int16_t buffer_id;
+            int32_t buffer_id;
             if (current_ugen_spec.output_specs[output_index] == 2) {
                 /* find last reference to this buffer */
                 size_t last_ref = ugen_index;

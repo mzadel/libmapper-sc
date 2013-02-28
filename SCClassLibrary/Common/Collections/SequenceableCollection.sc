@@ -92,8 +92,18 @@ SequenceableCollection : Collection {
 		newlist = newlist.addAll(this).addAll(aSequenceableCollection);
 		^newlist
 	}
-	+++ { arg aSequenceableCollection;
+	+++ { arg aSequenceableCollection, adverb;
 		aSequenceableCollection = aSequenceableCollection.asSequenceableCollection;
+		if(adverb.notNil) {
+			if(adverb == 0) { ^this ++ aSequenceableCollection };
+			if(adverb == 1) { ^this +++ aSequenceableCollection };
+			if(adverb < 0) { ^aSequenceableCollection.perform('+++', this, adverb.neg) };
+			^this.deepCollect(adverb - 1, { |sublist|
+				sublist.asSequenceableCollection.collect {|item, i|
+					item.asSequenceableCollection ++ aSequenceableCollection.wrapAt(i)
+				}
+			})
+		};
 		^this.collect {|item, i|
 			item.asSequenceableCollection ++ aSequenceableCollection.wrapAt(i)
 		}
@@ -116,6 +126,14 @@ SequenceableCollection : Collection {
 			if (item != aCollection[i]) { ^false };
 		};
 		^true
+	}
+
+	hash {
+		var hash = this.class.hash;
+		this.do { | item |
+			hash = hash << 1 bitXor: item.hash // encode item order by left shifting
+		};
+		^hash
 	}
 
 	copyRange { arg start, end;
@@ -167,13 +185,13 @@ SequenceableCollection : Collection {
 		^nil
 	}
 
-        indicesOfEqual { |item|
-                var indices;
-                this.do { arg val, i;
-                        if (item == val) { indices = indices.add(i) }
-                };
-                ^indices
-        }
+	indicesOfEqual { |item|
+		var indices;
+		this.do { arg val, i;
+			if (item == val) { indices = indices.add(i) }
+		};
+		^indices
+	}
 
 
 	find { |sublist, offset=0|
@@ -458,6 +476,29 @@ SequenceableCollection : Collection {
 		^array.collect { |sublist|
 			sublist.flop.collect { |each| each.drop(-1) } // remove stand-in
 		};
+	}
+
+	flopDeep { arg rank;
+		var size, maxsize;
+		if(rank.isNil) { rank = this.maxDepth - 1 };
+		if(rank <= 1) { ^this.flop };
+
+		size = this.size;
+		maxsize = this.maxSizeAtDepth(rank);
+		^this.species.fill(maxsize, { |i|
+			this.wrapAtDepth(rank, i)
+		})
+	}
+
+	wrapAtDepth { arg rank, index;
+		if(rank == 0) { ^this.wrapAt(index) };
+		^this.collect { |item, i|
+			if(item.isSequenceableCollection) {
+				item.wrapAtDepth(rank - 1, index)
+			} {
+				item
+			}
+		}
 	}
 
 	unlace { arg numlists, clumpSize=1, clip=false;
@@ -856,6 +897,12 @@ SequenceableCollection : Collection {
 		} {
 			^this.class.new
 		}
+	}
+
+	// this method is for UGen inputs that require Refs to block direct multichannel expansion.
+	// here, we assume this is already an array of Refs, which we simply return.
+	multichannelExpandRef { arg rank;
+		^this
 	}
 
 	// support some UGen convenience methods.

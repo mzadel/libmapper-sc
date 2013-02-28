@@ -200,10 +200,10 @@ argument:: startFrame
 The first frame of the soundfile to read. The default is 0, which is the beginning of the file.
 argument:: numFrames
 The number of frames to read. The default is -1, which will read the whole file.
-argument:: completionMessage
-A valid OSC message or a Function which will return one. A Function will be passed this Buffer as an argument when evaluated.
 argument:: bufnum
 An explicitly specified buffer number. Generally this is not needed.
+argument:: completionMessage
+A valid OSC message or a Function which will return one. A Function will be passed this Buffer as an argument when evaluated.
 discussion::
 code::
 // with a completion message
@@ -495,7 +495,7 @@ subsection:: Other methods
 
 method:: read, readMsg
 Read a soundfile into an already allocated buffer.
-argument:: path
+argument:: argpath
 A String representing the path of the soundfile to be read.
 argument:: fileStartFrame
 The first frame of the soundfile to read. The default is 0, which is the beginning of the file.
@@ -516,7 +516,7 @@ Note that if the number of frames in the file is greater than the number of fram
 
 method:: readChannel, readChannelMsg
 As link::#-read:: above, but allows you to specify which channels to read.
-argument:: path
+argument:: argpath
 A String representing the path of the soundfile to be read.
 argument:: fileStartFrame
 The first frame of the soundfile to read. The default is 0, which is the beginning of the file.
@@ -560,6 +560,10 @@ Write the contents of the buffer to a file. See link::Classes/SoundFile:: for in
 argument:: path
 A String representing the path of the soundfile to be written.
 If no path is given, Buffer writes into the default recording directory with a generic name.
+argument:: headerFormat
+A String.
+argument:: sampleFormat
+A String.
 argument:: numFrames
 The number of frames to write. The default is -1, which will write the whole buffer.
 argument:: startFrame
@@ -736,7 +740,8 @@ method:: fill, fillMsg
 Starting at the index startAt, set the next numFrames to value. Additional ranges may be included in the same message.
 
 method:: copyData, copyMsg
-Starting at the index srcSamplePos, copy numSamples samples from this to the destination buffer buf starting at dstSamplePos. If numSamples is negative, the maximum number of samples possible is copied. The default is start from 0 in the source and copy the maximum number possible starting at 0 in the destination.
+Starting at the index srcStartAt, copy numSamples samples from this to the destination buffer buf starting at dstStartAt. If numSamples is negative, the maximum number of samples possible is copied. The default is start from 0 in the source and copy the maximum number possible starting at 0 in the destination.
+
 discussion::
 Note: This method used to be called copy, but this conflicts with the method for object-copying. Therefore Buffer:copy is now intended to create a copy of the client-side Buffer object. Its use for copying buffer data on the server is deprecated. If you see a deprecation warning, the data will still be copied on the server and your code will still work, but you should update your code for the new method name.
 code::

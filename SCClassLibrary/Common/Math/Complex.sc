@@ -61,7 +61,7 @@ Complex : Number {
 		});
 	}
 	hash {
-		^real.hash bitXor: imag.hash
+		^real.hash << 1 bitXor: imag.hash
 	}
 
 	// double dispatch
@@ -83,7 +83,7 @@ Complex : Number {
 	
 	squared { ^this * this }
 	cubed { ^this * this * this }
-	exp { ^exp(real) * Complex.new(cos(imag), sin(real)) }
+	exp { ^exp(real) * Complex.new(cos(imag), sin(imag)) }
 	
 	pow { arg aNumber; // return(this ** aNumber)
 		

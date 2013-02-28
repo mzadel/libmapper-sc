@@ -21,193 +21,30 @@
 
 #include "BasicWidgets.h"
 #include "../QcWidgetFactory.h"
-#include "../Common.h"
 
-#include <QApplication>
-#include <QKeyEvent>
+#include <QPaintEvent>
 #include <QPainter>
-#ifdef Q_WS_MAC
-# include <QMacStyle>
-#endif
 
 QC_DECLARE_QWIDGET_FACTORY( QcDefaultWidget );
 QC_DECLARE_QWIDGET_FACTORY( QcHLayoutWidget );
 QC_DECLARE_QWIDGET_FACTORY( QcVLayoutWidget );
-QC_DECLARE_QWIDGET_FACTORY( QLabel );
-QC_DECLARE_QWIDGET_FACTORY( QcTextField );
-QC_DECLARE_QWIDGET_FACTORY( QcCheckBox );
 
-//////////////////////////// QcListWidget //////////////////////////////////////
-
-class QcListWidgetFactory : public QcWidgetFactory<QcListWidget>
+void QcSimpleWidget::setBackground( const QColor &c )
 {
-  void initialize( QWidgetProxy *p, QcListWidget *l ) {
-    p->setMouseEventWidget( l->viewport() );
-  }
-};
+  if(_bkg == c) return;
 
-QC_DECLARE_FACTORY( QcListWidget, QcListWidgetFactory );
-
-QcListWidget::QcListWidget() : _emitAction(true)
-{
-  connect( this, SIGNAL( currentItemChanged( QListWidgetItem*, QListWidgetItem* ) ),
-           this, SLOT( onCurrentItemChanged() ) );
+  _bkg = c;
+  setAttribute(Qt::WA_OpaquePaintEvent, c.isValid() && c.alpha() == 255);
+  update();
 }
 
-void QcListWidget::setItems( const VariantList & items )
+void QcSimpleWidget::paintEvent( QPaintEvent *e )
 {
-  _emitAction = false;
-  clear();
-  Q_FOREACH( QVariant item, items.data )
-    addItem( item.toString() );
-  setCurrentRow( 0 );
-  _emitAction = true;
+  if (!_bkg.isValid()) return;
+
+  QPainter p(this);
+  p.fillRect(e->rect(), _bkg);
 }
-
-void QcListWidget::setColors( const VariantList & colors ) const
-{
-  int cc = colors.data.count();
-  int ic = count();
-  for( int i=0; i<cc && i < ic; ++i ) {
-    QListWidgetItem *it = item(i);
-    QColor color( colors.data[i].value<QColor>() );
-    if( color.isValid() ) it->setBackground( color );
-  }
-}
-
-void QcListWidget::setCurrentRowWithoutAction( int row )
-{
-  bool b = _emitAction;
-  _emitAction = false;
-  setCurrentRow( row );
-  _emitAction = b;
-}
-
-void QcListWidget::onCurrentItemChanged()
-{
-  if( _emitAction ) Q_EMIT( action() );
-}
-
-void QcListWidget::keyPressEvent( QKeyEvent *e )
-{
-  QListWidget::keyPressEvent( e );
-  if( e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter )
-    Q_EMIT( returnPressed() );
-}
-
-////////////////////////// QcPopUpMenu /////////////////////////////////////////
-
-QC_DECLARE_QWIDGET_FACTORY(QcPopUpMenu);
-
-QcPopUpMenu::QcPopUpMenu() :
-  _changed(false),
-  _reactivation(false)
-{
-  connect( this, SIGNAL(currentIndexChanged(int)),
-           this, SLOT(setChanged()) );
-  connect( this, SIGNAL(currentIndexChanged(int)),
-           this, SLOT(clearChanged()), Qt::QueuedConnection );
-
-  connect( this, SIGNAL(activated(int)), this, SLOT(doAction(int)) );
-}
-
-void QcPopUpMenu::setItems( const VariantList & items )
-{
-  clear();
-  Q_FOREACH( QVariant item, items.data )
-      addItem( item.toString() );
-}
-
-void QcPopUpMenu::doAction( int choice )
-{
-  if( _changed || _reactivation )
-    Q_EMIT( action() );
-}
-
-/////////////////////////////// QcButton ///////////////////////////////////////
-
-QC_DECLARE_QWIDGET_FACTORY(QcButton);
-
-QcButton::QcButton()
-: currentState(0), defaultPalette( palette() )
-{
-  connect( this, SIGNAL(clicked()), this, SLOT(doAction()) );
-}
-
-#ifdef Q_WS_MAC
-bool QcButton::hitButton( const QPoint & pos ) const
-{
-  // FIXME: This is a workaround for Qt Bug 15936:
-  // incorrect QPushButton hit area.
-
-  QMacStyle *macStyle = qobject_cast<QMacStyle *>(style());
-
-  if( !macStyle || isFlat() )
-    return QAbstractButton::hitButton(pos);
-  else
-    return QPushButton::hitButton(pos);
-}
-#endif
-
-void QcButton::setStates( const VariantList & statesArg )
-{
-  if( !statesArg.data.count() ) return;
-
-  states.clear();
-
-  Q_FOREACH( QVariant var, statesArg.data ) {
-    VariantList stateArg = var.value<VariantList>();
-    int count = stateArg.data.size();
-    State state;
-    if( count >= 1 )
-      state.text = stateArg.data[0].toString();
-    if( count >= 2 )
-      state.textColor = stateArg.data[1].value<QColor>();
-    if( count >= 3 )
-      state.buttonColor = stateArg.data[2].value<QColor>();
-    states.append( state );
-  }
-  setState( 0 );
-}
-
-void QcButton::setState( int i )
-{
-  int c = states.count();
-  if( !c ) return;
-
-  i = qBound( 0, i, c-1 );
-
-  currentState = i;
-
-  State state = states[i];
-
-  setText( state.text );
-
-  QPalette p ( defaultPalette );
-
-  if( state.textColor.isValid() )
-    p.setColor( QPalette::ButtonText, state.textColor );
-  if( state.buttonColor.isValid() )
-    p.setColor( QPalette::Button, state.buttonColor );
-
-  setPalette( p );
-}
-
-void QcButton::cycleStates()
-{
-  if( states.size() < 2 ) return;
-  int i = currentState + 1;
-  if( i >= states.size() ) i = 0;
-  setState( i );
-}
-
-void QcButton::doAction()
-{
-  cycleStates();
-  Q_EMIT( action((int)QApplication::keyboardModifiers()) );
-}
-
-/////////////////////////////////////////////////////////////////////////
 
 class QcCustomPaintedFactory : public QcWidgetFactory<QcCustomPainted>
 {

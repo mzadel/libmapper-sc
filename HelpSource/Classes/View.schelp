@@ -47,6 +47,7 @@ METHOD:: globalKeyDownAction
 
 	When the action object is evaluated, it is passed the following arguments: view, char, modifiers, unicode, keycode.
 
+note:: The Qt GUI by default installs a default globalKeyDownAction, that calls code::CmdPeriod.run::. ::
 
 METHOD:: globalKeyUpAction
 
@@ -78,7 +79,7 @@ METHOD:: parents
 	returns:: An array of all the parents, grandparents, etc., of the view.
 
 METHOD:: getParents
-	returns:: Same as link::-parents::.
+	returns:: Same as link::#-parents#parents::.
 
 METHOD:: children
 	returns:: An array of all immediate children of the view.

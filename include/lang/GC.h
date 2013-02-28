@@ -144,6 +144,7 @@ public:
 	}
 	void FullCollection();
 	void ScanFinalizers();
+	void RunAllFinalizers();
 	GCSet* GetGCSet(PyrObjectHdr* inObj);
 	void CompletePartialScan(PyrObject *obj);
 
@@ -154,7 +155,7 @@ public:
 	void Free(PyrObjectHdr* inObj);
 
 
-	int32 StackDepth() { return mVMGlobals->sp - mStack->slots + 1; }
+	long StackDepth() { return mVMGlobals->sp - mStack->slots + 1; }
 	PyrObject* Stack() { return mStack; }
 	void SetStack(PyrObject* inStack) { mStack = inStack; }
 
@@ -342,10 +343,10 @@ inline PyrObject * PyrGC::Allocate(size_t inNumBytes, int32 sizeclass, bool inCo
 	} else {
 		if (sizeclass > kMaxPoolSet) {
 			SweepBigObjects();
-			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
+			size_t allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
 			obj = (PyrObject*)mPool->Alloc(allocSize);
 		} else {
-			int32 allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
+			size_t allocSize = sizeof(PyrObjectHdr) + (sizeof(PyrSlot) << sizeclass);
 			obj = (PyrObject*)mNewPool.Alloc(allocSize);
 		}
 		if (!obj)

@@ -41,6 +41,14 @@ static DocNode * topnode;
 
 void scdocerror(const char *str);
 
+extern void error(const char *fmt, ...);
+extern void post(const char *fmt, ...);
+
+static inline bool stringEqual(const char * a, const char * b)
+{
+    return strcmp(a, b) == 0;
+}
+
 %}
 %locations
 %error-verbose
@@ -62,16 +70,18 @@ void scdocerror(const char *str);
 %token LIST TREE NUMBEREDLIST DEFINITIONLIST TABLE FOOTNOTE NOTE WARNING
 // modal range tags that take multi-line text
 %token CODE LINK ANCHOR SOFT IMAGE TELETYPE MATH STRONG EMPHASIS
-%token CODEBLOCK TELETYPEBLOCK MATHBLOCK
+%token CODEBLOCK "CODE block" TELETYPEBLOCK "TELETYPE block" MATHBLOCK "MATH block"
 // symbols
-%token TAGSYM BARS HASHES
+%token TAGSYM "::" BARS "||" HASHES "##"
 // text and whitespace
-%token <str> TEXT URL COMMA METHODNAME METHODARGS
-%token NEWLINE EMPTYLINES
-%token BAD_METHODNAME
+%token <str> TEXT "text" URL COMMA METHODNAME "method name" METHODARGS "arguments string"
+%token NEWLINE "newline" EMPTYLINES "empty lines"
+%token BAD_METHODNAME "bad method name"
+
+%token END 0 "end of file"
 
 %type <id> headtag sectiontag listtag rangetag inlinetag blocktag
-%type <str> anyword words anywordnl wordsnl anywordurl words2 nocommawords optMETHODARGS
+%type <str> anyword words anywordnl wordsnl anywordurl words2 nocommawords optMETHODARGS methodname
 %type <doc_node> document arg optreturns optdiscussion body bodyelem
 %type <doc_node> optsubsections optsubsubsections methodbody
 %type <doc_node> dochead headline optsections sections section
@@ -98,11 +108,11 @@ start: document { topnode = $1; }
      | document error { topnode = NULL; doc_node_free_tree($1); }
      ;
 
-document: START_FULL dochead optsections
+document: START_FULL eateol dochead optsections
     {
         $$ = doc_node_create("DOCUMENT");
-        doc_node_add_child($$, $2);
         doc_node_add_child($$, $3);
+        doc_node_add_child($$, $4);
     }
        | START_PARTIAL sections
     {
@@ -115,6 +125,10 @@ document: START_FULL dochead optsections
         doc_node_add_child($$, $3);
     }
 ;
+
+eateol: eol
+      | /* empty */
+      ;
 
 dochead: dochead headline { $$ = doc_node_add_child($1,$2); }
        | headline { $$ = doc_node_make("HEADER",NULL,$1); }
@@ -179,10 +193,14 @@ subsubsection: METHOD methnames optMETHODARGS eol methodbody
 //        doc_node_add_child($2, $3);
     }
              | COPYMETHOD words eol { $$ = doc_node_make(
-                method_type=="CMETHOD"?"CCOPYMETHOD":(method_type=="IMETHOD"?"ICOPYMETHOD":"COPYMETHOD"),
-                $2,NULL
+                stringEqual(method_type, "CMETHOD") ? "CCOPYMETHOD"
+                                                    : (stringEqual(method_type, "IMETHOD") ? "ICOPYMETHOD"
+                                                                                           : "COPYMETHOD"),
+                $2, NULL
                 ); }
-             | PRIVATE commalist eol { $$ = doc_node_make_take_children(method_type=="CMETHOD"?"CPRIVATE":"IPRIVATE",NULL,$2); }
+             | PRIVATE commalist eoleof { $$ = doc_node_make_take_children( stringEqual(method_type, "CMETHOD") ? "CPRIVATE"
+                                                                                                                : "IPRIVATE",
+                NULL, $2); }
 ;
 
 optMETHODARGS: { $$ = NULL; }
@@ -190,15 +208,26 @@ optMETHODARGS: { $$ = NULL; }
     {
 //        $$ = doc_node_make("ARGSTRING",$1,NULL);
         $$ = $1;
-        if(method_type!="METHOD") {
+        if(!stringEqual(method_type, "METHOD")) {
             yyerror("METHOD argument string is not allowed inside CLASSMETHODS or INSTANCEMETHODS");
             YYERROR;
         }
     }
 ;
 
-methnames: methnames COMMA METHODNAME { free($2); $2 = NULL; $$ = doc_node_add_child($1, doc_node_make("STRING",$3,NULL)); }
-         | METHODNAME { $$ = doc_node_make("(METHODNAMES)",NULL,doc_node_make("STRING",$1,NULL)); }
+methodname: METHODNAME
+    {
+        char *p = $1+strlen($1)-1;
+        if(*p=='_') {
+            post("WARNING: SCDoc: In %s\n  Property setter %s should be documented without underscore.\n", scdoc_current_file, $1);
+            *p = '\0';
+        };
+        $$ = $1;
+    }
+;
+
+methnames: methnames COMMA methodname { free($2); $2 = NULL; $$ = doc_node_add_child($1, doc_node_make("STRING",$3,NULL)); }
+         | methodname { $$ = doc_node_make("(METHODNAMES)",NULL,doc_node_make("STRING",$1,NULL)); }
 ;
 
 methodbody: optbody optargs optreturns optdiscussion
@@ -257,8 +286,10 @@ bodyelem: rangetag body TAGSYM { $$ = doc_node_make_take_children($1,NULL,$2); }
         | TABLE tablebody TAGSYM { $$ = doc_node_make_take_children("TABLE",NULL,$2); }
         | DEFINITIONLIST deflistbody TAGSYM { $$ = doc_node_make_take_children("DEFINITIONLIST",NULL,$2); }
         | blocktag wordsnl TAGSYM { $$ = doc_node_make($1,$2,NULL); }
-        | CLASSTREE words eol { $$ = doc_node_make("CLASSTREE",$2,NULL); }
-        | KEYWORD commalist eol { $$ = doc_node_make_take_children("KEYWORD",NULL,$2); }
+        | CLASSTREE words eoleof { $$ = doc_node_make("CLASSTREE",$2,NULL); }
+        | KEYWORD commalist eoleof { $$ = doc_node_make_take_children("KEYWORD",NULL,$2);
+//            printf("keyword '%s'\n",$2->children[0]->text);
+        }
         | EMPTYLINES { $$ = NULL; }
         | IMAGE words2 TAGSYM { $$ = doc_node_make("IMAGE",$2,NULL); }
         ;
@@ -267,11 +298,11 @@ prose: prose proseelem { $$ = doc_node_add_child($1, $2); }
      | proseelem { $$ = doc_node_make("PROSE",NULL,$1); }
      ;
 
-proseelem: anyword { $$ = doc_node_make("TEXT",$1,NULL); } // one TEXT for each word
+proseelem: anyword { $$ = doc_node_make(NODE_TEXT,$1,NULL); } // one TEXT for each word
          | URL { $$ = doc_node_make("LINK",$1,NULL); }
          | inlinetag words TAGSYM { $$ = doc_node_make($1,$2,NULL); }
          | FOOTNOTE body TAGSYM { $$ = doc_node_make_take_children("FOOTNOTE",NULL,$2); }
-         | NEWLINE { $$ = doc_node_create("NL"); }
+         | NEWLINE { $$ = doc_node_create(NODE_NL); }
          ;
 
 inlinetag: LINK { $$ = "LINK"; }
@@ -348,6 +379,10 @@ eol: NEWLINE
    | EMPTYLINES
 ;
 
+eoleof: eol
+      | END
+      ;
+
 anywordnl: anyword
          | eol { $$ = strdup("\n"); }
 ;
@@ -367,8 +402,6 @@ commalist: commalist COMMA nocommawords { free($2); $2=NULL; $$ = doc_node_add_c
 ;
 
 %%
-
-extern void error(const char *fmt, ...);
 
 DocNode * scdoc_parse_run(int mode) {
     int modes[] = {START_FULL, START_PARTIAL, START_METADATA};

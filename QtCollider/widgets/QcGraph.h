@@ -129,12 +129,16 @@ class QcGraph : public QWidget, QcHelper, QtCollider::Style::Client
   Q_PROPERTY( VariantList value READ value WRITE setValue )
   Q_PROPERTY( VariantList strings READ dummyVariantList WRITE setStrings );
   Q_PROPERTY( int index READ index WRITE setIndex );
+  Q_PROPERTY( int lastIndex READ lastIndex );
   Q_PROPERTY( int thumbSize READ dummyInt WRITE setThumbSize );
   Q_PROPERTY( int thumbWidth READ dummyInt WRITE setThumbWidth );
   Q_PROPERTY( int thumbHeight READ dummyInt WRITE setThumbHeight );
-  Q_PROPERTY( QColor strokeColor READ dummyColor WRITE setStrokeColor );
+  Q_PROPERTY( QColor background READ background WRITE setBackground );
+  Q_PROPERTY( QColor strokeColor READ strokeColor WRITE setStrokeColor );
   Q_PROPERTY( QColor fillColor READ dummyColor WRITE setFillColor );
-  Q_PROPERTY( QColor gridColor READ dummyColor WRITE setGridColor );
+  Q_PROPERTY( QColor gridColor READ gridColor WRITE setGridColor );
+  Q_PROPERTY( QColor focusColor READ focusColor WRITE setFocusColor );
+  Q_PROPERTY( QColor selectionColor READ selectionColor WRITE setSelectionColor );
   Q_PROPERTY( bool drawLines READ dummyBool WRITE setDrawLines );
   Q_PROPERTY( bool drawRects READ dummyBool WRITE setDrawRects );
   Q_PROPERTY( ElementStyle style READ elementStyle WRITE setElementStyle );
@@ -146,7 +150,6 @@ class QcGraph : public QWidget, QcHelper, QtCollider::Style::Client
   Q_PROPERTY( float y READ currentY WRITE setCurrentY );
   Q_PROPERTY( QPointF grid READ grid WRITE setGrid );
   Q_PROPERTY( bool gridOn READ dummyBool WRITE setGridOn );
-  Q_PROPERTY( QColor focusColor READ focusColor WRITE setFocusColor );
 
   public:
     Q_INVOKABLE void connectElements( int, VariantList );
@@ -189,7 +192,9 @@ class QcGraph : public QWidget, QcHelper, QtCollider::Style::Client
     QcGraph();
 
     VariantList value() const;
-    int index() const { return _curIndex; }
+    QcGraphElement *currentElement() const;
+    int index() const;
+    int lastIndex() const { return _lastIndex; }
     float currentX() const;
     float currentY() const;
     QPointF grid() const { return _gridMetrics; }
@@ -203,12 +208,35 @@ class QcGraph : public QWidget, QcHelper, QtCollider::Style::Client
     void setThumbSize( int f );
     void setThumbWidth( int f );
     void setThumbHeight( int f );
+
+    const QColor & background() const
+      { return _bkg.isValid() ? _bkg : palette().color(QPalette::Base); }
+    void setBackground( const QColor &c ) { _bkg = c; update(); }
+
+    const QColor & selectionColor() const
+      { return _selectColor.isValid() ? _selectColor : palette().color(QPalette::Highlight); }
+    void setSelectionColor( const QColor &c ) { _selectColor = c; update(); }
+
+    const QColor & strokeColor() const
+      { return _strokeColor.isValid() ? _strokeColor :  palette().color(QPalette::Text); }
     void setStrokeColor( const QColor & c ) { _strokeColor = c; update(); }
+
     void setFillColor( const QColor & c );
+
+    QColor gridColor() const
+    {
+      if(_gridColor.isValid())
+        return _gridColor;
+      else {
+        QColor c = palette().color(QPalette::Text);
+        c.setAlpha(40);
+        return c;
+      }
+    }
+    void setGridColor( const QColor & c ) { _gridColor = c; update(); }
 
     ElementStyle elementStyle() const { return _style; }
     void setElementStyle(ElementStyle s) { _style = s; _geometryDirty = true; update(); }
-    void setGridColor( const QColor & c ) { _gridColor = c; update(); }
     void setDrawLines( bool b ) { _drawLines = b; update(); }
     void setDrawRects( bool b ) { _drawRects = b; update(); }
     void setEditable( bool b ) { _editable = b; update(); }
@@ -254,11 +282,12 @@ class QcGraph : public QWidget, QcHelper, QtCollider::Style::Client
     QRectF labelRect( QcGraphElement *, const QPointF &, const QRect &, const QFontMetrics & );
     void drawDotElement( QcGraphElement *, const QRectF &, const QRect & bounds,
                          const QColor & dotColor, const QColor & circleColor,
-                         const QColor & textColor,
+                         const QColor & textColor, const QColor & selectColor,
                          const QPalette &, const QFontMetrics &, QPainter * );
     void drawRectElement( QcGraphElement *, const QRectF &,
                           const QColor & fillColor,
                           const QColor & textColor,
+                          const QColor & selectColor,
                           const QPalette &, QPainter * );
     void paintEvent( QPaintEvent * );
     void mousePressEvent( QMouseEvent * );
@@ -268,12 +297,14 @@ class QcGraph : public QWidget, QcHelper, QtCollider::Style::Client
 
     QcGraphModel _model;
 
-    QSize _defaultThumbSize;
+    QColor _bkg;
     QColor _strokeColor;
     QColor _gridColor;
+    QColor _selectColor;
+
+    QSize _defaultThumbSize;
     QPointF _gridMetrics;
     bool _gridOn;
-    QColor _focusColor;
 
     ElementStyle _style;
     bool _drawLines;
@@ -284,21 +315,21 @@ class QcGraph : public QWidget, QcHelper, QtCollider::Style::Client
     SelectionForm _selectionForm;
     Order _xOrder;
 
-    int _curIndex;
-
     bool _geometryDirty;
     QSize _largestThumbSize;
 
     struct Selection {
       Selection () : cached(false), shallMove(false) {}
-      int size() { return elems.size(); }
-      int count() { return elems.count(); }
+      int size() const { return elems.size(); }
+      int count() const { return elems.count(); }
 
       QList<SelectedElement> elems;
       bool cached;
       bool shallMove;
       QPointF moveOrigin; // in data domain
     } _selection;
+
+    int _lastIndex;
 };
 
 #endif

@@ -180,7 +180,7 @@ Object  {
 		};
 		indices.do { |i|
 			var obj = this.instVarAt(i);
-			res = res bitXor: obj.hash;
+			res = res << 1 bitXor: obj.hash;  // encode slot order by left shifting
 		};
 		^res
 	}
@@ -235,6 +235,9 @@ Object  {
 
 	isRest { ^false }
 
+	threadPlayer {}
+	threadPlayer_ {}
+
 	// testing
 	? { arg obj; ^this }
 	?? { arg obj; ^this }
@@ -246,6 +249,7 @@ Object  {
 	isInteger { ^false }
 	isFloat { ^false }
 	isSequenceableCollection { ^false }
+	isCollection { ^false }
 	isArray { ^false }
 	isString { ^false }
 	containsSeqColl { ^false }
@@ -377,7 +381,8 @@ Object  {
 
 	// arrays
 	rank { ^0 }
-	deepCollect { arg depth, function; ^function.value(this, 0) }
+	deepCollect { arg depth, function, index = 0, rank = 0; ^function.value(this, index, rank) }
+	deepDo { arg depth, function, index = 0, rank = 0; function.value(this, index, rank) }
 	slice { ^this }
 	shape { ^nil }
 	unbubble { ^this }
@@ -881,4 +886,8 @@ Object  {
 
 	// support for ViewRedirect
 	*classRedirect { ^this }
+
+	help {
+		this.class.asString.help
+	}
 }

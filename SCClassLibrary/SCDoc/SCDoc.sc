@@ -16,13 +16,12 @@ SCDocEntry {
         <>additions,
         <>isExtension,
         <>mtime,
-        <>fullPath;
+        <>fullPath,
+        <>oldHelp;
 
     var <>isClassDoc;
     var <>klass, <>implKlass, <>implements;
     var <>isUndocumentedClass;
-    var <>superclasses, // could we get rid of these?
-        <>subclasses;
 
     printOn {|stream|
         stream << "SCDocEntry(" << path.cs << ", " << title.cs << ", " << summary.cs << ")";
@@ -31,15 +30,15 @@ SCDocEntry {
     prJSONString {|stream, key, x|
         if(x.isNil) { x = "" };
         stream << "'" << key << "': \"" << x.escapeChar(34.asAscii) << "\",\n";
-        
+
     }
     prJSONList {|stream, key, v|
         if(v.isNil) { v = "" };
-        stream << "'" << key << "': [ " << v.collect{|x|"'"++x++"'"}.join(",") << " ],\n";
+        stream << "'" << key << "': [ " << v.collect{|x|"\""++x.escapeChar(34.asAscii)++"\""}.join(",") << " ],\n";
     }
 
     toJSON {|stream|
-        stream << "'" << path << "': {\n";
+        stream << "\"" << path.escapeChar(34.asAscii) << "\": {\n";
         this.prJSONString(stream, "title", title);
         this.prJSONString(stream, "path", path);
         this.prJSONString(stream, "summary", summary);
@@ -49,6 +48,9 @@ SCDocEntry {
         this.prJSONList(stream, "keywords", keywords);
         this.prJSONList(stream, "related", related);
         this.prJSONList(stream, "methods", this.makeMethodList);
+        if(oldHelp.notNil) {
+            this.prJSONString(stream, "oldhelp", oldHelp);
+        };
         if(klass.notNil) {
             klass.superclasses !? {
                 this.prJSONList(stream, "superclasses", klass.superclasses.collect {|c|
@@ -70,7 +72,7 @@ SCDocEntry {
     *new {|node,path|
         ^super.new.init(node,path);
     }
-    
+
     *newUndocClass {|name|
         var doc = super.new.init(nil,"Classes/"++name.asString);
         var f, cats, implements, c;
@@ -79,7 +81,7 @@ SCDocEntry {
         doc.isUndocumentedClass = true;
         doc.title = name.asString;
         f = doc.klass.filenameSymbol.asString;
-        doc.mtime = File.mtime(f);
+        doc.mtime = 0;
         doc.isExtension = f.beginsWith(Platform.classLibraryDir).not;
         doc.undoccmethods = doc.klass.class.methods.collectAs({|m|m.name.asGetter},IdentitySet);
         doc.undocimethods = doc.klass.methods.collectAs({|m|m.name.asGetter},IdentitySet);
@@ -100,19 +102,20 @@ SCDocEntry {
         doc.klass.categories !? {
             cats = cats ++ doc.klass.categories;
         };
-        doc.categories = cats;        
+        doc.categories = cats;
 
         ^doc;
     }
 
     init {|node,aPath|
         var hdr, bdy;
-        path = aPath;
+        // 'path' variable is used as a key for SCDoc.documents dictionary.
+        // Make sure it always uses forward slashes.
+        // FIXME: implement & use a generic path conversion method?
+        path = aPath.replace("\\","/");
         if(node.isNil) {^this};
-        isClassDoc = (path.dirname=="Classes");
         #hdr, bdy = node.children;
         isExtension = false;
-        klass = nil;
         isUndocumentedClass = false;
         doccmethods = IdentitySet();
         docimethods = IdentitySet();
@@ -136,8 +139,14 @@ SCDocEntry {
             warn("SCDoc:"+path+"has no title!");
             title = "(Untitled)";
         };
-        if(isClassDoc and: { title != path.basename }) {
-            warn("SCDoc:"+path+"title and filename mismatch. Must be same for class docs!");
+        if(isClassDoc = (path.dirname=="Classes")) {
+            klass = title.asSymbol.asClass;
+//            if(klass.isNil) {
+//                warn("SCDoc:"+path++": No such class!");
+//            };
+            if(title != path.basename ) {
+                warn("SCDoc:"+path++": Title and filename mismatch. Must be same for class docs!");
+            };
         };
         if(categories.isNil) {
             warn("SCDoc:"+path+"has no categories!");
@@ -186,24 +195,22 @@ SCDocEntry {
     }
 
     indexUndocumentedMethods {
-        var class;
         var ignoreMethods = IdentitySet[\categories, \init, \checkInputs, \new1, \argNamesInputsOffset, \initClass, \storeArgs, \storeOn, \printOn];
         var syms, name, mets, l = Array.new;
         var docmets = IdentitySet.new;
 
-        class = title.asSymbol.asClass;
-        if(class.isNil) {
+        if(klass.isNil) {
             ^this
         };
-        klass = class;
+
         if(redirect.notNil) {
             try { implKlass = klass.perform(redirect.asSymbol) };
         } {
             implKlass = nil;
         };
-                    
+
         docmets = docimethods | privimethods | ignoreMethods;
-        (mets = class.methods) !? {
+        (mets = klass.methods) !? {
             mets.collectAs({|m|m.name.asGetter},IdentitySet).do {|name|
                 if(docmets.includes(name).not) {
                     undocimethods = undocimethods.add(name);
@@ -212,7 +219,7 @@ SCDocEntry {
         };
 
         docmets = doccmethods | privcmethods | ignoreMethods;
-        (mets = class.class.methods) !? {
+        (mets = klass.class.methods) !? {
             mets.collectAs({|m|m.name.asGetter},IdentitySet).do {|name|
                 if(docmets.includes(name).not) {
                     undoccmethods = undoccmethods.add(name);
@@ -228,7 +235,7 @@ SCDocEntry {
         }
         ^list;
     }
-    
+
     prAddCopyMethod {|node, list|
         ^list.add(node.text.split($ )[1].drop(1))
     }
@@ -295,7 +302,7 @@ SCDocNode {
         };
         node.children = node.children.add(mets);
     }
-    
+
     sortClassDoc {
         var x = 0;
         // FIXME: does this work correctly for prose before first section, etc?
@@ -350,9 +357,10 @@ SCDocNode {
 
 SCDoc {
     // Increment this whenever we make a change to the SCDoc system so that all help-files should be processed again
-    classvar version = 51;
+    classvar version = 56;
 
     classvar <helpTargetDir;
+    classvar <helpTargetUrl;
     classvar <helpSourceDir;
     classvar <>verbosity = 1;
     classvar <>renderer;
@@ -385,13 +393,41 @@ SCDoc {
         _SCDoc_ParseFile
         ^this.primitiveFailed
     }
-    *indexAllDocuments {
+    *indexOldHelp {
+        var f = {|x,cat="Old Helpfiles",indent=0|
+            var a,b,doc;
+            x.pairsDo {|k,v|
+                if(v.isKindOf(Dictionary)) {
+                    k = k.asString;
+                    a = 0;
+                    b = k.size-1;
+                    while({ $[ == k[a]},{a=a+1});
+                    while({ $] == k[b]},{b=b-1});
+                    k = k.copyRange(a,b);
+                    f.(v,cat++">"++k.asString,indent+1);
+                } {
+                    if(v.size>0) {
+                        doc = SCDocEntry(nil,"Old Help"+/+v);
+                        doc.oldHelp = URI.fromLocalPath(v).asString;
+                        doc.title = v.basename;
+                        doc.summary = "(not yet converted to new help format)";
+                        doc.categories = [cat];
+                        doc.isExtension = true;
+                        SCDoc.documents[doc.path] = doc;
+                    }
+                }
+            }
+        };
+        Help.rebuildTree;
+        f.(Help.tree);
+    }
+    *indexAllDocuments { |clearCache=false|
         var now = Main.elapsedTime;
         var key, doc;
         var nonHelpFiles;
         var undocClasses = Class.allClasses.reject(_.isMetaClass).collectAs({|c|c.name},IdentitySet);
         var additions = Dictionary();
-        this.checkVersion;
+        this.checkVersion(clearCache);
         this.postMsg("Indexing help-files...",0);
         documents = Dictionary(); // or use IdDict and symbols as keys?
         helpSourceDirs = nil; // force re-scan of HelpSource folders
@@ -400,7 +436,7 @@ SCDoc {
                 case
                 {f.fullPath.endsWith(".ext.schelp")} {
                     f = f.fullPath;
-                    key = f[dir.size+1 ..].drop(-11);
+                    key = f[dir.size+1 ..].drop(-11).replace("\\","/");
                     additions[key] = additions[key].add(f);
                 }
                 {f.extension=="schelp"} {
@@ -446,6 +482,8 @@ SCDoc {
                 File.copy(x[0],dest);
             };
         };
+        this.postMsg("Indexing old helpfiles...");
+        this.indexOldHelp;
         this.postMsg("Exporting docmap.js...",1);
         this.exportDocMapJS(this.helpTargetDir +/+ "docmap.js");
         this.postMsg("Indexed % documents in % seconds".format(documents.size,round(Main.elapsedTime-now,0.01)),0);
@@ -497,8 +535,9 @@ SCDoc {
     *helpTargetDir_ {|path|
 //        if(path!=helpTargetDir) {didRun = false};
         helpTargetDir = path.standardizePath;
+        helpTargetUrl = URI.fromLocalPath(helpTargetDir).asString;
     }
-    
+
     *postMsg {|txt, lvl=0|
         if(verbosity>lvl) {
             postln("SCDoc: "++txt);
@@ -514,7 +553,7 @@ SCDoc {
                     root.children[1].merge(add);
                 }
             };
-            this.handleCopyMethods(root);
+            this.handleCopyMethods(root,doc);
         };
         ^root;
     }
@@ -529,26 +568,59 @@ SCDoc {
     }
 
     *prepareHelpForURL {|url|
-        var proto, path, query, anchor;
+        var path, targetBasePath, pathIsCaseInsensitive;
         var subtarget, src, c, cmd, doc, destExist, destMtime;
         var verpath = this.helpTargetDir +/+ "version";
 
-        url = url.replace("%20"," ");
-        #proto, path, query, anchor = url.findRegexp("(^\\w+://)?([^#?]+)(\\?[^#]+)?(#.*)?")[1..].flop[1];
-        if(proto.isEmpty) {proto="file://"};
-        if(proto!="file://") {^url}; // just pass through remote url's
-        if(path.beginsWith(helpTargetDir).not) {^url}; // just pass through non-help url's
-        
-        if(destExist = File.existsCaseSensitive(path)) {
+        path = url.asLocalPath;
+
+        // detect old helpfiles and wrap them in OldHelpWrapper
+        if(url.scheme == "sc") { ^URI(SCDoc.findHelpFile(path)); };
+
+        // just pass through remote url's
+        if(url.scheme != "file") {^url};
+
+        targetBasePath = SCDoc.helpTargetDir;
+        if (thisProcess.platform.name === \windows)
+            { targetBasePath = targetBasePath.replace("/","\\") };
+        pathIsCaseInsensitive = thisProcess.platform.name === \windows;
+
+        // detect old helpfiles and wrap them in OldHelpWrapper
+        if(
+            /*
+            // this didn't work for quarks due to difference between registered old help path and the quarks symlink in Extensions.
+            // we could use File.realpath(path) below but that would double the execution time,
+            // so let's just assume any local file outside helpTargetDir is an old helpfile.
+            block{|break|
+            Help.do {|key, path|
+            if(url.endsWith(path)) {
+            break.value(true)
+            }
+            }; false
+            }*/
+            compare(
+                path [..(targetBasePath.size-1)],
+                targetBasePath,
+                pathIsCaseInsensitive
+            ) != 0
+        ) {
+            ^SCDoc.getOldWrapUrl(url)
+        };
+
+        if(destExist = File.exists(path))
+        {
             destMtime = File.mtime(path);
         };
-                
+
         if(path.endsWith(".html")) {
-            subtarget = path.drop(this.helpTargetDir.size+1).drop(-5);
+            subtarget = path.drop(this.helpTargetDir.size+1).drop(-5).replace("\\","/");
             doc = this.documents[subtarget];
             doc !? {
                 if(doc.isUndocumentedClass) {
-                    this.renderUndocClass(doc);
+                    if(doc.mtime == 0) {
+                        this.renderUndocClass(doc);
+                        doc.mtime = 1;
+                    };
                     ^url;
                 };
                 if(File.mtime(doc.fullPath)>doc.mtime) { // src changed after indexing
@@ -560,7 +632,7 @@ SCDoc {
                     or: {doc.mtime>destMtime}
                     or: {doc.additions.detect {|f| File.mtime(f)>destMtime}.notNil}
                     or: {File.mtime(this.helpTargetDir +/+ "scdoc_version")>destMtime}
-                    or: {doc.isClassDoc and: {File.mtime(doc.klass.filenameSymbol.asString)>destMtime}}
+                    or: {doc.klass.notNil and: {File.mtime(doc.klass.filenameSymbol.asString)>destMtime}}
                 ) {
                     this.parseAndRender(doc);
                 };
@@ -572,7 +644,7 @@ SCDoc {
             ^url;
         };
 
-        warn("SCDoc: Broken link:"+url);
+        warn("SCDoc: Broken link:" + url.asString);
         ^nil;
     }
 
@@ -581,15 +653,15 @@ SCDoc {
         this.helpTargetDir_(thisProcess.platform.userAppSupportDir +/+ "Help");
         renderer = SCDocHTMLRenderer;
     }
-    
+
     *classHasArKrIr {|c|
         ^#[\ar,\kr,\ir].collect {|m| c.class.findRespondingMethodFor(m).notNil }.reduce {|a,b| a or: b};
     }
 
-    *checkVersion {
+    *checkVersion {|clearCache=false|
         var f, path = this.helpTargetDir +/+ "scdoc_version";
-        if(path.load != version) {
-            this.postMsg("version update, refreshing timestamp",1);
+        if(clearCache or: {path.load != version}) {
+            this.postMsg("refreshing scdoc version timestamp",1);
             // this will update the mtime of the version file, triggering re-rendering of files older than now
             File.mkdir(this.helpTargetDir);
             f = File.open(path,"w");
@@ -600,13 +672,15 @@ SCDoc {
         ^false;
     }
 
-    *renderAll {
+    *renderAll {|includeExtensions=true|
         this.postMsg("Rendering all documents");
         this.documents.do {|doc|
-            if(doc.isUndocumentedClass) {
-                this.renderUndocClass(doc);
-            } {
-                this.parseAndRender(doc);
+            if(doc.oldHelp.isNil and: {includeExtensions or: {doc.isExtension.not}}) {
+                if(doc.isUndocumentedClass) {
+                    this.renderUndocClass(doc);
+                } {
+                    this.parseAndRender(doc);
+                }
             }
         };
         this.postMsg("Done!");
@@ -718,7 +792,7 @@ SCDoc {
                 }
             }
         };
-        
+
         var err = {|txt|
             warn("SCDoc.getMethodDoc(%, %): %".format(classname,methodname,txt));
         };
@@ -751,11 +825,15 @@ SCDoc {
         ^node;
     }
 
-    *handleCopyMethods {|node|
+    *handleCopyMethods {|node,doc|
         var found = {|n|
-            var name, met;
+            var name, met, x;
             #name, met = n.text.findRegexp("[^ ,]+").flop[1];
-            this.getMethodDoc(name, met);
+            x = this.getMethodDoc(name, met);
+            if(x.isNil) {
+                warn("  from: %".format(doc.fullPath));
+            };
+            x;
         };
 
         node.children.do{|n,i|
@@ -764,34 +842,127 @@ SCDoc {
                 \ICOPYMETHOD, { n = found.(n); n !? {n.id_(\IMETHOD); node.children[i] = n} },
                 \COPYMETHOD, { n = found.(n); n !? {n.id_(\METHOD); node.children[i] = n} },
                 {
-                    this.handleCopyMethods(n);
+                    this.handleCopyMethods(n,doc);
                 }
             );
         };
     }
 
     *findHelpFile {|str|
-//        ^r.findHelpFile(str.stripWhiteSpace);
-        var old, sym, pfx = "file://" ++ SCDoc.helpTargetDir;
+        var old, sym, pfx = SCDoc.helpTargetUrl;
 
-        if(str.isNil or: {str.isEmpty}) { ^pfx +/+ "Help.html" };
-        if(this.documents[str].notNil) { ^pfx +/+ str ++ ".html" };
+        if(str.isNil or: {str.isEmpty}) { ^pfx ++ "/Help.html" };
+        if(this.documents[str].notNil) { ^pfx ++ "/" ++ str ++ ".html" };
 
         sym = str.asSymbol;
         if(sym.asClass.notNil) {
-            ^pfx +/+ (if(this.documents["Classes"+/+str].isNil) {
+            ^pfx ++ (if(this.documents["Classes/"++str].isUndocumentedClass) {
                 (old = Help.findHelpFile(str)) !? {
-                    "OldHelpWrapper.html#"++old++"?"++SCDoc.helpTargetDir +/+ "Classes" +/+ str ++ ".html"
+                    "/OldHelpWrapper.html#"++old++"?"++SCDoc.helpTargetUrl ++ "/Classes/" ++ str ++ ".html"
                 }
-            } ?? { "Classes" +/+ str ++ ".html" })
+            } ?? { "/Classes/" ++ str ++ ".html" });
         };
 
-        ^pfx +/+ if(block {|brk|
-            Class.allClasses.do{|c| if(c.findMethod(sym).notNil) {brk.value(true)}};
-            false;
-        }) {
-            "Overviews/Methods.html#" ++ str
-        } { "Search.html#" ++ str }
+        if(str.last == $_) { str = str.drop(-1) };
+        ^pfx ++ if("^[a-z][a-zA-Z0-9_]*$|^[-<>@|&%*+/!?=]+$".matchRegexp(str))
+            { "/Overviews/Methods.html#" } { "/Search.html#" } ++ str;
+    }
+
+    *getOldWrapUrl {|url|
+        var urlString, className, newUrl;
+        urlString = url.asString;
+        newUrl = URI.fromLocalPath( SCDoc.helpTargetDir +/+ "OldHelpWrapper.html" );
+        newUrl.fragment = urlString;
+        newUrl.query =
+            SCDoc.helpTargetUrl
+            ++ if((className=urlString.basename.split($.).first).asSymbol.asClass.notNil)
+                {"/Classes/" ++ className ++ ".html"}
+                {"/Guides/WritingHelp.html"}
+        ^newUrl;
+    }
+}
+
+URI {
+    /*
+    NOTE:
+    This class attempts compliance with specification
+    Uniform Resource Identifier (URI): Generic Syntax (RFC 3986)
+    http://datatracker.ietf.org/doc/rfc3986/
+
+    If you intend to modify it, please consult the specification!
+    */
+
+    classvar parseRegexp = "^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?";
+
+    var <>scheme, <>authority, <>path, <>query, <>fragment;
+
+    *new { |validUriString|
+        ^super.new.init(validUriString)
+    }
+
+    *fromLocalPath { |string|
+        var uri = super.new;
+        uri.scheme = "file";
+        uri.authority = "";
+        uri.path = string;
+        if (thisProcess.platform.name === \windows) {
+            uri.path = uri.path.replace("\\","/");
+            if (uri.path.size >= 2 and: {uri.path[1] == $:})
+            { uri.path = "/" ++ uri.path; }
+        }
+        ^ uri;
+    }
+
+    *tolerant { |string|
+        var uri;
+
+        if (thisProcess.platform.name === \windows
+            and: { string.size >= 2 and: { string[1] == $:} } )
+        {
+            ^ this.fromLocalPath(string);
+        };
+
+        uri = this.new(string);
+        if (uri.scheme.isNil) {
+            uri.scheme = "file";
+            if (uri.authority.isNil) { uri.authority = "" }
+        };
+        ^ uri;
+    }
+
+    init { |string|
+        var result;
+        if (string.notNil) {
+            string = string.replace("%20"," ");
+            result = string.findRegexp( parseRegexp ).flop[1];
+            if (result[1].size > 0) { scheme = result[2] };
+            if (result[3].size>0) { authority = result[4] };
+            path = result[5];
+            if (result[6].size > 0) { query = result[7] };
+            if (result[8].size > 0) { fragment = result[9] };
+        };
+    }
+
+    asLocalPath {
+        var localPath;
+        if (scheme != "file") { ^nil };
+        if (thisProcess.platform.name === \windows) {
+            localPath = path;
+            if (localPath.beginsWith("/")) { localPath = localPath.drop(1) };
+            localPath = localPath.replace("/","\\");
+            ^localPath;
+        }
+        ^ path.copy;
+    }
+
+    asString {
+        var str = "";
+        if (scheme.notNil) { str = str ++ scheme ++ ":" };
+        if (authority.notNil) { str = str ++ "//" ++ authority };
+        str = str ++ path;
+        if (query.notNil) { str = str ++ "?" ++ query };
+        if (fragment.notNil) { str = str ++ "#" ++ fragment };
+        ^str;
     }
 }
 
@@ -814,7 +985,6 @@ SCDoc {
 
 		^lines;
 	}
-
 }
 
 + Method {
@@ -827,10 +997,4 @@ SCDoc {
                     {true})
         );
     }
-}
-
-+ Help {
-	*dir {
-		^SCDoc.helpTargetDir
-	}
 }

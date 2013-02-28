@@ -22,8 +22,13 @@
 #include "LanguageClient.h"
 #include "QcApplication.h"
 #include "QtCollider.h"
+#include "QObjectProxy.h"
+
+#include <PyrKernel.h>
+#include <PyrLexer.h>
 
 #include <qmath.h>
+#include <QWidget>
 
 extern double elapsedTime();
 
@@ -110,6 +115,13 @@ void LangClient::onQuit( int exitCode )
 {
   QApplication::postEvent( this,
     new SCRequestEvent( Event_SCRequest_Quit, exitCode ) );
+}
+
+void LangClient::onLibraryShutdown()
+{
+  QWidgetList windows = QApplication::topLevelWidgets();
+  Q_FOREACH( QWidget *w, windows )
+    w->hide();
 }
 
 void LangClient::customEvent( QEvent *e )

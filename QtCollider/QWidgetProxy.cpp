@@ -233,12 +233,7 @@ bool QWidgetProxy::filterEvent( QObject *o, QEvent *e, EventHandlerData &eh, QLi
   // NOTE We assume that qObject need not be checked here, as we wouldn't get events if
   // it wasn't existing
 
-  int type = e->type();
-
-  eh = eventHandlers().value( type );
-  if( eh.type != type ) return false;
-
-  switch( type ) {
+  switch( eh.type ) {
 
     case QEvent::KeyPress:
       return ((_globalEventMask & KeyPress) || eh.enabled)
@@ -257,7 +252,7 @@ bool QWidgetProxy::filterEvent( QObject *o, QEvent *e, EventHandlerData &eh, QLi
       return eh.enabled && interpretMouseEvent( o, e, args );
 
     case QEvent::Wheel:
-      return interpretMouseWheelEvent( o, e, args );
+      return eh.enabled && interpretMouseWheelEvent( o, e, args );
 
     case QEvent::DragEnter:
     case QEvent::DragMove:
@@ -418,6 +413,41 @@ bool QWidgetProxy::interpretKeyEvent( QObject *o, QEvent *e, QList<QVariant> &ar
   return true;
 }
 
+static QString urlAsString( const QUrl & url )
+{
+  if(url.scheme() == "file")
+    return url.toLocalFile();
+  else
+    return url.toString();
+}
+
+static bool interpretMimeData( const QMimeData *data, QList<QVariant> &args )
+{
+  if( data->hasUrls() )
+  {
+    QList<QUrl> urls = data->urls();
+    if( urls.count() > 1 ) {
+      VariantList list;
+      Q_FOREACH( QUrl url, urls )
+        list.data << urlAsString( url );
+      args << QVariant::fromValue<VariantList>(list);
+    }
+    else {
+      args << urlAsString( urls[0] );
+    }
+  }
+  else if( data->hasText() )
+  {
+    args << data->text();
+  }
+  else
+  {
+    return false;
+  }
+
+  return true;
+}
+
 bool QWidgetProxy::interpretDragEvent( QObject *o, QEvent *e, QList<QVariant> &args )
 {
   if( o != _mouseEventWidget ) return false;
@@ -425,10 +455,16 @@ bool QWidgetProxy::interpretDragEvent( QObject *o, QEvent *e, QList<QVariant> &a
   QDropEvent *dnd = static_cast<QDropEvent*>(e);
 
   const QMimeData *data = dnd->mimeData();
-  if ( !data->hasFormat( "application/supercollider" ) )
-    return false;
 
-  if( dnd->type() != QEvent::DragEnter ) {
+  if( dnd->type() == QEvent::DragEnter )
+  {
+    bool internal = data->hasFormat( "application/supercollider" );
+    args << internal;
+    if(!internal)
+      interpretMimeData(data, args);
+  }
+  else
+  {
     QPoint pos = dnd->pos();
     args << pos.x() << pos.y();
   }
@@ -449,7 +485,7 @@ void QWidgetProxy::customPaint( QPainter *painter )
   QtCollider::lockLang();
 
   if( QtCollider::beginPainting( painter ) ) {
-    invokeScMethod( s_doDrawFunc, QList<QVariant>(), 0, true );
+    invokeScMethod( SC_SYM(doDrawFunc), QList<QVariant>(), 0, true );
     QtCollider::endPainting();
   }
 

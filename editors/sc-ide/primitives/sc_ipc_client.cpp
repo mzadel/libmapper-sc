@@ -55,7 +55,7 @@ public:
 static SCIpcClient * gIpcClient = NULL;
 
 
-int SCIdeConnect(struct VMGlobals *g, int numArgsPushed)
+int ScIDE_Connect(struct VMGlobals *g, int numArgsPushed)
 {
     if (gIpcClient) {
         error("ScIDE already connected\n");
@@ -70,6 +70,15 @@ int SCIdeConnect(struct VMGlobals *g, int numArgsPushed)
         return errWrongType;
 
     gIpcClient = new SCIpcClient(ideName);
+
+    return errNone;
+}
+
+int ScIDE_Connected(struct VMGlobals *g, int numArgsPushed)
+{
+    PyrSlot * returnSlot = g->sp - numArgsPushed + 1;
+
+    SetBool(returnSlot, gIpcClient != 0);
 
     return errNone;
 }
@@ -103,22 +112,33 @@ private:
         }
 
         switch (GetTag(slot)) {
-            case tagInt:
-                emitter << slotRawInt(slot);
-                return;
+        case tagNil:
+            emitter << YAML::Null;
+            return;
 
-            case tagObj:
-                serialize(slotRawObject(slot));
-                return;
+        case tagInt:
+            emitter << slotRawInt(slot);
+            return;
 
-            case tagSym: {
-                emitter << slotRawSymbol(slot)->name;
-                return;
-            }
+        case tagFalse:
+            emitter << false;
+            return;
 
-            default:
-                printf ("type: %d\n", GetTag(slot));
-                throw std::runtime_error("YAMLSerializer: not implementation for this type");
+        case tagTrue:
+            emitter << true;
+            return;
+
+        case tagObj:
+            serialize(slotRawObject(slot));
+            return;
+
+        case tagSym:
+            emitter << YAML::DoubleQuoted << slotRawSymbol(slot)->name;
+            return;
+
+        default:
+            printf ("type: %d\n", GetTag(slot));
+            throw std::runtime_error("YAMLSerializer: not implementation for this type");
         }
     }
 
@@ -132,7 +152,7 @@ private:
             char * cstr = new char[len + 10];
             memcpy(cstr, str->s, len);
             cstr[len] = 0; // zero-terminate
-            emitter << cstr;
+            emitter << YAML::DoubleQuoted << cstr;
             delete[] cstr;
             return;
         }
@@ -149,18 +169,17 @@ private:
     }
 };
 
-int SCIdeSend(struct VMGlobals *g, int numArgsPushed)
+int ScIDE_Send(struct VMGlobals *g, int numArgsPushed)
 {
     if (!gIpcClient) {
         error("ScIDE not connected\n");
         return errFailed;
     }
 
-    PyrSlot * selectorSlot = g->sp - 1;
-    if (NotSym(selectorSlot))
+    PyrSlot * idSlot = g->sp - 1;
+    char id[255];
+    if (slotStrVal( idSlot, id, 255 ))
         return errWrongType;
-
-    const char * selector = slotSymString(selectorSlot);
 
     PyrSlot * argSlot = g->sp;
 
@@ -169,10 +188,10 @@ int SCIdeSend(struct VMGlobals *g, int numArgsPushed)
 
         QDataStream stream(gIpcClient->mSocket);
         stream.setVersion(QDataStream::Qt_4_6);
-        stream << QString(selector);
-        stream << QString(serializer.data());
+        stream << QString(id);
+        stream << QString::fromUtf8(serializer.data());
     } catch (std::exception const & e) {
-        postfl("Exception during SCIdeSend: %s\n", e.what());
+        postfl("Exception during ScIDE_Send: %s\n", e.what());
         return errFailed;
     }
 
@@ -184,6 +203,7 @@ void initScIDEPrimitives()
 {
     int base = nextPrimitiveIndex();
     int index = 0;
-    definePrimitive(base, index++, "_SCIdeConnect", SCIdeConnect, 2, 0);
-    definePrimitive(base, index++, "_SCIdeSend",    SCIdeSend, 3, 0);
+    definePrimitive(base, index++, "_ScIDE_Connect",   ScIDE_Connect, 2, 0);
+    definePrimitive(base, index++, "_ScIDE_Connected", ScIDE_Connected, 1, 0);
+    definePrimitive(base, index++, "_ScIDE_Send",      ScIDE_Send, 3, 0);
 }

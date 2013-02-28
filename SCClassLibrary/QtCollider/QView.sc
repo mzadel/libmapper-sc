@@ -33,6 +33,17 @@ QView : QObject {
   *initClass {
     hSizePolicy = [1,2,3,1,2,3,1,2,3];
     vSizePolicy = [1,1,1,2,2,2,3,3,3];
+
+    if (thisProcess.platform.ideName != "scapp") {
+      globalKeyDownAction = { |view, char, modifier, keycode|
+        var platform = thisProcess.platform.name;
+        var modIsCmd = if (platform == \osx) { modifier.isCmd } { modifier.isCtrl };
+
+        if (modIsCmd and: (char == $.) ) {
+          CmdPeriod.run
+        }
+      }
+    };
   }
 
   *new { arg parent, bounds;
@@ -83,14 +94,8 @@ QView : QObject {
     this.setProperty( \palette, p );
   }
 
-  background {
-    ^this.palette.window;
-  }
-
-  background_ { arg color;
-    this.palette = this.palette.window_(color);
-    this.setProperty( \autoFillBackground, true );
-  }
+  background { ^this.getProperty(\background); }
+  background_ { arg color; this.setProperty(\background, color); }
 
   // NOTE: only for backwards compatibility
   backColor_ { arg color;
@@ -217,7 +222,7 @@ QView : QObject {
   }
 
   focusColor {
-    ^try { this.getProperty(\focusColor) } { Color() };
+    ^this.getProperty(\focusColor) ? Color();
   }
 
   // ------------------ container stuff ----------------------------
@@ -571,7 +576,7 @@ QView : QObject {
     if( this.overrides( \mouseLeave ) )
       {this.setEventHandler( QObject.mouseLeaveEvent, \mouseLeaveEvent, true )};
     if( this.overrides( \mouseWheel ) )
-      {this.setEventHandler( QObject.wheelEvent, \mouseWheelEvent, true )};
+      {this.setEventHandler( QObject.mouseWheelEvent, \mouseWheelEvent, true )};
 
     // DnD events
     handleDrag = this.respondsTo(\defaultCanReceiveDrag) or: {this.respondsTo(\defaultReceiveDrag)};
@@ -706,7 +711,11 @@ QView : QObject {
     ^this.primitiveFailed;
   }
 
-  dragEnterEvent {
+  dragEnterEvent { arg internal, data;
+    if(internal.not) {
+      // dnd incoming from outside SC
+      QView.prSetCurrentDrag(data);
+    };
     // always accept the event
     ^true;
   }
@@ -753,9 +762,11 @@ QView : QObject {
     };
   }
 
-  overrides { arg symMethod;
-    ^ ( this.class.findRespondingMethodFor(symMethod) !=
-        QView.findRespondingMethodFor(symMethod) );
+  overrides { arg method; ^this.prOverrides(QView, method) }
+
+  prOverrides { arg superclass, method;
+    _Qt_IsMethodOverridden
+    ^this.primitiveFailed
   }
 
   nonimpl { arg methodName;

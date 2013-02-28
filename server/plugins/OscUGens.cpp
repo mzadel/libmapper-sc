@@ -281,6 +281,7 @@ void SigOsc_next_a(SigOsc *unit, int inNumSamples);
 
 void FSinOsc_Ctor(FSinOsc *unit);
 void FSinOsc_next(FSinOsc *unit, int inNumSamples);
+void FSinOsc_next_i(FSinOsc *unit, int inNumSamples);
 
 void PSinGrain_Ctor(PSinGrain *unit);
 void PSinGrain_next(PSinGrain *unit, int inNumSamples);
@@ -1310,7 +1311,10 @@ void SigOsc_next_a(SigOsc *unit, int inNumSamples)
 
 void FSinOsc_Ctor(FSinOsc *unit)
 {
-	SETCALC(FSinOsc_next);
+	if (INRATE(0) == calc_ScalarRate)
+		SETCALC(FSinOsc_next_i);
+	else
+		SETCALC(FSinOsc_next);
 	unit->m_freq = ZIN0(0);
 	float iphase = ZIN0(1);
 	float w = unit->m_freq * unit->mRate->mRadiansPerSample;
@@ -1351,7 +1355,38 @@ void FSinOsc_next(FSinOsc *unit, int inNumSamples)
 	//Print("y %g %g  b1 %g\n", y1, y2, b1);
 	unit->m_y1 = y1;
 	unit->m_y2 = y2;
-	unit->m_b1 = b1;
+}
+
+void FSinOsc_next_i(FSinOsc *unit, int inNumSamples)
+{
+#ifdef __GNUC__
+	float * __restrict__ out = ZOUT(0);
+#else
+	float * out = ZOUT(0);
+#endif
+	double b1 = unit->m_b1;
+
+	double y0;
+	double y1 = unit->m_y1;
+	double y2 = unit->m_y2;
+	//Print("y %g %g  b1 %g\n", y1, y2, b1);
+	//Print("%d %d\n", unit->mRate->mFilterLoops, unit->mRate->mFilterRemain);
+	LOOP(unit->mRate->mFilterLoops,
+		y0 = b1 * y1 - y2;
+		y2 = b1 * y0 - y1;
+		y1 = b1 * y2 - y0;
+		ZXP(out) = y0;
+		ZXP(out) = y2;
+		ZXP(out) = y1;
+	);
+	LOOP(unit->mRate->mFilterRemain,
+		ZXP(out) = y0 = b1 * y1 - y2;
+		y2 = y1;
+		y1 = y0;
+	);
+	//Print("y %g %g  b1 %g\n", y1, y2, b1);
+	unit->m_y1 = y1;
+	unit->m_y2 = y2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1575,9 +1610,11 @@ void SinOsc_next_iaa(SinOsc *unit, int inNumSamples)
 	float radtoinc = unit->m_radtoinc;
 	//Print("SinOsc_next_iaa %d %g %g %d\n", inNumSamples, cpstoinc, radtoinc, phase);
 	LOOP1(inNumSamples,
-		int32 phaseoffset = phase + (int32)(radtoinc * ZXP(phasein));
+		float phaseIn = ZXP(phasein);
+		float freqIn  = ZXP(freqin);
+		int32 phaseoffset = phase + (int32)(radtoinc * phaseIn);
 		float z = lookupi1(table0, table1, phaseoffset, lomask);
-		phase += (int32)(cpstoinc * ZXP(freqin));
+		phase += (int32)(cpstoinc * freqIn);
 		ZXP(out) = z;
 	);
 	unit->m_phase = phase;
@@ -1688,7 +1725,7 @@ void SinOsc_Ctor(SinOsc *unit)
 
 //////////////!!!
 
-void SinOscFB_next_ik(SinOscFB *unit, int inNumSamples)
+void SinOscFB_next_kk(SinOscFB *unit, int inNumSamples)
 {
 	float *out = ZOUT(0);
 	float freqin = ZIN0(0);
@@ -1719,7 +1756,7 @@ void SinOscFB_next_ik(SinOscFB *unit, int inNumSamples)
 void SinOscFB_Ctor(SinOscFB *unit)
 {
 	//Print("next_ik\n");
-	SETCALC(SinOscFB_next_ik);
+	SETCALC(SinOscFB_next_kk);
 
 	int tableSize2 = ft->mSineSize;
 	unit->m_lomask = (tableSize2 - 1) << 3;
@@ -1730,7 +1767,7 @@ void SinOscFB_Ctor(SinOscFB *unit)
 
 	unit->m_phase = 0;
 
-	SinOscFB_next_ik(unit, 1);
+	SinOscFB_next_kk(unit, 1);
 }
 
 

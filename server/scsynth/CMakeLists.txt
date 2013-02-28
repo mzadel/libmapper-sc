@@ -9,7 +9,7 @@ if (FFT_GREEN)
 elseif (APPLE)
 	add_definitions("-DSC_FFT_VDSP")
 else()
-	find_package(FFTW3f)
+	find_package(FFTW3f 3.3)
 
 	if (FFTW3F_FOUND)
 		add_definitions("-DSC_FFT_FFTW")
@@ -18,6 +18,9 @@ else()
 	endif()
 endif()
 
+if(NOVA_SIMD)
+	add_definitions(-DNOVA_SIMD)
+endif()
 
 if (NO_AVAHI)
 
@@ -31,8 +34,7 @@ else()
 endif()
 
 # Here we work out which audio API to use, from system type and/or user option.
-string(TOLOWER "$ENV{AUDIOAPI}" AUDIOAPI)
-if(AUDIOAPI STREQUAL "")
+if(AUDIOAPI STREQUAL "default")
 	if(APPLE)
 		set(AUDIOAPI coreaudio)
 	elseif(WIN32)
@@ -166,7 +168,7 @@ elseif(NOT NO_LIBSNDFILE)
 	message(SEND_ERROR "Cannot find libsndfile")
 endif(SNDFILE_FOUND)
 
-if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+if(CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
 	add_definitions(-DSC_PLUGIN_DIR="${CMAKE_INSTALL_PREFIX}/lib/SuperCollider/plugins")
 endif()
 
@@ -208,16 +210,20 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	target_link_libraries(libscsynth rt)
 endif()
 
+file(GLOB_RECURSE all_headers ../../*hpp)
 
-add_executable(scsynth scsynth_main.cpp)
+add_executable(scsynth scsynth_main.cpp ${all_headers})
 target_link_libraries(scsynth libscsynth ${PTHREADS_LIBRARY})
 
 if(LTO)
     set_property(TARGET scsynth libscsynth
                  APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
 
-    set_property(TARGET scsynth libscsynth
+    set_property(TARGET scsynth
                  APPEND PROPERTY LINK_FLAGS "-flto -flto-report -fwhole-program")
+
+    set_property(TARGET libscsynth
+                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report")
 endif()
 
 if (LIBSCSYNTH)

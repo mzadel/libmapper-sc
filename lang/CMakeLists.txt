@@ -5,13 +5,21 @@ include_directories(${CMAKE_SOURCE_DIR}/include/common
                     ${CMAKE_SOURCE_DIR}/include/lang
                     ${CMAKE_SOURCE_DIR}/include/plugin_interface
                     ${CMAKE_SOURCE_DIR}/include/server
-                    ${CMAKE_SOURCE_DIR}/external_libraries/boost_lockfree
-                    ${CMAKE_SOURCE_DIR}/external_libraries/boost
+                    ${CMAKE_SOURCE_DIR}/common
+
+                    ${YAMLCPP_INCLUDE_DIR}
+
+                    ${CMAKE_SOURCE_DIR}/external_libraries/boost-lockfree
                     ${CMAKE_SOURCE_DIR}/external_libraries/threadpool
-                    ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.3.0/include
                     ${CMAKE_SOURCE_DIR}/external_libraries/TLSF-2.4.6/src
                     ${MAPPER_INCLUDE_DIR}
                     LangSource/Bison)
+
+if (Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+else()
+    include_directories(${CMAKE_SOURCE_DIR}/external_libraries/boost)
+endif()
 
 if(APPLE)
 	include_directories("LangPrimSource/${HID_UTIL_DIR}")
@@ -49,7 +57,6 @@ set(sclang_sources
 	LangSource/DumpParseNode.cpp
 	LangSource/GC.cpp
 	LangSource/InitAlloc.cpp
-	LangSource/PyrFileUtils.cpp
 	LangSource/PyrInterpreter3.cpp
 	LangSource/PyrLexer.cpp
 	LangSource/PyrMathOps.cpp
@@ -60,7 +67,7 @@ set(sclang_sources
 	LangSource/PyrSignal.cpp
 	LangSource/PyrSymbolTable.cpp
 	LangSource/SC_LanguageClient.cpp
-	LangSource/SC_LibraryConfig.cpp
+	LangSource/SC_LanguageConfig.cpp
 	LangSource/SC_TerminalClient.cpp
 	LangSource/Samp.cpp
 	LangSource/SimpleStack.cpp
@@ -75,17 +82,22 @@ set(sclang_sources
 	${CMAKE_SOURCE_DIR}/common/SC_StandAloneInfo_Darwin.cpp
 	${CMAKE_SOURCE_DIR}/common/SC_StringBuffer.cpp
 	${CMAKE_SOURCE_DIR}/common/SC_StringParser.cpp
+	${CMAKE_SOURCE_DIR}/common/SC_TextUtils.cpp
+
 	${CMAKE_SOURCE_DIR}/common/scsynthsend.cpp
 	${CMAKE_SOURCE_DIR}/common/sc_popen.cpp
 )
 
-file(GLOB boost_system_sources ../external_libraries/boost/libs/system/src/*cpp)
-file(GLOB boost_fs_sources ../external_libraries/boost/libs/filesystem/v3/src/*cpp)
-file(GLOB boost_regex_sources ../external_libraries/boost/libs/regex/src/*cpp)
-list(APPEND sclang_sources ${boost_fs_sources} ${boost_system_sources} ${boost_regex_sources})
+if (NOT Boost_FOUND)
+	file(GLOB boost_system_sources ../external_libraries/boost/libs/system/src/*cpp)
+	file(GLOB boost_fs_sources ../external_libraries/boost/libs/filesystem/src/*cpp)
+	file(GLOB boost_regex_sources ../external_libraries/boost/libs/regex/src/*cpp)
+	list(APPEND sclang_sources ${boost_fs_sources} ${boost_system_sources} ${boost_regex_sources})
+endif()
 
-file(GLOB yaml_sources ../external_libraries/yaml-cpp-0.3.0/src/*cpp)
-list(APPEND sclang_sources ${yaml_sources})
+file(GLOB_RECURSE headers ../include/*.h* )
+file(GLOB_RECURSE external_headers ../external_libraries/*.h* )
+list(APPEND sclang_sources ${headers} ${external_headers}) # make qt creator happy
 
 if(NOT WIN32)
 	list(APPEND sclang_sources LangPrimSource/PyrSerialPrim.cpp)
@@ -158,7 +170,7 @@ if (SC_WII OR APPLE)
 			include_directories(${CWIID_INCLUDE_DIRS} ${BLUETOOTH_INCLUDE_DIRS})
 			message(STATUS "Compiling with WiiMote support")
 		else()
-			message(SEND_ERROR "Cannot find libcwiid or libbluetooth")
+			message(SEND_ERROR "Cannot find libcwiid or libbluetooth.\n (If Wii support is not required, then set SC_WII=no)")
 		endif()
 	elseif(APPLE)
 		add_definitions(-DHAVE_WII)
@@ -198,6 +210,10 @@ if (SC_WII OR APPLE)
 	elseif(APPLE)
 		target_link_libraries(libsclang "-framework IOBluetooth")
 	endif()
+endif()
+
+if (Boost_FOUND)
+	target_link_libraries(libsclang ${Boost_THREAD_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_REGEX_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})
 endif()
 
 if (SCLANG_SERVER)
@@ -267,7 +283,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 	target_link_libraries(libsclang rt)
 endif()
 
-target_link_libraries(libsclang ${PTHREADS_LIBRARY} boost_thread)
+target_link_libraries(libsclang ${PTHREADS_LIBRARY} ${YAMLCPP_LIBRARY})
 
 if(SC_QT)
 	target_link_libraries(libsclang ${QT_COLLIDER_LIBS})
@@ -276,18 +292,23 @@ endif()
 target_link_libraries(libsclang "mapper-0")
 
 add_executable(sclang LangSource/cmdLineFuncs.cpp)
-target_link_libraries(sclang libsclang boost_thread)
+
+if (Boost_FOUND)
+	target_link_libraries(sclang libsclang ${Boost_THREAD_LIBRARY})
+else()
+	target_link_libraries(sclang libsclang boost_thread)
+endif()
 
 set_property(TARGET sclang
 	APPEND
-	PROPERTY COMPILE_DEFINITIONS USE_SC_TERMINAL_CLIENT)
+	PROPERTY COMPILE_DEFINITIONS USE_SC_TERMINAL_CLIENT BUILDING_SUPERCOLLIDER)
 
 if(LTO)
-    set_property(TARGET sclang libsclang
-                 APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
+	set_property(TARGET sclang libsclang
+					APPEND PROPERTY COMPILE_FLAGS "-flto -flto-report")
 
-    set_property(TARGET sclang libsclang
-                 APPEND PROPERTY LINK_FLAGS "-flto -flto-report -fwhole-program")
+	set_property(TARGET sclang libsclang
+					APPEND PROPERTY LINK_FLAGS "-flto -flto-report -fwhole-program")
 endif()
 
 if(APPLE)

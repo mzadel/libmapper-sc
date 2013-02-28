@@ -64,11 +64,6 @@ QTopView : QView {
     this.setProperty( \geometry, rOld.resizeTo( rNew.width, rNew.height ) );
   }
 
-  background_ { arg color;
-    // Do not autoFillBackground; the widget will paint it if necessary.
-    this.palette = this.palette.window_(color);
-  }
-
   drawingEnabled_ { arg bool; this.setProperty( \drawingEnabled, bool ); }
 
   findWindow { ^window; }
@@ -80,7 +75,7 @@ QWindow
 {
   classvar <allWindows, <>initAction;
 
-  var resizable, <drawFunc, <onClose;
+  var resizable, <drawFunc;
   var <view;
 
   //TODO
@@ -88,10 +83,6 @@ QWindow
   var <currentSheet;
 
   *implementsClass {^'Window'}
-
-  *initClass {
-    ShutDown.add( { QWindow.closeAll } );
-  }
 
   *screenBounds {
     _QWindow_ScreenBounds
@@ -175,10 +166,8 @@ QWindow
     view.setProperty( \geometry, rect.moveBy( 0, menuSpacer ) );
   }
 
-  onClose_ { arg func;
-    view.manageFunctionConnection( onClose, func, 'destroyed()', false );
-    onClose = func;
-  }
+  onClose { ^view.onClose }
+  onClose_ { arg func; view.onClose_(func) }
 
   // TODO
   addToOnClose{ arg function; }

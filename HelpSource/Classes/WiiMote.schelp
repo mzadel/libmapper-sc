@@ -13,6 +13,8 @@ Personally, I found that it works better with an external BlueTooth receiver, th
 
 The IR options, as well as the Classic controller have not been tested (due to lack of access to either complementary device by the developer).
 
+This class is not implemented for Windows, and thus will not work on that platform.
+
 ClassMethods::
 
 private::initClass, prStart, prStop, prDiscover
@@ -106,7 +108,7 @@ Returns an link::Classes/Array:: with the current acceleration values (x,y,z, or
 method::remote_ir
 Returns an link::Classes/Array:: with the found IR objects. (not tested!).
 
-method::remote_leds
+method::remote_led
 Returns an link::Classes/Array:: with the current LED values.
 
 method::setLEDState

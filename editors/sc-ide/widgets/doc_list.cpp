@@ -21,12 +21,16 @@
 #include "doc_list.hpp"
 #include "../core/doc_manager.hpp"
 
+#include <QApplication>
+#include <QStyle>
+
 namespace ScIDE {
 
-DocumentList::DocumentList(DocumentManager *manager, QWidget * parent):
-    QListWidget(parent)
+DocumentListWidget::DocumentListWidget(DocumentManager *manager, QWidget * parent):
+    QListWidget(parent),
+    mDocModifiedIcon( QApplication::style()->standardIcon(QStyle::SP_DialogSaveButton) )
 {
-    connect(manager, SIGNAL(opened(Document*)), this, SLOT(onOpen(Document*)));
+    connect(manager, SIGNAL(opened(Document*, int, int)), this, SLOT(onOpen(Document*, int, int)));
     connect(manager, SIGNAL(closed(Document*)), this, SLOT(onClose(Document*)));
     connect(manager, SIGNAL(saved(Document*)), this, SLOT(onSaved(Document*)));
     connect(&mModificationMapper, SIGNAL(mapped(QObject*)),
@@ -35,53 +39,61 @@ DocumentList::DocumentList(DocumentManager *manager, QWidget * parent):
             this, SLOT(onItemClicked(QListWidgetItem*)));
 }
 
-void DocumentList::setCurrent( Document *doc )
+void DocumentListWidget::setCurrent( Document *doc )
 {
-    Item *itm = itemFor(doc);
-    if(itm)
-        setCurrentItem(itm);
+    if(!doc)
+        setCurrentRow(-1);
+    else {
+        Item *itm = itemFor(doc);
+        if(itm)
+            setCurrentItem(itm);
+    }
 }
 
-void DocumentList::onOpen( Document *doc )
+void DocumentListWidget::onOpen( Document *doc, int, int )
 {
     addItemFor(doc);
 }
 
-void DocumentList::onClose( Document *doc )
+void DocumentListWidget::onClose( Document *doc )
 {
     delete itemFor(doc);
 }
 
-void DocumentList::onSaved( Document *doc )
+void DocumentListWidget::onSaved( Document *doc )
 {
     Item *item = itemFor(doc);
     if(item)
         item->setText(doc->title());
 }
 
-void DocumentList::onModificationChanged( QObject * obj )
+void DocumentListWidget::onModificationChanged( QObject * obj )
 {
     Document *doc = qobject_cast<Document*>(obj);
     Item *item = itemFor(doc);
     if(item)
         item->setIcon(
             doc->textDocument()->isModified() ?
-            QIcon::fromTheme("document-save") : QIcon()
+            mDocModifiedIcon : QIcon()
         );
 }
 
-void DocumentList::onItemClicked(QListWidgetItem* litem)
+void DocumentListWidget::onItemClicked(QListWidgetItem* litem)
 {
     Item *item = itemFor(litem);
     if(item)
         Q_EMIT( clicked(item->mDoc) );
 }
 
-DocumentList::Item * DocumentList::addItemFor( Document *doc )
+DocumentListWidget::Item * DocumentListWidget::addItemFor( Document *doc )
 {
     Item *item = new Item(doc, this);
 
     QTextDocument *tdoc = doc->textDocument();
+
+    if(tdoc->isModified())
+        item->setIcon( mDocModifiedIcon );
+
     mModificationMapper.setMapping(tdoc, doc);
     connect(tdoc, SIGNAL(modificationChanged(bool)),
             &mModificationMapper, SLOT(map()));
@@ -89,7 +101,7 @@ DocumentList::Item * DocumentList::addItemFor( Document *doc )
     return item;
 }
 
-DocumentList::Item *DocumentList::itemFor( Document *doc )
+DocumentListWidget::Item *DocumentListWidget::itemFor( Document *doc )
 {
     int c = count();
     for(int i = 0; i < c; ++i)
@@ -100,7 +112,7 @@ DocumentList::Item *DocumentList::itemFor( Document *doc )
     return 0;
 }
 
-DocumentList::Item *DocumentList::itemFor( QListWidgetItem *litem )
+DocumentListWidget::Item *DocumentListWidget::itemFor( QListWidgetItem *litem )
 {
     if(litem->type() == QListWidgetItem::UserType)
         return static_cast<Item*>(litem);
