@@ -39,7 +39,7 @@ Exception {
 			if(def.isKindOf(Method), {
 				ownerClass = def.ownerClass;
 				methodName = def.name;
-				if(ownerClass == Function && (methodName == 'protect'), {
+				if(ownerClass == Function && { #['protect', 'try'].includes(methodName) }, {
 					pos = out.pos;
 				});
 				out << "\t%:%\t%\n".format(ownerClass, methodName, currentFrame.address);
@@ -51,7 +51,7 @@ Exception {
 				out << "\t\targ % = %\n".format(name, currentFrame.args[i]);
 			});
 			def.varNames.do({|name, i|
-				out << "\t\targ % = %\n".format(name, currentFrame.args[i]);
+				out << "\t\tvar % = %\n".format(name, currentFrame.vars[i]);
 			});
 			currentFrame = currentFrame.caller;
 		});

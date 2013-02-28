@@ -971,6 +971,7 @@ int headerFormatFromString(const char *name)
     if (strcasecmp(name, "FLAC")==0) return SF_FORMAT_FLAC;
     if (strcasecmp(name, "vorbis")==0) return SF_FORMAT_VORBIS;
     if (strcasecmp(name, "CAF")==0) return SF_FORMAT_CAF;
+    if (strcasecmp(name, "RF64")==0) return SF_FORMAT_RF64;
     return 0;
 }
 
@@ -1111,7 +1112,10 @@ void sc_plugin_interface::buffer_sync(uint32_t index)
 
 void sc_plugin_interface::free_buffer(uint32_t index)
 {
-    sndbuf_init(world.mSndBufsNonRealTimeMirror + index);
+    SndBuf * buf = world.mSndBufsNonRealTimeMirror + index;
+    if (buf->sndfile)
+        sf_close(buf->sndfile);
+    sndbuf_init(buf);
 }
 
 void sc_plugin_interface::initialize_synths_perform(void)

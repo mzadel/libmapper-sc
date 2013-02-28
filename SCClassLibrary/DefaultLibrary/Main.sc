@@ -1,11 +1,11 @@
 Main : Process {
 	// do not change the next lines manually:
 	//==== replace with new version from bash script ====
-classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
+classvar scVersionMajor=3, scVersionMinor=6, scVersionPostfix="~dev";
 	//==== end replace ====
 
 	var <platform, argv;
-	var <>recvOSCfunc;
+	var recvOSCfunc, prRecvOSCFunc;
 	var <customPorts;
 
 		// proof-of-concept: the interpreter can set this variable when executing code in a file
@@ -28,10 +28,10 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 		this.platform.startup;
 		StartUp.run;
 
-		("Welcome to SuperCollider"
+		("Welcome to SuperCollider" + Main.version
 			++ (Platform.ideName.switch(
 				"scvim", {", type :SChelp for help"},
-				"scel",  {", type ctrl-c ctrl-h for help"},
+				"scel",  {", type C-c C-y for help"},
 				"sced",  {", type ctrl-U for help"},
 				"scapp", {", type cmd-d for help"}
 			) ?? {
@@ -77,7 +77,8 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 
 	recvOSCmessage { arg time, replyAddr, recvPort, msg;
 		// this method is called when an OSC message is received.
-		recvOSCfunc.value(time, replyAddr, recvPort, msg);
+		recvOSCfunc.value(time, replyAddr, msg);
+		prRecvOSCFunc.value(msg, time, replyAddr, recvPort); // same order as OSCFunc
 		OSCresponder.respond(time, replyAddr, msg);
 	}
 
@@ -87,12 +88,12 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 			this.recvOSCmessage(time, replyAddr, recvPort, msg);
 		});
 	}
+
+	addOSCRecvFunc { |func| prRecvOSCFunc = prRecvOSCFunc.addFunc(func) }
 	
-	addOSCFunc { |func| recvOSCfunc = recvOSCfunc.addFunc(func) }
+	removeOSCRecvFunc { |func| prRecvOSCFunc = prRecvOSCFunc.removeFunc(func) }
 	
-	removeOSCFunc { |func| recvOSCfunc = recvOSCfunc.removeFunc(func) }
-	
-	replaceOSCFunc { |func, newFunc| recvOSCfunc = recvOSCfunc.replaceFunc(func, newFunc) }
+	replaceOSCRecvFunc { |func, newFunc| prRecvOSCFunc = prRecvOSCFunc.replaceFunc(func, newFunc) }
 	
 	openUDPPort {|portNum|
 		var result;
@@ -100,11 +101,11 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 		if(result, { customPorts = customPorts ++ [portNum]; });
 		^result;
 	}
-	
+
 	prOpenUDPPort {|portNum|
 		_OpenUDPPort
 	}
-	
+
 	newSCWindow {
 		var win, palette;
 		win = SCWindow("construction");
@@ -123,10 +124,10 @@ classvar scVersionMajor=3, scVersionMinor=5, scVersionPostfix="~dev";
 	}
 
 	showHelpBrowser {
-		HelpBrowser.openBrowser;
+		HelpBrowser.openBrowsePage;
 	}
 	showHelpSearch {
-		HelpBrowser.openSearch(this.getCurrentSelection);
+		HelpBrowser.openSearchPage(this.getCurrentSelection);
 	}
 	showHelp {
 		HelpBrowser.openHelpFor(this.getCurrentSelection);

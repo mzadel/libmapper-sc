@@ -272,16 +272,10 @@ bool QWidgetProxy::interpretMouseEvent( QObject *o, QEvent *e, QList<QVariant> &
 
   QWidget *w = widget();
 
-  if( e->type() == QEvent::Enter || e->type() == QEvent::Leave ) {
-    QPoint pos = QCursor::pos();
+  QEvent::Type etype = e->type();
 
-
-    if( w ) pos = w->mapFromGlobal( pos );
-
-    args << pos.x();
-    args << pos.y();
+  if( etype == QEvent::Enter || etype == QEvent::Leave )
     return true;
-  }
 
   QMouseEvent *mouse = static_cast<QMouseEvent*>( e );
   QPoint pt = ( _mouseEventWidget == w ?
@@ -292,28 +286,52 @@ bool QWidgetProxy::interpretMouseEvent( QObject *o, QEvent *e, QList<QVariant> &
 
   args << (int) mouse->modifiers();
 
-  if( e->type() == QEvent::MouseMove ) return true;
+  if( etype == QEvent::MouseMove )
+  {
+    int buttons = mouse->buttons();
 
-  int button;
-  switch( mouse->button() ) {
-    case Qt::LeftButton:
-      button = 0; break;
-    case Qt::RightButton:
-      button = 1; break;
-    case Qt::MidButton:
-      button = 2; break;
-    default:
-      button = -1;
+    if( buttons == 0 ) {
+      // Special treatment of mouse-tracking events.
+
+      QWidget *win = w->window();
+
+      // Only accept if window has a special property enabled.
+      if( !(win && win->property("_qc_win_mouse_tracking").toBool()) )
+        return false;
+
+      // Reject the events when mouse pointer leaves the window,
+      // resulting in out-of-bounds coordinates
+      if( win == w ) {
+        if( pt.x() < 0 || pt.x() >= w->width() || pt.y() < 0 || pt.y() >= w->height() )
+          return false;
+      }
+    }
+
+    args << (int) mouse->buttons();
   }
+  else
+  {
+    // MouseButtonPress, MouseButtonDblClick, MouseButtonRelease
 
-  args << button;
+    int button;
 
-  switch( e->type() ) {
-    case QEvent::MouseButtonPress:
-      args << 1; break;
-    case QEvent::MouseButtonDblClick:
-      args << 2; break;
-    default: ;
+    switch( mouse->button() ) {
+      case Qt::LeftButton:
+        button = 0; break;
+      case Qt::RightButton:
+        button = 1; break;
+      case Qt::MidButton:
+        button = 2; break;
+      default:
+        button = -1;
+    }
+
+    args << button;
+
+    if( etype == QEvent::MouseButtonPress )
+      args << 1;
+    else if( etype == QEvent::MouseButtonDblClick )
+      args << 2;
   }
 
   return true;

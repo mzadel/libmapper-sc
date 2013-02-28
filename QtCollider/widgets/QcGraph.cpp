@@ -71,6 +71,7 @@ QcGraph::QcGraph() :
   QPalette plt( palette() );
   _strokeColor = plt.color( QPalette::Text );
   _gridColor = plt.color( QPalette::Midlight );
+
   setFocusPolicy( Qt::StrongFocus );
   setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
 
@@ -162,17 +163,35 @@ void QcGraph::setStrings( const VariantList &list )
 
 void QcGraph::setCurves( const VariantList & curves )
 {
-  if( curves.data.size() == 1 ) {
-    QVariant var = curves.data[0];
-    Q_FOREACH( QcGraphElement *e, _model.elements() )
-      e->setCurveType( var );
-  }
-  else if( curves.data.size() == _model.elementCount() ) {
-    for( int i=0; i<curves.data.size(); ++i ) {
-      QVariant var = curves.data[i];
-      _model.elementAt(i)->setCurveType( var );
+  for( int i = 0; i < curves.data.size() && i < _model.elementCount(); ++i ) {
+    QVariant data = curves.data[i];
+    QcGraphElement::CurveType type;
+    double curvature;
+    if( data.type() == QVariant::Int ) {
+      type = (QcGraphElement::CurveType) data.toInt();
+      curvature = 0.0;
     }
+    else {
+      type = QcGraphElement::Curvature;
+      curvature = data.value<double>();
+    }
+    _model.elementAt(i)->setCurveType( type, curvature );
   }
+  update();
+}
+
+void QcGraph::setCurves( double curvature )
+{
+  Q_FOREACH( QcGraphElement* e, _model.elements() )
+    e->setCurveType( QcGraphElement::Curvature, curvature );
+  update();
+}
+
+void QcGraph::setCurves( int typeId )
+{
+  QcGraphElement::CurveType type = (QcGraphElement::CurveType)typeId;
+  Q_FOREACH( QcGraphElement* e, _model.elements() )
+    e->setCurveType( type );
   update();
 }
 
@@ -623,9 +642,9 @@ void QcGraph::addCurve( QPainterPath &path, QcGraphElement *e1, QcGraphElement *
     path.moveTo( pt1 );
 
     // prevent NaN
-    double curve = qBound( -100.f, e1->curvature, 100.f );
+    double curve = qBound( -100.0, e1->curvature, 100.0 );
 
-    if( abs( curve ) < 0.0001f ) {
+    if( std::abs( curve ) < 0.0001 ) {
       path.lineTo( pt2 );
     }
     else {
@@ -650,13 +669,13 @@ void QcGraph::paintEvent( QPaintEvent * )
   QPalette plt( palette() );
 
   p.setPen( plt.color( QPalette::Mid ) );
-  p.setBrush( Qt::NoBrush );
+  p.setBrush( plt.color( QPalette::Base ) );
   p.drawRect( rect().adjusted(0,0,-1,-1) );
 
   QRect contentsRect( _thumbSize.width() * 0.5f, _thumbSize.height() * 0.5f,
                       width() - _thumbSize.width(), height() - _thumbSize.height() );
   p.setPen( _gridColor );
-  p.setBrush( plt.color( QPalette::Base ) );
+  p.setBrush( Qt::NoBrush );
   p.drawRect( contentsRect );
 
   //draw grid;

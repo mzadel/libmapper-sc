@@ -5,6 +5,18 @@ endif()
 # determines the app name and app install location (scappbundlename, scappdir):
 include (${CMAKE_SOURCE_DIR}/cmake_modules/MacAppFolder.cmake)
 
+# On OSX, everything is installed in a folder named after ${scappauxresourcesdir},
+# which defaults to "SuperCollider". The folder is installed under ${CMAKE_INSTALL_PREFIX},
+# which defaults to <build directory>/Install/
+# This means the app will go in <build dir>/Install/SuperCollider/SuperCollider.app
+# and class lib in <build dir>/Install/SuperCollider/SCClassLibrary, etc..
+# The contents of the install prefix folder will be packaged to a DMG with "make package"
+
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+	set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/Install" CACHE PATH "Install path prefix" FORCE)
+endif()
+message(STATUS "Install prefix ${CMAKE_INSTALL_PREFIX}")
+
 include_directories(
 	${CMAKE_SOURCE_DIR}/lang/LangSource/Bison
 	${CMAKE_SOURCE_DIR}/include/common
@@ -248,9 +260,7 @@ endif(SNDFILE_FOUND)
 
 target_link_libraries(${scappbundlename} ${PTHREADS_LIBRARY})
 
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${scappbundlename}.app"
-	DESTINATION ${scappdir}
-	USE_SOURCE_PERMISSIONS)
+install(TARGETS ${scappbundlename} DESTINATION ${scappauxresourcesdir})
 
 if (NOT ("${standalone}" STREQUAL ""))
 	# A synthdefs folder is expected in the bundle
@@ -276,13 +286,13 @@ if (NOT ("${standalone}" STREQUAL ""))
 	endforeach(onefile)
 endif()
 
-# fixup_bundle will fix the dll referencing so the .app can be sent to other people:
-option(SC_APP_BUNDLE_LIBS "Bundle frameworks and libraries in app" OFF)
-if (SC_APP_BUNDLE_LIBS)
-    INSTALL(CODE "
-       include(BundleUtilities)
-       set(BU_CHMOD_BUNDLE_ITEMS TRUE) # allow cmake>=2.8.3 to chmod libs it's including, rather than choking on readonly
-       fixup_bundle(\"${scappdir}/${scappbundlename}.app\"   \"\"   \"${CMAKE_CURRENT_BINARY_DIR}\")
-       "
-    COMPONENT Runtime)
+set(MACOSX_BUNDLE_BUNDLE_NAME "${scappbundlename}")
+
+include(InstallRequiredSystemLibraries)
+
+if(SC_QT)
+	include(DeployQt4)
+	install_qt4_executable("${scappauxresourcesdir}/${scappbundlename}.app" "" "" "${CMAKE_BINARY_DIR}/server/scsynth")
 endif()
+
+
