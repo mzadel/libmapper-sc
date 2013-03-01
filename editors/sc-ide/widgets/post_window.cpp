@@ -45,6 +45,8 @@ PostWindow::PostWindow(QWidget* parent):
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     setFrameShape( QFrame::NoFrame );
 
+    viewport()->setAttribute( Qt::WA_MacNoClickThrough, true );
+
     QRect availableScreenRect = qApp->desktop()->availableGeometry(this);
     mSizeHint = QSize( availableScreenRect.width() * 0.4, availableScreenRect.height() * 0.3 );
 
@@ -240,6 +242,20 @@ bool PostWindow::event( QEvent * event )
 
 void PostWindow::wheelEvent( QWheelEvent * e )
 {
+    // FIXME: Disable zooming for now, to avoid nasty effect when Ctrl
+    // is unintentionally pressed while inertial scrolling is going on.
+
+    // Moreover, Ctrl|Shift + Wheel scrolls by pages, which is also
+    // rather annoying.
+
+    // So rather just forward the event without modifiers.
+
+    QWheelEvent modifiedEvent( e->pos(), e->globalPos(), e->delta(),
+                               e->buttons(), 0, e->orientation() );
+    QPlainTextEdit::wheelEvent( &modifiedEvent );
+    return;
+
+#if 0
     if (e->modifiers() == Qt::ControlModifier) {
         if (e->delta() > 0)
             zoomIn();
@@ -249,6 +265,7 @@ void PostWindow::wheelEvent( QWheelEvent * e )
     }
 
     QPlainTextEdit::wheelEvent(e);
+#endif
 }
 
 void PostWindow::focusOutEvent( QFocusEvent * event )

@@ -136,7 +136,6 @@ void start_audio_backend(server_arguments const & args)
     }
 
     connect_jack_ports();
-    instance->start_dsp_threads();
 }
 
 #elif defined(PORTAUDIO_BACKEND)
@@ -153,7 +152,6 @@ void start_audio_backend(server_arguments const & args)
     cout << "opened portaudio device name:" << args.hw_name << endl;
     instance->prepare_backend();
     instance->activate_audio();
-    instance->start_dsp_threads();
 }
 
 #else
@@ -222,7 +220,7 @@ void set_plugin_paths(void)
 void load_synthdef_folder(nova_server & server, path const & folder, bool verbose)
 {
     if (verbose)
-        std::printf("Loading synthdefs from path: %s\n", folder.c_str());
+        std::cout << "Loading synthdefs from path: " << folder.string() << std::endl;
 
     register_synthdefs(server, std::move(sc_read_synthdefs_dir(folder)));
 }

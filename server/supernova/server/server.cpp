@@ -1,5 +1,5 @@
 //  nova server
-//  Copyright (C) 2008, 2009, 2010 Tim Blechmann
+//  Copyright (C) 2008 - 2012 Tim Blechmann
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -92,12 +92,10 @@ void nova_server::prepare_backend(void)
 
 nova_server::~nova_server(void)
 {
-#if defined(JACK_BACKEND)
-    if (audio_is_active())
-        deactivate_audio();
-
-    close_client();
+#if defined(JACK_BACKEND) || defined(PORTAUDIO_BACKEND)
+    deactivate_audio();
 #endif
+
     scheduler<scheduler_hook, thread_init_functor>::terminate();
     io_interpreter.join_thread();
     instance = 0;
@@ -168,6 +166,7 @@ void nova_server::free_node(server_node * node)
 
 void nova_server::run_nonrt_synthesis(server_arguments const & args)
 {
+    start_dsp_threads();
     non_realtime_synthesis_engine engine(args);
     engine.run();
 }

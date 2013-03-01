@@ -83,7 +83,7 @@ public slots:
     void stopLanguage (void);
     void restartLanguage (void);
     void recompileClassLibrary (void);
-    void stopMain(void) { evaluateCode("thisProcess.stop", false); }
+    void stopMain(void);
     void evaluateCode(QString const & commandString, bool silent = false);
 
 signals:
@@ -106,6 +106,7 @@ private slots:
     void finalizeConnection();
     void onProcessStateChanged( QProcess::ProcessState state);
     void onReadyRead(void);
+    void updateToggleRunningAction();
 
 private:
     void onStart();

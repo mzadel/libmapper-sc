@@ -58,6 +58,7 @@ public:
         DocNew,
         DocOpen,
         DocOpenStartup,
+        DocOpenSupportDir,
         DocSave,
         DocSaveAs,
         DocSaveAll,
@@ -94,6 +95,7 @@ public:
 
         // Help
         Help,
+        HelpAboutIDE,
         LookupDocumentationForCursor,
         LookupDocumentation,
         ShowAbout,
@@ -128,7 +130,6 @@ public Q_SLOTS:
 
     void newDocument();
     void openDocument();
-    void openStartupFile();
     void saveDocument();
     void saveDocumentAs();
     void saveAllDocuments();
@@ -151,6 +152,9 @@ public Q_SLOTS:
     void showStatusMessage( QString const & string );
 
 private Q_SLOTS:
+    void openStartupFile();
+    void openUserSupportDirectory();
+
     void switchSession( Session *session );
     void saveSession( Session *session );
     void onInterpreterStateChanged( QProcess::ProcessState );
@@ -170,6 +174,7 @@ private Q_SLOTS:
     void lookupReferences();
     void lookupReferencesForCursor();
     void openHelp();
+    void openHelpAboutIDE();
     void lookupDocumentationForCursor();
     void lookupDocumentation();
     void applySettings( Settings::Manager * );
@@ -231,6 +236,9 @@ public:
     StatusLabel(QWidget *parent = 0);
     void setBackground(const QBrush &);
     void setTextColor(const QColor &);
+protected:
+    void showContextMenu();
+    virtual void mousePressEvent( QMouseEvent * );
 };
 
 class StatusClockLabel : public StatusLabel

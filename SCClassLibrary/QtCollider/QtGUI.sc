@@ -85,12 +85,16 @@ QtGUI {
   *font { ^QFont }
   *image { ^this.notImplemented( "Image" ) }
 
+  *speech { ^'Speech'.asClass }
+
   *notImplemented { arg class;
     //("QtGUI: " ++ class.asString ++ " is not implemented yet").postln;
     ^nil;
   }
 
   //////////////////////////////////////////////////////////////////////
+
+  *cursorPosition { _Qt_CursorPosition }
 
   *availableStyles {
     _Qt_AvailableStyles

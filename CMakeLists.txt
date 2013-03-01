@@ -148,7 +148,14 @@ option(SSE41 "Compile with support for SSE4.1 instructions.")
 option(SSE42 "Compile with support for SSE4.2 instructions.")
 
 set(AUDIOAPI "default" CACHE STRING "Audio API to use (one of {default,coreaudio,jack,portaudio})")
-option(LIBSCSYNTH "Compile libscsynth as shared library" OFF)
+
+if(NOT WIN32)
+	option(LIBSCSYNTH "Compile libscsynth as shared library" OFF)
+else()
+	# libscsynth has unresolved symbols, which are resolved when linked with server executable.
+	# On Windows, this is not supported for static libraries, so we build dynamic by default.
+	option(LIBSCSYNTH "Compile libscsynth as shared library" ON)
+endif()
 
 option(INSTALL_HELP "Install help docs and examples along with the software" ON)
 option(SC_DOC_RENDER "Pre-render SCDoc documentation. (For putting online, etc)" OFF)
@@ -167,8 +174,8 @@ option(SC_MEMORY_DEBUGGING "Build sclang&scsynth for memory debugging (disable m
 option(GC_SANITYCHECK "Enable sanity checks in the sclang garbage collector.")
 
 option(NO_LIBSNDFILE "Disable soundfile functionality. (Not recommended.)" OFF)
-
 option(NO_AVAHI "Disable Avahi support. (Not recommended.)" OFF)
+option(NO_GPL3 "Disable GPL3 code, for pure-GPL2 situations. (Not recommended.)" OFF)
 
 option(SCLANG_SERVER "Build with internal server." ON)
 
@@ -285,6 +292,10 @@ if(MINGW)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mstackrealign")
 endif()
 
+if (NO_GPL3)
+	add_definitions(-DNO_GPL3)
+endif()
+
 #############################################
 # subdirectories
 add_subdirectory(external_libraries)
@@ -293,6 +304,10 @@ if(NOT YAMLCPP_FOUND)
   set(YAMLCPP_LIBRARY yaml)
   set(YAMLCPP_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external_libraries/yaml-cpp-0.3.0/include)
 endif()
+
+
+configure_file(common/SC_Version.hpp.in common/SC_Version.hpp)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/common)
 
 add_subdirectory(server)
 add_subdirectory(lang)
@@ -385,9 +400,6 @@ else()
 		PATTERN "*#" EXCLUDE
 	)
 endif()
-
-configure_file(platform/SCVersion.sc.in SCVersion/SCVersion.sc)
-install(DIRECTORY "${CMAKE_BINARY_DIR}/SCVersion" DESTINATION "${auxresourcesdir}/SCClassLibrary")
 
 install(DIRECTORY sounds
 	DESTINATION ${auxresourcesdir}
