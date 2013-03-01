@@ -181,11 +181,6 @@ if (SC_QT)
   message( STATUS "Compiling with Qt GUI" )
 endif (SC_QT)
 
-if(WIN32)
-    option(SC_WIN_DEP_DIRS
-        "A list of directories where dependencies will be searched for when packaging.")
-endif()
-
 if(CMAKE_COMPILER_IS_GNUCXX)
     option(NATIVE "Optimize binary for this architecture (binaries may not run on other machines, requires gcc-4.3 or higher).")
     option(LTO "Use GCC's link time optimizer' (experimental).")
@@ -283,6 +278,11 @@ endif()
 
 if (SC_MEMORY_DEBUGGING)
 	add_definitions(-DDISABLE_MEMORY_POOLS)
+endif()
+
+if(MINGW)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mstackrealign")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mstackrealign")
 endif()
 
 #############################################

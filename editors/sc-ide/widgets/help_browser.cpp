@@ -333,6 +333,27 @@ void HelpBrowser::onContextMenuRequest( const QPoint & pos )
     menu.exec( mWebView->mapToGlobal(pos) );
 }
 
+QString HelpBrowser::symbolUnderCursor()
+{
+    return mWebView->selectedText();
+    // FIXME: should parse out word under cursor if no selection
+}
+
+bool HelpBrowser::openDocumentation()
+{
+    return Main::openDocumentation(symbolUnderCursor());
+}
+
+void HelpBrowser::openDefinition()
+{
+    return Main::openDefinition(symbolUnderCursor(), window());
+}
+
+void HelpBrowser::findReferences()
+{
+    return Main::findReferences(symbolUnderCursor(), window());
+}
+
 HelpBrowserFindBox::HelpBrowserFindBox( QWidget * parent ):
     QLineEdit(parent)
 {

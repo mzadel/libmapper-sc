@@ -1,6 +1,6 @@
 cmake_minimum_required( VERSION 2.8 )
 
-find_package(Qt4 4.7 REQUIRED QtCore QtGui QtWebKit)
+find_package(Qt4 4.7 REQUIRED QtCore QtGui QtWebKit QtNetwork)
 
 if(${CMAKE_COMPILER_IS_GNUCXX})
     add_definitions(-Wreorder)
@@ -142,6 +142,7 @@ set( translation_src
     ${CMAKE_CURRENT_SOURCE_DIR}/translations/scide_de.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/translations/scide_es.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/translations/scide_fr.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/translations/scide_it.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/translations/scide_ja.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/translations/scide_pt.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/translations/scide_ru.ts
