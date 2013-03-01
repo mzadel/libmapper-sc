@@ -39,15 +39,13 @@ public:
 
 public:
     explicit PopUpWidget( QWidget * parent = 0 );
-
     virtual ~PopUpWidget();
 
-    int exec( const QPoint & pos );
-
-    void popup( const QPoint & pos );
+    int exec( const QRect & targetRect );
+    void popup( const QRect & targetRect );
+    void setTargetRect( const QRect & targetRect ) { mTargetRect = targetRect; }
 
 public slots:
-
     void accept()
     {
         done(Accepted);
@@ -85,13 +83,12 @@ protected:
     }
 
     virtual void keyPressEvent( QKeyEvent *ke );
-
     virtual void showEvent( QShowEvent * );
 
 private:
-
     QEventLoop *mEventLoop;
     int mResult;
+    QRect mTargetRect;
 };
 
 } // namespace ScIDE

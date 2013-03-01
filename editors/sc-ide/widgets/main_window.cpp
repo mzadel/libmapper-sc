@@ -18,6 +18,8 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
 */
 
+#define QT_NO_DEBUG_OUTPUT
+
 #include "cmd_line.hpp"
 #include "doc_list.hpp"
 #include "documents_dialog.hpp"
@@ -38,6 +40,8 @@
 #include "../core/sc_server.hpp"
 #include "code_editor/sc_editor.hpp"
 #include "settings/dialog.hpp"
+
+#include "SC_DirUtils.h"
 
 #include <QAction>
 #include <QApplication>
@@ -71,14 +75,14 @@ MainWindow::MainWindow(Main * main) :
     // Construct status bar:
 
     mLangStatus = new StatusLabel();
-    mLangStatus->setText("Inactive");
+    mLangStatus->setText(tr("Inactive"));
     mServerStatus = new StatusLabel();
     onServerStatusReply(0, 0, 0, 0, 0, 0);
 
     mStatusBar = statusBar();
-    mStatusBar->addPermanentWidget( new QLabel("Interpreter:") );
+    mStatusBar->addPermanentWidget( new QLabel(tr("Interpreter:")) );
     mStatusBar->addPermanentWidget( mLangStatus );
-    mStatusBar->addPermanentWidget( new QLabel("Server:") );
+    mStatusBar->addPermanentWidget( new QLabel(tr("Server:")) );
     mStatusBar->addPermanentWidget( mServerStatus );
 
     // Code editor
@@ -86,7 +90,7 @@ MainWindow::MainWindow(Main * main) :
 
     // Tools
 
-    mCmdLine = new CmdLine("Command Line:");
+    mCmdLine = new CmdLine(tr("Command Line:"));
     connect(mCmdLine, SIGNAL(invoked(QString, bool)),
             main->scProcess(), SLOT(evaluateCode(QString, bool)));
 
@@ -102,19 +106,19 @@ MainWindow::MainWindow(Main * main) :
     mToolBox->hide();
 
     // Docks
-    mDocListDock = new DocumentsDock(main->documentManager(), this);
-    mDocListDock->setObjectName("documents-dock");
-    addDockWidget(Qt::LeftDockWidgetArea, mDocListDock);
-    mDocListDock->hide();
+    mDocumentsDocklet = new DocumentsDocklet(main->documentManager(), this);
+    mDocumentsDocklet->setObjectName("documents-dock");
+    addDockWidget(Qt::LeftDockWidgetArea, mDocumentsDocklet->dockWidget());
+    mDocumentsDocklet->hide();
 
-    mHelpBrowserDockable = new HelpBrowserDockable(this);
-    mHelpBrowserDockable->setObjectName("help-dock");
-    addDockWidget(Qt::RightDockWidgetArea, mHelpBrowserDockable);
+    mHelpBrowserDocklet = new HelpBrowserDocklet(this);
+    mHelpBrowserDocklet->setObjectName("help-dock");
+    addDockWidget(Qt::RightDockWidgetArea, mHelpBrowserDocklet->dockWidget());
     //mHelpBrowserDockable->hide();
 
-    mPostDock = new PostDock(this);
-    mPostDock->setObjectName("post-dock");
-    addDockWidget(Qt::RightDockWidgetArea, mPostDock);
+    mPostDocklet = new PostDocklet(this);
+    mPostDocklet->setObjectName("post-dock");
+    addDockWidget(Qt::RightDockWidgetArea, mPostDocklet->dockWidget());
 
     // Layout
     QVBoxLayout *center_box = new QVBoxLayout;
@@ -141,7 +145,7 @@ MainWindow::MainWindow(Main * main) :
             main->scProcess(), SLOT(evaluateCode(QString,bool)));
     // Interpreter: post output
     connect(main->scProcess(), SIGNAL( scPost(QString) ),
-            mPostDock->mPostWindow, SLOT( post(QString) ) );
+            mPostDocklet->mPostWindow, SLOT( post(QString) ) );
     // Interpreter: monitor running state
     connect(main->scProcess(), SIGNAL( stateChanged(QProcess::ProcessState) ),
             this, SLOT( onInterpreterStateChanged(QProcess::ProcessState) ) );
@@ -150,10 +154,10 @@ MainWindow::MainWindow(Main * main) :
             this, SLOT(showStatusMessage(const QString&)));
 
     // Document list interaction
-    connect(mDocListDock->list(), SIGNAL(clicked(Document*)),
+    connect(mDocumentsDocklet->list(), SIGNAL(clicked(Document*)),
             mEditors, SLOT(setCurrent(Document*)));
     connect(mEditors, SIGNAL(currentDocumentChanged(Document*)),
-            mDocListDock->list(), SLOT(setCurrent(Document*)),
+            mDocumentsDocklet->list(), SLOT(setCurrent(Document*)),
             Qt::QueuedConnection);
 
     // Update actions on document change
@@ -187,9 +191,6 @@ MainWindow::MainWindow(Main * main) :
     onServerRunningChanged(false, "", 0);
     toggleInterpreterActions(false);
 
-    mServerStatus->addAction( mMain->scServer()->action(ScServer::ToggleRunning) );
-    mServerStatus->setContextMenuPolicy(Qt::ActionsContextMenu);
-
     // Initialize recent documents menu
     updateRecentDocsMenu();
 
@@ -215,9 +216,8 @@ void MainWindow::createActions()
 
     QAction *action;
     const QString ideCategory("IDE");
-    const QString postCategory("Post Window");
-    const QString editorCategory("Text Editor");
-    const QString helpCategory("Help");
+    const QString editorCategory(tr("Text Editor"));
+    const QString helpCategory(tr("Help"));
 
     // File
     mActions[Quit] = action = new QAction(
@@ -240,6 +240,12 @@ void MainWindow::createActions()
     action->setStatusTip(tr("Open an existing file"));
     connect(action, SIGNAL(triggered()), this, SLOT(openDocument()));
     settings->addAction( action, "ide-document-open", ideCategory);
+
+    mActions[DocOpenStartup] = action = new QAction(
+        QIcon::fromTheme("document-open"), tr("Open startup file"), this);
+    action->setStatusTip(tr("Open startup file"));
+    connect(action, SIGNAL(triggered()), this, SLOT(openStartupFile()));
+    settings->addAction( action, "ide-document-open-startup", ideCategory);
 
     mActions[DocSave] = action = new QAction(
         QIcon::fromTheme("document-save"), tr("&Save"), this);
@@ -284,6 +290,7 @@ void MainWindow::createActions()
     settings->addAction( action, "ide-document-reload", ideCategory);
 
     mActions[ClearRecentDocs] = action = new QAction(tr("Clear", "Clear recent documents"), this);
+    action->setStatusTip(tr("Clear list of recent documents"));
     connect(action, SIGNAL(triggered()),
             Main::instance()->documentManager(), SLOT(clearRecents()));
     settings->addAction( action, "ide-clear-recent-documents", ideCategory);
@@ -336,7 +343,7 @@ void MainWindow::createActions()
 
     mActions[ShowGoToLineTool] = action = new QAction(tr("&Go To Line"), this);
     action->setStatusTip(tr("Tool to jump to a line by number"));
-    action->setShortcut(tr("Ctrl+G", "Show go-to-line tool"));
+    action->setShortcut(tr("Ctrl+L", "Show go-to-line tool"));
     connect(action, SIGNAL(triggered()), this, SLOT(showGoToLineTool()));
     settings->addAction( action, "editor-go-to-line", editorCategory);
 
@@ -353,18 +360,11 @@ void MainWindow::createActions()
     connect(action, SIGNAL(triggered()), this, SLOT(toggleFullScreen()));
     settings->addAction( action, "ide-show-fullscreen", ideCategory);
 
-    mActions[ClearPostWindow] = action = new QAction(
-        QIcon::fromTheme("window-clearpostwindow"), tr("Clear Post Window"), this);
-    action->setStatusTip(tr("Clear Post Window"));
-    action->setShortcut(tr("Ctrl+Shift+C", "Clear Post Window"));
-    connect(action, SIGNAL(triggered()), mPostDock->mPostWindow, SLOT(clear()));
-    settings->addAction( action, "post-clear", postCategory);
-
     mActions[FocusPostWindow] = action = new QAction( tr("Focus Post Window"), this);
-    action->setStatusTip(tr("Focus Post Window"));
-    action->setShortcut(tr("Ctrl+L", "Focus Post Window"));
-    connect(action, SIGNAL(triggered()), mPostDock->mPostWindow, SLOT(setFocus()));
-    settings->addAction( action, "post-focus", postCategory);
+    action->setStatusTip(tr("Focus post window"));
+    action->setShortcut(tr("Ctrl+P", "Focus post window"));
+    connect(action, SIGNAL(triggered()), mPostDocklet, SLOT(raiseAndFocus()));
+    settings->addAction( action, "post-focus", ideCategory);
 
     // Language
     mActions[LookupImplementation] = action = new QAction(
@@ -432,6 +432,25 @@ void MainWindow::createActions()
         QIcon::fromTheme("show-about-qt"), tr("About &Qt"), this);
     connect(action, SIGNAL(triggered()), this, SLOT(showAboutQT()));
     settings->addAction( action, "ide-about-qt", ideCategory);
+
+    // Add external actions to settings:
+    action = mPostDocklet->toggleViewAction();
+    action->setIcon( QIcon::fromTheme("utilities-terminal"));
+    action->setStatusTip(tr("Show/hide Post docklet"));
+    settings->addAction( mPostDocklet->toggleViewAction(),
+                         "ide-docklet-post", ideCategory );
+
+    action = mDocumentsDocklet->toggleViewAction();
+    action->setIcon( QIcon::fromTheme("text-x-generic") );
+    action->setStatusTip(tr("Show/hide Documents docklet"));
+    settings->addAction( mDocumentsDocklet->toggleViewAction(),
+                         "ide-docklet-documents", ideCategory );
+
+    action = mHelpBrowserDocklet->toggleViewAction();
+    action->setIcon( QIcon::fromTheme("system-help") );
+    action->setStatusTip(tr("Show/hide Help browser docklet"));
+    settings->addAction( mHelpBrowserDocklet->toggleViewAction(),
+                         "ide-docklet-help", ideCategory );
 }
 
 void MainWindow::createMenus()
@@ -445,6 +464,7 @@ void MainWindow::createMenus()
     mRecentDocsMenu = menu->addMenu(tr("Open Recent", "Open a recent document"));
     connect(mRecentDocsMenu, SIGNAL(triggered(QAction*)),
             this, SLOT(onRecentDocAction(QAction*)));
+    menu->addAction( mActions[DocOpenStartup] );
     menu->addAction( mActions[DocSave] );
     menu->addAction( mActions[DocSaveAs] );
     menu->addAction( mActions[DocSaveAll] );
@@ -481,8 +501,11 @@ void MainWindow::createMenus()
     menu->addAction( mEditors->action(MultiEditor::Paste) );
     menu->addSeparator();
     menu->addAction( mActions[Find] );
+    menu->addAction( mFindReplaceTool->action(TextFindReplacePanel::FindNext) );
+    menu->addAction( mFindReplaceTool->action(TextFindReplacePanel::FindPrevious) );
     menu->addAction( mActions[Replace] );
     menu->addSeparator();
+    menu->addAction( mEditors->action(MultiEditor::IndentWithSpaces) );
     menu->addAction( mEditors->action(MultiEditor::IndentLineOrRegion) );
     menu->addAction( mEditors->action(MultiEditor::ToggleComment) );
     menu->addAction( mEditors->action(MultiEditor::ToggleOverwriteMode) );
@@ -494,10 +517,10 @@ void MainWindow::createMenus()
     menuBar()->addMenu(menu);
 
     menu = new QMenu(tr("&View"), this);
-    submenu = new QMenu(tr("&Docks"), this);
-    submenu->addAction( mPostDock->toggleViewAction() );
-    submenu->addAction( mDocListDock->toggleViewAction() );
-    submenu->addAction( mHelpBrowserDockable->toggleViewAction() );
+    submenu = new QMenu(tr("&Docklets"), this);
+    submenu->addAction( mPostDocklet->toggleViewAction() );
+    submenu->addAction( mDocumentsDocklet->toggleViewAction() );
+    submenu->addAction( mHelpBrowserDocklet->toggleViewAction() );
     menu->addMenu(submenu);
     menu->addSeparator();
     submenu = menu->addMenu(tr("&Tool Panels"));
@@ -523,7 +546,6 @@ void MainWindow::createMenus()
     menu->addAction( mEditors->action(MultiEditor::RemoveAllSplits) );
     menu->addSeparator();
     menu->addAction( mActions[FocusPostWindow] );
-    menu->addAction( mActions[ClearPostWindow] );
     menu->addSeparator();
     menu->addAction( mActions[ShowFullScreen] );
 
@@ -543,8 +565,6 @@ void MainWindow::createMenus()
     menu->addAction( mEditors->action(MultiEditor::EvaluateCurrentDocument) );
     menu->addAction( mEditors->action(MultiEditor::EvaluateRegion) );
     menu->addAction( mEditors->action(MultiEditor::EvaluateLine) );
-    menu->addSeparator();
-    menu->addAction( mMain->scProcess()->action(ScIDE::ScProcess::RunMain) );
     menu->addAction( mMain->scProcess()->action(ScIDE::ScProcess::StopMain) );
     menu->addSeparator();
     menu->addAction( mActions[LookupImplementationForCursor] );
@@ -563,38 +583,99 @@ void MainWindow::createMenus()
     menu->addAction( mActions[ShowAboutQT] );
 
     menuBar()->addMenu(menu);
+
+    mServerStatus->addAction( mMain->scServer()->action(ScServer::ToggleRunning) );
+    mServerStatus->addAction( mMain->scServer()->action(ScServer::Reboot) );
+    mServerStatus->addAction( mMain->scServer()->action(ScServer::ShowMeters) );
+    mServerStatus->addAction( mMain->scServer()->action(ScServer::DumpNodeTree) );
+    mServerStatus->addAction( mMain->scServer()->action(ScServer::DumpNodeTreeWithControls) );
+    mServerStatus->setContextMenuPolicy(Qt::ActionsContextMenu);
+}
+
+static void saveDetachedState( Docklet *docklet,  QVariantMap & data )
+{
+    data.insert( docklet->objectName(), docklet->saveDetachedState().toBase64() );
+}
+
+template <class T>
+void MainWindow::saveWindowState(T * settings)
+{
+    QVariantMap detachedData;
+    saveDetachedState( mPostDocklet, detachedData );
+    saveDetachedState( mDocumentsDocklet, detachedData );
+    saveDetachedState( mHelpBrowserDocklet, detachedData );
+
+    settings->beginGroup("mainWindow");
+    settings->setValue("geometry", this->saveGeometry().toBase64());
+    settings->setValue("state", this->saveState().toBase64());
+    settings->setValue("detached", QVariant::fromValue(detachedData));
+    settings->endGroup();
 }
 
 void MainWindow::saveWindowState()
 {
     Settings::Manager *settings = Main::settings();
-    settings->beginGroup("IDE/mainWindow");
-    settings->setValue("geometry", this->saveGeometry().toBase64());
-    settings->setValue("state", this->saveState().toBase64());
+    settings->beginGroup("IDE");
+    saveWindowState(settings);
     settings->endGroup();
 }
 
-void MainWindow::restoreWindowState()
+static void restoreDetachedState( Docklet *docklet,  const QVariantMap & data )
 {
-    Settings::Manager *settings = Main::settings();
-    settings->beginGroup("IDE/mainWindow");
+    QByteArray base64data = data.value( docklet->objectName() ).value<QByteArray>();
+    docklet->restoreDetachedState( QByteArray::fromBase64( base64data ) );
+}
 
-    QByteArray geom = QByteArray::fromBase64( settings->value("geometry").value<QByteArray>() );
-    if (!geom.isEmpty())
+template <class T>
+void MainWindow::restoreWindowState( T * settings )
+{
+    qDebug("------------ restore window state ------------");
+
+    settings->beginGroup("mainWindow");
+    QVariant varGeom = settings->value("geometry");
+    QVariant varState = settings->value("state");
+    QVariant varDetached = settings->value("detached");
+    settings->endGroup();
+
+    QByteArray geom = QByteArray::fromBase64( varGeom.value<QByteArray>() );
+    QByteArray state = QByteArray::fromBase64( varState.value<QByteArray>() );
+    QVariantMap detachedData = varDetached.value<QVariantMap>();
+
+    if (!geom.isEmpty()) {
+        // Workaround for Qt bug 4397:
+        setWindowState(Qt::WindowNoState);
         restoreGeometry(geom);
+    }
     else
         setWindowState( windowState() & ~Qt::WindowFullScreen | Qt::WindowMaximized );
 
-    QByteArray state = QByteArray::fromBase64( settings->value("state").value<QByteArray>() );
+    restoreDetachedState( mPostDocklet, detachedData );
+    restoreDetachedState( mDocumentsDocklet, detachedData );
+    restoreDetachedState( mHelpBrowserDocklet, detachedData );
+
+    qDebug("restoring state");
+
     if (!state.isEmpty())
         restoreState(state);
 
-    settings->endGroup();
+    qDebug("setting dock area corners");
 
     setCorner( Qt::TopLeftCorner, Qt::LeftDockWidgetArea );
     setCorner( Qt::BottomLeftCorner, Qt::LeftDockWidgetArea );
     setCorner( Qt::TopRightCorner, Qt::RightDockWidgetArea );
     setCorner( Qt::BottomRightCorner, Qt::RightDockWidgetArea );
+
+    updateClockWidget(isFullScreen());
+
+    qDebug("------------ END restore window state ------------");
+}
+
+void MainWindow::restoreWindowState()
+{
+    Settings::Manager *settings = Main::settings();
+    settings->beginGroup("IDE");
+    restoreWindowState(settings);
+    settings->endGroup();
 }
 
 void MainWindow::focusCodeEditor()
@@ -613,8 +694,8 @@ void MainWindow::newSession()
 void MainWindow::saveCurrentSessionAs()
 {
     QString name = QInputDialog::getText( this,
-                                          "Save Current Session",
-                                          "Enter a name for the session:" );
+                                          tr("Save Current Session"),
+                                          tr("Enter a name for the session:") );
 
     if (name.isEmpty()) return;
 
@@ -630,39 +711,17 @@ void MainWindow::onOpenSessionAction( QAction * action )
 
 void MainWindow::switchSession( Session *session )
 {
-    if (session) {
-        session->beginGroup("mainWindow");
-        QByteArray geom = QByteArray::fromBase64( session->value("geometry").value<QByteArray>() );
-        QByteArray state = QByteArray::fromBase64( session->value("state").value<QByteArray>() );
-        session->endGroup();
-
-        // Workaround for Qt bug 4397:
-        setWindowState(Qt::WindowNoState);
-
-        if (!geom.isEmpty())
-            restoreGeometry(geom);
-        if (!state.isEmpty())
-            restoreState(state);
-
-        updateClockWidget(isFullScreen());
-    }
-
-    mEditors->switchSession(session);
+    if (session)
+        restoreWindowState(session);
 
     updateWindowTitle();
 
-    setCorner( Qt::TopLeftCorner, Qt::LeftDockWidgetArea );
-    setCorner( Qt::BottomLeftCorner, Qt::LeftDockWidgetArea );
-    setCorner( Qt::TopRightCorner, Qt::RightDockWidgetArea );
-    setCorner( Qt::BottomRightCorner, Qt::RightDockWidgetArea );
+    mEditors->switchSession(session);
 }
 
 void MainWindow::saveSession( Session *session )
 {
-    session->beginGroup("mainWindow");
-    session->setValue("geometry", this->saveGeometry().toBase64());
-    session->setValue("state", this->saveState().toBase64());
-    session->endGroup();
+    saveWindowState(session);
 
     mEditors->saveSession(session);
 }
@@ -760,19 +819,19 @@ void MainWindow::onInterpreterStateChanged( QProcess::ProcessState state )
     case QProcess::NotRunning:
         toggleInterpreterActions(false);
 
-        text = "Inactive";
+        text = tr("Inactive");
         color = Qt::white;
         break;
 
     case QProcess::Starting:
-        text = "Booting";
+        text = tr("Booting");
         color = QColor(255,255,0);
         break;
 
     case QProcess::Running:
         toggleInterpreterActions(true);
 
-        text = "Active";
+        text = tr("Active");
         color = Qt::green;
         break;
     }
@@ -876,8 +935,8 @@ bool MainWindow::save( Document *doc, bool forceChoose )
         fileIsWritable = fileInfo.isWritable();
 
         if (!fileIsWritable) {
-            QMessageBox::warning(instance(), "Saving read-only file",
-                                 "File is read-only. Please select a new location to save to.",
+            QMessageBox::warning(instance(), tr("Saving read-only file"),
+                                 tr("File is read-only. Please select a new location to save to."),
                                  QMessageBox::Ok, QMessageBox::NoButton);
 
         }
@@ -888,10 +947,10 @@ bool MainWindow::save( Document *doc, bool forceChoose )
         dialog.setAcceptMode( QFileDialog::AcceptSave );
 
         QStringList filters = (QStringList()
-                               << "SuperCollider Document (*.scd)"
-                               << "SuperCollider Class file (*.sc)"
+                               << tr("SuperCollider Document (*.scd)")
+                               << tr("SuperCollider Class file (*.sc)")
                                << "SCDoc (*.schelp)"
-                               << "All files (*)");
+                               << tr("All files (*)"));
 
         dialog.setNameFilters(filters);
 
@@ -940,9 +999,9 @@ void MainWindow::openDocument()
 
     QStringList filters;
     filters
-        << "All files (*)"
-        << "SuperCollider (*.scd *.sc)"
-        << "SCDoc (*.schelp)";
+        << tr("All files (*)")
+        << tr("SuperCollider (*.scd *.sc)")
+        << tr("SCDoc (*.schelp)");
     dialog.setNameFilters(filters);
 
     if (dialog.exec())
@@ -951,6 +1010,34 @@ void MainWindow::openDocument()
         foreach(QString filename, filenames)
             mMain->documentManager()->open(filename);
     }
+}
+
+void MainWindow::openStartupFile()
+{
+    char configDir[PATH_MAX];
+    sc_GetUserConfigDirectory(configDir, PATH_MAX);
+
+    QDir dir;
+    // Create the config dir if non existent:
+    dir.mkpath(configDir);
+    if (!dir.cd(configDir)) {
+        qWarning() << "Could not access config dir:" << configDir;
+        return;
+    }
+
+    QString filePath = dir.filePath("startup.scd");
+    // Try creating the file if non-existent:
+    if (!QFile::exists(filePath)) {
+        QFile file(filePath);
+        if (!file.open(QIODevice::WriteOnly)) {
+            file.close();
+            qWarning() << "Could not create startup file:" << filePath;
+            return;
+        }
+        file.close();
+    }
+
+    mMain->documentManager()->open( filePath );
 }
 
 void MainWindow::saveDocument()
@@ -1058,7 +1145,7 @@ void MainWindow::updateWindowTitle()
 
             setWindowFilePath(doc->filePath());
 	} else {
-            title.append( "Untitled" );
+            title.append( tr("Untitled") );
             setWindowFilePath("");
 	}
     } else {
@@ -1144,14 +1231,14 @@ void MainWindow::showStatusMessage( QString const & string )
 
 void MainWindow::applySettings( Settings::Manager * settings )
 {
-    mPostDock->mPostWindow->applySettings(settings);
-    mHelpBrowserDockable->browser()->applySettings(settings);
+    mPostDocklet->mPostWindow->applySettings(settings);
+    mHelpBrowserDocklet->browser()->applySettings(settings);
     mCmdLine->applySettings(settings);
 }
 
 void MainWindow::storeSettings( Settings::Manager * settings )
 {
-    mPostDock->mPostWindow->storeSettings(settings);
+    mPostDocklet->mPostWindow->storeSettings(settings);
 }
 
 void MainWindow::updateSessionsMenu()
@@ -1184,7 +1271,7 @@ void MainWindow::showAbout()
             ;
     aboutString = aboutString.arg("3.6");
 
-    QMessageBox::about(this, "About SuperCollider IDE", aboutString);
+    QMessageBox::about(this, tr("About SuperCollider IDE"), aboutString);
 }
 
 void MainWindow::showAboutQT()
@@ -1292,8 +1379,9 @@ void MainWindow::lookupDocumentationForCursor()
 
 void MainWindow::openHelp()
 {
-    mHelpBrowserDockable->browser()->goHome();
-    mHelpBrowserDockable->show();
+    if (mHelpBrowserDocklet->browser()->url().isEmpty())
+        mHelpBrowserDocklet->browser()->goHome();
+    mHelpBrowserDocklet->raiseAndFocus();
 }
 
 void MainWindow::dragEnterEvent( QDragEnterEvent * event )
@@ -1310,13 +1398,16 @@ void MainWindow::dragEnterEvent( QDragEnterEvent * event )
 }
 
 bool MainWindow::checkFileExtension( const QString & fpath ) {
-    if (fpath.endsWith(".wav") || fpath.endsWith(".mp3") || fpath.endsWith(".aiff") || fpath.endsWith(".ogg")){
-        int ret = QMessageBox::question(this, tr("Open binary file?"),
-                tr("This file has a binary file extension. Are you sure you want to open it as a text file?"),
-                QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
-        if(ret != QMessageBox::Ok)
-            return false;
+    if (fpath.endsWith(".sc") || fpath.endsWith(".scd") || fpath.endsWith(".txt") ||
+        fpath.endsWith(".schelp")) {
+        return true;
     }
+    int ret = QMessageBox::question(this, tr("Open binary file?"), fpath +
+                tr("\n\nThe file has an unrecognized extension. It may be a binary file. Would you still like to open it?"),
+                QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
+    if(ret != QMessageBox::Ok)
+        return false;
+
     return true;
 }
 

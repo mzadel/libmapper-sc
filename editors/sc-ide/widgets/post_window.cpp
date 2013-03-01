@@ -23,6 +23,7 @@
 #include "util/gui_utilities.hpp"
 #include "../core/main.hpp"
 #include "../core/settings/manager.hpp"
+#include "../core/util/overriding_action.hpp"
 
 #include <QApplication>
 #include <QDesktopWidget>
@@ -31,7 +32,7 @@
 #include <QPointer>
 #include <QScrollBar>
 #include <QShortcut>
-#include <QToolBar>
+#include <QKeyEvent>
 
 namespace ScIDE {
 
@@ -40,65 +41,86 @@ PostWindow::PostWindow(QWidget* parent):
 {
     setReadOnly(true);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    setFrameShape( QFrame::NoFrame );
 
     QRect availableScreenRect = qApp->desktop()->availableGeometry(this);
     mSizeHint = QSize( availableScreenRect.width() * 0.4, availableScreenRect.height() * 0.3 );
 
-    QAction * action;
-
-    QAction *copyAction = new QAction(tr("Copy"), this);
-    connect(copyAction, SIGNAL(triggered()), this, SLOT(copy()));
-    copyAction->setShortcut( Main::settings()->shortcut("IDE/shortcuts/editor-copy") );
-    copyAction->setShortcutContext( Qt::WidgetShortcut );
-    addAction(copyAction);
-
-    mClearAction = new QAction(tr("Clear"), this);
-    connect(mClearAction, SIGNAL(triggered()), this, SLOT(clear()));
-    addAction(mClearAction);
-
-    action = new QAction(this);
-    action->setSeparator(true);
-    addAction(action);
-
-    action = new QAction(tr("Enlarge Post Font"), this);
-    action->setIconText("+");
-    action->setShortcut(tr("Ctrl++", "Enlarge Font"));
-    action->setShortcutContext( Qt::WidgetShortcut );
-    action->setToolTip(tr("Enlarge font"));
-    connect(action, SIGNAL(triggered()), this, SLOT(zoomIn()));
-    addAction(action);
-
-    action = new QAction(tr("Shrink Post Font"), this);
-    action->setIconText("-");
-    action->setShortcut(tr("Ctrl+-", "Shrink Font"));
-    action->setShortcutContext( Qt::WidgetShortcut );
-    action->setToolTip(tr("Shrink font"));
-    connect(action, SIGNAL(triggered()), this, SLOT(zoomOut()));
-    addAction(action);
-
-    action = new QAction(this);
-    action->setSeparator(true);
-    addAction(action);
-
-    mLineWrapAction = action = new QAction(tr("Wrap Text"), this);
-    action->setCheckable(true);
-    addAction(action);
-    connect( action, SIGNAL(triggered(bool)), this, SLOT(setLineWrap(bool)) );
-
-    mAutoScrollAction = new QAction(tr("Auto Scroll"), this);
-    mAutoScrollAction->setToolTip(tr("Scroll to bottom on new posts"));
-    mAutoScrollAction->setCheckable(true);
-    mAutoScrollAction->setChecked(true);
-    addAction(mAutoScrollAction);
+    createActions( Main::settings() );
 
     setContextMenuPolicy(Qt::ActionsContextMenu);
 
     connect(this, SIGNAL(scrollToBottomRequest()),
             this, SLOT(scrollToBottom()), Qt::QueuedConnection);
-    connect(mAutoScrollAction, SIGNAL(triggered(bool)),
-            this, SLOT(onAutoScrollTriggered(bool)));
 
     applySettings( Main::settings() );
+}
+
+void PostWindow::createActions( Settings::Manager * settings )
+{
+    QAction * action;
+    OverridingAction * ovrAction;
+
+    QString postCategory(tr("Post Window"));
+
+    mActions[Copy] = action = new QAction(tr("Copy"), this);
+    action->setShortcut( QKeySequence::Copy );
+    action->setShortcutContext( Qt::WidgetShortcut );
+    action->setEnabled( false );
+    connect(action, SIGNAL(triggered()), this, SLOT(copy()));
+    connect( this, SIGNAL(copyAvailable(bool)), action, SLOT(setEnabled(bool)) );
+    addAction(action);
+
+    mActions[Clear] = action = new QAction(tr("Clear"), this);
+    action->setStatusTip(tr("Clear post window"));
+    action->setShortcutContext(Qt::ApplicationShortcut);
+    action->setShortcut(tr("Ctrl+Shift+P", "Clear post window"));
+    settings->addAction( action, "post-clear", postCategory );
+    connect(action, SIGNAL(triggered()), this, SLOT(clear()));
+    addAction(action);
+
+    action = new QAction(this);
+    action->setSeparator(true);
+    addAction(action);
+
+    mActions[ZoomIn] = ovrAction = new OverridingAction(tr("Enlarge Font"), this);
+    ovrAction->setIconText("+");
+    ovrAction->setStatusTip(tr("Enlarge post window font"));
+    connect(ovrAction, SIGNAL(triggered()), this, SLOT(zoomIn()));
+    ovrAction->addToWidget(this);
+
+    mActions[ZoomOut] = ovrAction = new OverridingAction(tr("Shrink Font"), this);
+    ovrAction->setIconText("-");
+    ovrAction->setStatusTip(tr("Shrink post window font"));
+    connect(ovrAction, SIGNAL(triggered()), this, SLOT(zoomOut()));
+    ovrAction->addToWidget(this);
+
+    action = new QAction(this);
+    action->setSeparator(true);
+    addAction(action);
+
+    mActions[LineWrap] = action = new QAction(tr("Wrap Text"), this);
+    action->setStatusTip(tr("Wrap lines wider than the post window"));
+    action->setCheckable(true);
+    addAction(action);
+    connect( action, SIGNAL(triggered(bool)), this, SLOT(setLineWrap(bool)) );
+    settings->addAction( action, "post-line-wrap", postCategory );
+
+    mActions[AutoScroll] = action = new QAction(tr("Auto Scroll"), this);
+    action->setStatusTip(tr("Scroll to bottom on new posts"));
+    action->setCheckable(true);
+    action->setChecked(true);
+    connect(action, SIGNAL(triggered(bool)), this, SLOT(onAutoScrollTriggered(bool)));
+    addAction(action);
+    settings->addAction( action, "post-auto-scroll", postCategory );
+}
+
+void PostWindow::updateActionShortcuts( Settings::Manager * settings )
+{
+    settings->beginGroup("IDE/shortcuts");
+    mActions[ZoomIn]->setShortcut( settings->shortcut("editor-enlarge-font") );
+    mActions[ZoomOut]->setShortcut( settings->shortcut("editor-shrink-font") );
+    settings->endGroup();
 }
 
 void PostWindow::applySettings(Settings::Manager * settings)
@@ -130,11 +152,13 @@ void PostWindow::applySettings(Settings::Manager * settings)
     QFontMetrics metrics (font);
     QString stringOfSpaces (settings->value("IDE/editor/indentWidth").toInt(), QChar(' '));
     setTabStopWidth(metrics.width(stringOfSpaces));
+
+    updateActionShortcuts(settings);
 }
 
 void PostWindow::storeSettings( Settings::Manager * settings )
 {
-    settings->setValue("IDE/postWindow/lineWrap", mLineWrapAction->isChecked() );
+    settings->setValue("IDE/postWindow/lineWrap", mActions[LineWrap]->isChecked() );
 }
 
 QString PostWindow::symbolUnderCursor()
@@ -153,7 +177,7 @@ QString PostWindow::symbolUnderCursor()
 void PostWindow::post(const QString &text)
 {
     QScrollBar *scrollBar = verticalScrollBar();
-    bool scroll = mAutoScrollAction->isChecked();
+    bool scroll = mActions[AutoScroll]->isChecked();
 
     QTextCursor c(document());
     c.movePosition(QTextCursor::End);
@@ -194,6 +218,24 @@ void PostWindow::zoomFont(int steps)
     setFont(currentFont);
 }
 
+bool PostWindow::event( QEvent * event )
+{
+    switch (event->type()) {
+    case QEvent::ShortcutOverride: {
+        QKeyEvent *kevent = static_cast<QKeyEvent*>(event);
+        if (kevent == QKeySequence::Copy) {
+            event->accept();
+            return true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+
+    return QPlainTextEdit::event(event);
+}
+
 void PostWindow::wheelEvent( QWheelEvent * e )
 {
     if (e->modifiers() == Qt::ControlModifier) {
@@ -209,8 +251,10 @@ void PostWindow::wheelEvent( QWheelEvent * e )
 
 void PostWindow::focusOutEvent( QFocusEvent * event )
 {
-    MainWindow::instance()->focusCodeEditor();
-    event->accept();
+    if (event->reason() == Qt::TabFocusReason)
+        MainWindow::instance()->focusCodeEditor();
+    else
+        QPlainTextEdit::focusOutEvent(event);
 }
 
 void PostWindow::mouseDoubleClickEvent(QMouseEvent *e)
@@ -242,42 +286,31 @@ void PostWindow::findReferences()
 void PostWindow::setLineWrap(bool lineWrapOn)
 {
     setLineWrapMode( lineWrapOn ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap );
-    mLineWrapAction->setChecked(lineWrapOn);
+    mActions[LineWrap]->setChecked(lineWrapOn);
     Main::settings()->setValue( "IDE/postWindow/lineWrap", lineWrapOn );
 }
 
-PostDock::PostDock(QWidget* parent):
-    QDockWidget(tr("Post window"), parent)
+PostDocklet::PostDocklet(QWidget* parent):
+    Docklet(tr("Post window"), parent)
 {
     setAllowedAreas(Qt::BottomDockWidgetArea | Qt::RightDockWidgetArea | Qt::LeftDockWidgetArea);
-    setFeatures(DockWidgetFloatable | DockWidgetMovable | DockWidgetClosable);
 
-    mPostWindow = new PostWindow(this);
+    mPostWindow = new PostWindow;
     setWidget(mPostWindow);
 
-    QToolBar *toolBar = new QToolBar();
-    toolBar->addAction(mPostWindow->mAutoScrollAction);
+    toolBar()->addAction( mPostWindow->mActions[PostWindow::AutoScroll] );
 
-    QWidget *titleBar = new QWidget();
-    QHBoxLayout *l = new QHBoxLayout();
-    l->setContentsMargins(5,2,5,0);
-    l->addWidget(new QLabel(windowTitle()), 1);
-    l->addWidget(toolBar);
-    titleBar->setLayout(l);
-
-    setTitleBarWidget(titleBar);
-
-    connect(this, SIGNAL(topLevelChanged(bool)), this, SLOT(onFloatingChanged(bool)));
+    //connect(this, SIGNAL(topLevelChanged(bool)), this, SLOT(onFloatingChanged(bool)));
 }
 
-void PostDock::onFloatingChanged(bool floating)
+void PostDocklet::onFloatingChanged(bool floating)
 {
     // HACK: After undocking when main window maximized, the dock widget can not be
     // resized anymore. Apparently it has to do something with the fact that the dock
     // widget spans from edge to edge of the screen.
     // The issue is avoided by slightly shrinking the dock widget.
     if (floating)
-        resize(size() - QSize(1,1));
+        dockWidget()->resize(dockWidget()->size() - QSize(1,1));
 }
 
 } // namespace ScIDE

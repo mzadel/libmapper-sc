@@ -25,6 +25,7 @@
 #include "../widgets/help_browser.hpp"
 #include "../widgets/lookup_dialog.hpp"
 #include "../widgets/code_editor/highlighter.hpp"
+#include "../widgets/style/style.hpp"
 
 #include "SC_DirUtils.h"
 
@@ -39,6 +40,7 @@
 #include <QFileOpenEvent>
 #include <QLibraryInfo>
 #include <QTranslator>
+#include <QDebug>
 
 using namespace ScIDE;
 
@@ -65,6 +67,10 @@ int main( int argc, char *argv[] )
     scideTranslator.load("scide_" + QLocale::system().name());
     app.installTranslator(&scideTranslator);
 
+    // Set up style
+
+    app.setStyle( new ScIDE::Style(app.style()) );
+
     // Go...
 
     Main * main = Main::instance();
@@ -74,6 +80,11 @@ int main( int argc, char *argv[] )
     // NOTE: load session after GUI is created, so that GUI can respond
     Settings::Manager *settings = main->settings();
     SessionManager *sessions = main->sessionManager();
+
+    // NOTE: window has to be shown before restoring its geometry,
+    // or else restoring maximized state will fail, if it has ever before
+    // been saved un-maximized.
+    win->show();
 
     QString startSessionName = settings->value("IDE/startWithSession").toString();
     if (startSessionName == "last") {
@@ -90,8 +101,6 @@ int main( int argc, char *argv[] )
         win->restoreWindowState();
         sessions->newSession();
     }
-
-    win->show();
 
     foreach (QString argument, arguments) {
         main->documentManager()->open(argument);
@@ -126,7 +135,9 @@ bool SingleInstanceGuard::tryConnect(QStringList const & arguments)
 
                 stream << QString("open");
                 stream << canonicalArguments;
-                socket->flush();
+                if (!socket->waitForBytesWritten(300))
+                    qWarning("SingleInstanceGuard: writing data to another IDE instance timed out");
+
                 return true;
             }
         }
@@ -229,18 +240,17 @@ bool Main::openDocumentation(const QString & string)
     if (symbol.isEmpty())
         return false;
 
-    HelpBrowserDockable *helpDock = MainWindow::instance()->helpBrowserDockable();
+    HelpBrowserDocklet *helpDock = MainWindow::instance()->helpBrowserDocklet();
     helpDock->browser()->gotoHelpFor(symbol);
-    helpDock->show();
-    helpDock->raise();
+    helpDock->raiseAndFocus();
     return true;
 }
 
 bool Main::openDocumentationForMethod(const QString & className, const QString & methodName)
 {
-    HelpBrowserDockable *helpDock = MainWindow::instance()->helpBrowserDockable();
+    HelpBrowserDocklet *helpDock = MainWindow::instance()->helpBrowserDocklet();
     helpDock->browser()->gotoHelpForMethod(className, methodName);
-    helpDock->show();
+    helpDock->raiseAndFocus();
     return true;
 }
 

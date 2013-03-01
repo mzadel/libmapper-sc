@@ -28,6 +28,8 @@
 
 #include <QKeyEvent>
 #include <QStack>
+#include <QMimeData>
+#include <QUrl>
 
 namespace ScIDE {
 
@@ -60,6 +62,7 @@ void ScCodeEditor::applySettings( Settings::Manager *settings )
     mSpaceIndent = settings->value("spaceIndent").toBool();
     mBlinkDuration = settings->value("blinkDuration").toInt();
     mBracketHighlight = settings->value("colors/matchingBrackets").value<QTextCharFormat>();
+    mBracketMismatchFormat = settings->value("colors/mismatchedBrackets").value<QTextCharFormat>();
     mStepForwardEvaluation = settings->value("stepForwardEvaluation").toBool();
 
     settings->endGroup();
@@ -67,25 +70,25 @@ void ScCodeEditor::applySettings( Settings::Manager *settings )
 
 bool ScCodeEditor::event( QEvent *e )
 {
-    switch (e->type())
+    switch (e->type()) {
+    case QEvent::KeyPress:
     {
-        case QEvent::KeyPress:
-        {
-            QKeyEvent *ke = static_cast<QKeyEvent*>(e);
-            int key = ke->key();
-            switch (key)
-            {
-            case Qt::Key_Tab:
-                indent();
-                e->accept();
-                return true;
-            default:;
-            }
+        QKeyEvent *ke = static_cast<QKeyEvent*>(e);
+        switch (ke->key()) {
+        case Qt::Key_Tab:
+            indent();
+            e->accept();
+            return true;
+        default:
             break;
+        }
+        break;
     }
-    default:;
+    default:
+        break;
     }
-    return QPlainTextEdit::event(e);
+
+    return GenericCodeEditor::event(e);
 }
 
 void ScCodeEditor::keyPressEvent( QKeyEvent *e )
@@ -209,6 +212,52 @@ void ScCodeEditor::mouseMoveEvent( QMouseEvent *e )
     // Prevent initiating a text drag:
     if(!mMouseBracketMatch)
         GenericCodeEditor::mouseMoveEvent(e);
+}
+
+void ScCodeEditor::dragEnterEvent( QDragEnterEvent * event )
+{
+    // The purpose is only to bypass GenericCodeEditor::dragEnterEvent:
+    QPlainTextEdit::dragEnterEvent(event);
+}
+
+bool ScCodeEditor::canInsertFromMimeData ( const QMimeData * data ) const
+{
+    if (data->hasUrls())
+        return true;
+
+    return QPlainTextEdit::canInsertFromMimeData(data);
+}
+
+void ScCodeEditor::insertFromMimeData ( const QMimeData * data )
+{
+    if (data->hasUrls()) {
+        QTextCursor cursor = textCursor();
+        QList<QUrl> urls = data->urls();
+        bool multiple = urls.size() > 1;
+        if (multiple) {
+            cursor.insertText("[");
+            cursor.insertBlock();
+        }
+        for (int i = 0; i < urls.size(); ++ i) {
+            QUrl url = urls[i];
+            cursor.insertText("\"");
+            if (url.scheme() == QString("file"))
+                cursor.insertText(url.toLocalFile());
+            else
+                cursor.insertText(url.toString());
+            cursor.insertText("\"");
+            if (i < urls.size() - 1) {
+                cursor.insertText(",");
+                cursor.insertBlock();
+            }
+        }
+        if (multiple) {
+            cursor.insertBlock();
+            cursor.insertText("]");
+        }
+    }
+    else
+        QPlainTextEdit::insertFromMimeData(data);
 }
 
 void ScCodeEditor::moveToNextToken( QTextCursor & cursor, QTextCursor::MoveMode mode )
@@ -380,7 +429,7 @@ void ScCodeEditor::matchBrackets()
         }
         else {
             QTextEdit::ExtraSelection selection;
-            selection.format.setBackground(Qt::red);
+            selection.format = mBracketMismatchFormat;
             cursor.setPosition(match.first.position());
             cursor.setPosition(match.second.position()+1, QTextCursor::KeepAnchor);
             selection.cursor = cursor;
@@ -1072,20 +1121,24 @@ void ScCodeEditor::evaluateLine()
 
     // Try current selection
     QTextCursor cursor = textCursor();
-    text = cursor.block().text();
+    if (cursor.hasSelection())
+        text = cursor.selectedText();
+    else {
+        text = cursor.block().text();
+    
+        if( mStepForwardEvaluation ) {
+            QTextCursor newCursor = cursor;
+            newCursor.movePosition(QTextCursor::NextBlock);
+            setTextCursor(newCursor);
+        }
 
-    if( mStepForwardEvaluation ) {
-        QTextCursor newCursor = cursor;
-        newCursor.movePosition(QTextCursor::NextBlock);
-        setTextCursor(newCursor);
+        // Adjust cursor for code blinking:
+        cursor.movePosition(QTextCursor::StartOfBlock);
+        cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
     }
 
     if (text.isEmpty())
         return;
-
-    // Adjust cursor for code blinking:
-    cursor.movePosition(QTextCursor::StartOfBlock);
-    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
 
     text.replace( QChar( 0x2029 ), QChar( '\n' ) );
 

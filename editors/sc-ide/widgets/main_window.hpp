@@ -34,9 +34,9 @@ class MultiEditor;
 class ToolBox;
 class TextFindReplacePanel;
 class GoToLineTool;
-class PostDock;
-class DocumentsDock;
-class HelpBrowserDockable;
+class PostDocklet;
+class DocumentsDocklet;
+class HelpBrowserDocklet;
 class CmdLine;
 class Document;
 class DocumentsDialog;
@@ -57,6 +57,7 @@ public:
         Quit = 0,
         DocNew,
         DocOpen,
+        DocOpenStartup,
         DocSave,
         DocSaveAs,
         DocSaveAll,
@@ -80,7 +81,6 @@ public:
         ShowGoToLineTool,
         CloseToolBox,
         ShowFullScreen,
-        ClearPostWindow,
         FocusPostWindow,
 
         // Settings
@@ -113,7 +113,7 @@ public:
     void focusCodeEditor();
     bool promptSaveDocs();
 
-    HelpBrowserDockable * helpBrowserDockable() { return mHelpBrowserDockable; }
+    HelpBrowserDocklet * helpBrowserDocklet() { return mHelpBrowserDocklet; }
 
     static MainWindow *instance() { return mInstance; }
 
@@ -128,6 +128,7 @@ public Q_SLOTS:
 
     void newDocument();
     void openDocument();
+    void openStartupFile();
     void saveDocument();
     void saveDocumentAs();
     void saveAllDocuments();
@@ -185,6 +186,8 @@ protected:
 private:
     void createActions();
     void createMenus();
+    template <class T> void saveWindowState(T * settings);
+    template <class T> void restoreWindowState(T * settings);
     void updateSessionsMenu();
     void updateClockWidget( bool isFullScreen );
     void openSession( QString const & sessionName );
@@ -212,9 +215,9 @@ private:
     StatusClockLabel *mClockLabel;
 
     // Docks
-    PostDock * mPostDock;
-    DocumentsDock *mDocListDock;
-    HelpBrowserDockable *mHelpBrowserDockable;
+    PostDocklet * mPostDocklet;
+    DocumentsDocklet *mDocumentsDocklet;
+    HelpBrowserDocklet *mHelpBrowserDocklet;
 
     QSignalMapper mCodeEvalMapper;
     DocumentsDialog * mDocDialog;

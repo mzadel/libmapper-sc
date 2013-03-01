@@ -113,7 +113,7 @@ void GenericCodeEditor::applySettings( Settings::Manager *settings )
         QBrush bg = format.background();
         QBrush fg = format.foreground();
         if (bg.style() != Qt::NoBrush)
-            palette.setBrush(QPalette::Button, bg);
+            palette.setBrush(QPalette::Mid, bg);
         if (fg.style() != Qt::NoBrush)
             palette.setBrush(QPalette::ButtonText, fg);
     }
@@ -440,18 +440,44 @@ QString GenericCodeEditor::symbolUnderCursor()
     }
 }
 
+bool GenericCodeEditor::event( QEvent * event )
+{
+    switch (event->type()) {
+    case QEvent::ShortcutOverride: {
+        // Prevent overriding certain shortcuts,
+        // as they are useful in our application.
+        QKeyEvent* kevent = static_cast<QKeyEvent*>(event);
+        switch (kevent->key()) {
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+            event->ignore();
+            return true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+
+    return QPlainTextEdit::event(event);
+}
+
 void GenericCodeEditor::keyPressEvent(QKeyEvent * e)
 {
     hideMouseCursor(e);
 
     QTextCursor cursor( textCursor() );
 
-    switch (e->key()) {
-    case Qt::Key_Enter:
-    case Qt::Key_Return:
-        // override to avoid entering a "soft" new line when certain modifier is held
+    bool updateCursor = false;
+
+    if (e == QKeySequence::InsertLineSeparator) {
+        // override to avoid entering a "soft" new line
         cursor.insertBlock();
-        break;
+        updateCursor = true;
+    }
+    else {
+
+    switch (e->key()) {
 
     case Qt::Key_Delete:
         if (e->modifiers() & Qt::META) {
@@ -465,8 +491,10 @@ void GenericCodeEditor::keyPressEvent(QKeyEvent * e)
         if (e->modifiers() & Qt::META) {
             cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::KeepAnchor);
             cursor.removeSelectedText();
-        } else
+        } else {
             QPlainTextEdit::keyPressEvent(e);
+            updateCursor = true;
+        }
         break;
 
     case Qt::Key_Down:
@@ -497,17 +525,15 @@ void GenericCodeEditor::keyPressEvent(QKeyEvent * e)
 
     default:
         QPlainTextEdit::keyPressEvent(e);
-    }
 
-    switch (e->key()) {
-    case Qt::Key_Enter:
-    case Qt::Key_Return:
-    case Qt::Key_Backspace:
+    } // switch (e->type())
+
+    } // else...
+
+    if (updateCursor) {
         cursor.setVerticalMovementX(-1);
         setTextCursor( cursor );
         ensureCursorVisible();
-        break;
-    default:;
     }
 }
 
@@ -630,9 +656,11 @@ void GenericCodeEditor::paintLineIndicator( QPaintEvent *e )
     QRect r( e->rect() );
     QPainter p( mLineIndicator );
 
-    p.fillRect( r, plt.color( QPalette::Button ) );
-    p.setPen( plt.color(QPalette::ButtonText) );
+    p.fillRect( r, plt.color( QPalette::Mid ) );
+    p.setPen( plt.color(QPalette::Dark) );
     p.drawLine( r.topRight(), r.bottomRight() );
+
+    p.setPen( plt.color(QPalette::ButtonText) );
 
     QTextDocument *doc = QPlainTextEdit::document();
     QTextCursor cursor(textCursor());

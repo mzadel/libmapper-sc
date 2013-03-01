@@ -121,7 +121,7 @@ static float* create_cosTable(int log2n)
 {
 	int size = 1 << log2n;
 	int size2 = size / 4 + 1;
-	float *win = (float*)malloc_aligned(size2 * sizeof(float));
+	float *win = (float*)nova::malloc_aligned(size2 * sizeof(float));
 	if (win == NULL)
 		return NULL;
 
@@ -240,6 +240,9 @@ static size_t scfft_trbufsize(unsigned int fullsize)
 scfft * scfft_create(size_t fullsize, size_t winsize, SCFFT_WindowFunction wintype,
 					 float *indata, float *outdata, SCFFT_Direction forward, SCFFT_Allocator & alloc)
 {
+	if ( (fullsize > SC_FFT_MAXSIZE) || (fullsize < SC_FFT_MINSIZE) )
+		return NULL;
+
 	const int alignment = 128; // in bytes
 	char * chunk = (char*) alloc.alloc(sizeof(scfft) + scfft_trbufsize(fullsize) + alignment);
 	if (!chunk)
@@ -249,7 +252,9 @@ scfft * scfft_create(size_t fullsize, size_t winsize, SCFFT_WindowFunction winty
 	float *trbuf = (float*)(chunk + sizeof(scfft));
 	trbuf = (float*) ((intptr_t)((char*)trbuf + (alignment - 1)) & -alignment);
 
+#ifdef NOVA_SIMD
 	assert(nova::vec<float>::is_aligned(trbuf));
+#endif
 
 	f->nfull = fullsize;
 	f->nwin  =  winsize;

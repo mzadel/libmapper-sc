@@ -29,6 +29,7 @@
 #include <QTextDocument>
 #include <QAction>
 #include <QMenu>
+#include <QToolButton>
 
 namespace ScIDE {
 
@@ -43,6 +44,13 @@ public:
     {
         Find = 1,
         Replace
+    };
+
+    enum ActionRole {
+        FindNext,
+        FindPrevious,
+
+        ActionCount
     };
 
 public:
@@ -62,6 +70,8 @@ public:
     QRegExp regexp();
     QTextDocument::FindFlags flags();
 
+    QAction *action ( ActionRole role ) { return mActions[role]; }
+
 public Q_SLOTS:
     void findNext();
     void findPrevious();
@@ -76,20 +86,22 @@ private Q_SLOTS:
 private:
     void find (bool backwards);
     bool eventFilter (QObject *, QEvent *);
+    static void reportFoundOccurrencies( int count );
+    static void reportReplacedOccurrencies( int count );
 
     QLineEdit *mFindField;
     QLabel *mFindLabel;
     QLineEdit *mReplaceField;
     QLabel *mReplaceLabel;
-    QPushButton *mNextBtn;
-    QPushButton *mPrevBtn;
-    QPushButton *mFindAllBtn;
-    QPushButton *mReplaceBtn;
-    QPushButton *mReplaceAllBtn;
-    QPushButton *mOptionsBtn;
+    QToolButton *mNextBtn;
+    QToolButton *mPrevBtn;
+    QToolButton *mReplaceBtn;
+    QToolButton *mReplaceAllBtn;
+    QToolButton *mOptionsBtn;
     QAction *mMatchCaseAction;
     QAction *mRegExpAction;
     QAction *mWholeWordAction;
+    QAction *mActions[ActionCount];
 
     QGridLayout *mGrid;
 

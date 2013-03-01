@@ -158,11 +158,12 @@ AbstractFunction {
 	ref { ^this.composeUnaryOp('asRef') }
 
 	// nary operators
-	clip { arg lo, hi; ^this.composeNAryOp('clip', [lo,hi]) }
+	clip { arg lo, hi; ^this.composeNAryOp('clip', [lo,hi])  }
 	wrap { arg lo, hi; ^this.composeNAryOp('wrap', [lo,hi])  }
 	fold { arg lo, hi; ^this.composeNAryOp('fold', [lo,hi])  }
-	blend { arg that, blendFrac = 0.5; ^this.composeNAryOp('blend', [that, blendFrac]) }
-
+	blend { arg that, blendFrac = 0.5;
+		^this.composeNAryOp('blend', [that, blendFrac])
+	}
 	linlin { arg inMin, inMax, outMin, outMax, clip=\minmax;
 		^this.composeNAryOp('linlin', [inMin, inMax, outMin, outMax, clip])
 	}
@@ -174,6 +175,18 @@ AbstractFunction {
 	}
 	expexp { arg inMin, inMax, outMin, outMax, clip=\minmax;
 		^this.composeNAryOp('expexp', [inMin, inMax, outMin, outMax, clip])
+	}
+	lincurve { arg inMin = 0, inMax = 1, outMin = 0, outMax = 1, curve = -4, clip = \minmax;
+		^this.composeNAryOp('lincurve', [inMin, inMax, outMin, outMax, curve, clip])
+	}
+	curvelin { arg inMin = 0, inMax = 1, outMin = 0, outMax = 1, curve = -4, clip = \minmax;
+		^this.composeNAryOp('curvelin', [inMin, inMax, outMin, outMax, curve, clip])
+	}
+	bilin { arg inCenter, inMin, inMax, outCenter, outMin, outMax, clip=\minmax;
+		^this.composeNAryOp('bilin', [inCenter, inMin, inMax, outCenter, outMin, outMax, clip])
+	}
+	biexp { arg inCenter, inMin, inMax, outCenter, outMin, outMax, clip=\minmax;
+		^this.composeNAryOp('biexp', [inCenter, inMin, inMax, outCenter, outMin, outMax, clip])
 	}
 
 	degreeToKey { arg scale, stepsPerOctave=12;

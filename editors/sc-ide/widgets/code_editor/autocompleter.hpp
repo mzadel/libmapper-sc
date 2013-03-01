@@ -53,13 +53,14 @@ public:
     // NOTE: default 'force' to true in the following methods
     // for the purpose of argument-less QAction::triggered() signal:
     void triggerCompletion( bool forceShow = true );
-    void triggerMethodCallAid( bool forceReset = true );
+    void triggerMethodCallAid( bool explicitly = true );
 
 private slots:
     void onContentsChange(int pos, int removed, int added);
     void onCursorChanged();
     void onCompletionMenuFinished( int result );
     void clearMethodCallStack();
+    void hideWidgets();
 
 private:
     friend class MethodCallWidget;
@@ -111,6 +112,7 @@ private:
 
     // method call aid
 
+    const ScLanguage::Method *disambiguateMethod( const QString & methodName, int cursorPos );
     void updateMethodCall( int cursorPos );
     void pushMethodCall( const MethodCall & call );
     void showMethodCall( const MethodCall & call, int arg = 0 );
@@ -128,6 +130,7 @@ private:
     // utilities
 
     QString tokenText( TokenIterator & it );
+    QRect globalCursorRect( int cursorPosition );
 
     // data
 

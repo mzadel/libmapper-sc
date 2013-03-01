@@ -46,7 +46,7 @@ public:
     void setIndentWidth( int );
     QTextCursor currentRegion();
     void blinkCode( const QTextCursor & c );
-
+    bool spaceIndent() { return mSpaceIndent; }
 
 public slots:
     void applySettings( Settings::Manager * );
@@ -73,6 +73,9 @@ protected:
     virtual void mouseReleaseEvent ( QMouseEvent * );
     virtual void mouseDoubleClickEvent( QMouseEvent * );
     virtual void mouseMoveEvent( QMouseEvent * );
+    virtual void dragEnterEvent( QDragEnterEvent * );
+    virtual bool canInsertFromMimeData ( const QMimeData * data ) const;
+    virtual void insertFromMimeData ( const QMimeData * data );
 
 private slots:
     void matchBrackets();
@@ -105,6 +108,7 @@ private:
     bool mStepForwardEvaluation;
     int mBlinkDuration;
     QTextCharFormat mBracketHighlight;
+    QTextCharFormat mBracketMismatchFormat;
 
     QList<QTextEdit::ExtraSelection> mBracketSelections;
     bool mMouseBracketMatch;

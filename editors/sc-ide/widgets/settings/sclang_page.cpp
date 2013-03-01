@@ -83,7 +83,7 @@ void SclangPage::store( Manager *s )
 
 void SclangPage::addIncludePath()
 {
-    QString path = QFileDialog::getExistingDirectory(this, "ScLang include directories");
+    QString path = QFileDialog::getExistingDirectory(this, tr("ScLang include directories"));
     if (path.size())
         ui->sclang_include_directories->addItem(path);
     sclangConfigDirty = true;
@@ -100,7 +100,7 @@ void SclangPage::removeIncludePath()
 
 void SclangPage::addExcludePath()
 {
-    QString path = QFileDialog::getExistingDirectory(this, "ScLang exclude directories");
+    QString path = QFileDialog::getExistingDirectory(this, tr("ScLang exclude directories"));
     if (path.size())
         ui->sclang_exclude_directories->addItem(path);
     sclangConfigDirty = true;
@@ -123,8 +123,6 @@ void SclangPage::readLanguageConfig()
 
     QFileInfo configFileInfo(configFile);
     const bool configFileExists = configFileInfo.exists();
-
-    ui->ide_sclang_override_configuration_file->setEnabled(configFileExists);
 
     if (!configFileExists)
         return;
@@ -210,8 +208,9 @@ void SclangPage::writeLanguageConfig()
     ofstream fout(languageConfigFile().toStdString().c_str());
     fout << out.c_str();
 
-    QMessageBox::information(this, "ScLang configuration file updated",
-                             "The ScLang configuration has been updated. Recompile the class library to apply changes.");
+    QMessageBox::information(this, tr("ScLang configuration file updated"),
+                             tr("The ScLang configuration has been updated. "
+                                "Recompile the class library to apply changes."));
 
     sclangConfigDirty = false;
 }

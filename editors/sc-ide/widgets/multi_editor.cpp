@@ -205,6 +205,7 @@ MultiEditor::MultiEditor( Main *main, QWidget * parent ) :
     mTabs->setMovable(true);
     mTabs->setUsesScrollButtons(true);
     mTabs->setDrawBase(true);
+    mTabs->setElideMode(Qt::ElideNone);
 
     CodeEditorBox *defaultBox = newBox();
 
@@ -261,7 +262,7 @@ void MultiEditor::createActions()
     Settings::Manager *settings = Main::settings();
 
     QAction * action;
-    const QString editorCategory("Text Editor");
+    const QString editorCategory(tr("Text Editor"));
 
     // Edit
 
@@ -361,7 +362,7 @@ void MultiEditor::createActions()
     settings->addAction( action, "editor-copy-line-down", editorCategory);
 
     mActions[MoveLineUp] = action = new QAction(
-        QIcon::fromTheme("edit-movelineup"), tr("move Line Up"), this);
+        QIcon::fromTheme("edit-movelineup"), tr("Move Line Up"), this);
     action->setShortcut(tr("Ctrl+Shift+Up", "Move Line Up"));
     action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(moveLineUp()));
@@ -452,8 +453,17 @@ void MultiEditor::createActions()
 
     mActions[ShowWhitespace] = action = new QAction(tr("Show Spaces and Tabs"), this);
     action->setCheckable(true);
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     mEditorSigMux->connect(action, SIGNAL(triggered(bool)), SLOT(setShowWhitespace(bool)));
     settings->addAction( action, "editor-toggle-show-whitespace", editorCategory);
+
+    mActions[IndentWithSpaces] = action = new QAction(tr("Use Spaces for Indentation"), this);
+    action->setCheckable(true);
+    action->setStatusTip( tr("Indent with spaces instead of tabs") );
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    mEditorSigMux->connect(action, SIGNAL(triggered(bool)), SLOT(setSpaceIndent(bool)),
+                           SignalMultiplexer::ConnectionOptional );
+    settings->addAction( action, "editor-toggle-space-indent", editorCategory );
 
     mActions[NextDocument] = action = new QAction(tr("Next Document"), this);
 #ifndef Q_OS_MAC
@@ -483,22 +493,22 @@ void MultiEditor::createActions()
     settings->addAction( action, "editor-document-switch", editorCategory);
 
     mActions[SplitHorizontally] = action = new QAction(tr("Split To Right"), this);
-    action->setShortcut( tr("Ctrl+P, 3", "Split To Right"));
+    //action->setShortcut( tr("Ctrl+P, 3", "Split To Right"));
     connect(action, SIGNAL(triggered()), this, SLOT(splitHorizontally()));
     settings->addAction( action, "editor-split-right", editorCategory);
 
     mActions[SplitVertically] = action = new QAction(tr("Split To Bottom"), this);
-    action->setShortcut( tr("Ctrl+P, 2", "Split To Bottom"));
+    //action->setShortcut( tr("Ctrl+P, 2", "Split To Bottom"));
     connect(action, SIGNAL(triggered()), this, SLOT(splitVertically()));
     settings->addAction( action, "editor-split-bottom", editorCategory);
 
     mActions[RemoveCurrentSplit] = action = new QAction(tr("Remove Current Split"), this);
-    action->setShortcut( tr("Ctrl+P, 1", "Remove Current Split"));
+    //action->setShortcut( tr("Ctrl+P, 1", "Remove Current Split"));
     connect(action, SIGNAL(triggered()), this, SLOT(removeCurrentSplit()));
     settings->addAction( action, "editor-split-remove", editorCategory);
 
     mActions[RemoveAllSplits] = action = new QAction(tr("Remove All Splits"), this);
-    action->setShortcut( tr("Ctrl+P, 0", "Remove All Splits"));
+    //action->setShortcut( tr("Ctrl+P, 0", "Remove All Splits"));
     connect(action, SIGNAL(triggered()), this, SLOT(removeAllSplits()));
     settings->addAction( action, "editor-split-remove-all", editorCategory);
 
@@ -522,9 +532,9 @@ void MultiEditor::createActions()
     settings->addAction( action, "editor-eval-smart", editorCategory);
 
     mActions[EvaluateLine] = action = new QAction(
-    QIcon::fromTheme("media-playback-startline"), tr("&Evaluate Line"), this);
-    action->setShortcut(tr("Shift+Ctrl+Return", "Evaluate line"));
-    action->setStatusTip(tr("Evaluate current line"));
+    QIcon::fromTheme("media-playback-start"), tr("&Evaluate Selection or Line"), this);
+    action->setShortcut(tr("Shift+Return", "Evaluate selection/line"));
+    action->setStatusTip(tr("Evaluate current selection/line"));
     action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     mEditorSigMux->connect(action, SIGNAL(triggered()), SLOT(evaluateLine()),
                            SignalMultiplexer::ConnectionOptional);
@@ -543,6 +553,8 @@ void MultiEditor::createActions()
     addAction(mActions[Paste]);
     addAction(mActions[EnlargeFont]);
     addAction(mActions[ShrinkFont]);
+    addAction(mActions[ShowWhitespace]);
+    addAction(mActions[IndentWithSpaces]);
     addAction(mActions[EvaluateCurrentDocument]);
     addAction(mActions[EvaluateRegion]);
     addAction(mActions[EvaluateLine]);
@@ -564,6 +576,7 @@ void MultiEditor::createActions()
 void MultiEditor::updateActions()
 {
     GenericCodeEditor *editor = currentEditor();
+    ScCodeEditor *scEditor = qobject_cast<ScCodeEditor*>(editor);
     QTextDocument *doc = editor ? editor->textDocument() : 0;
 
     mActions[Undo]->setEnabled( doc && doc->isUndoAvailable() );
@@ -583,6 +596,8 @@ void MultiEditor::updateActions()
     mActions[ResetFontSize]->setEnabled( editor );
     mActions[ShowWhitespace]->setEnabled( editor );
     mActions[ShowWhitespace]->setChecked( editor && editor->showWhitespace() );
+    mActions[IndentWithSpaces]->setEnabled( scEditor );
+    mActions[IndentWithSpaces]->setChecked( scEditor && scEditor->spaceIndent() );
 
     // ScLang-specific actions
     bool editorIsScCodeEditor = qobject_cast<ScCodeEditor*>(editor); // NOOP at the moment, but
@@ -744,11 +759,8 @@ void MultiEditor::switchSession( Session *session )
         }
 
         // restore tabs
-        foreach ( Document * doc, documentList ) {
-            if (!doc)
-                continue;
+        foreach ( Document * doc, documentList )
             addTab(doc);
-        }
 
         // restore editors
         if (session->contains("editors")) {
@@ -790,19 +802,26 @@ void MultiEditor::switchSession( Session *session )
 
 int MultiEditor::addTab( Document * doc )
 {
+    if (!doc)
+        return -1;
+
+    int tabIdx = tabForDocument(doc);
+    if (tabIdx != -1)
+        return tabIdx;
+
     QTextDocument *tdoc = doc->textDocument();
 
     QIcon icon;
     if(tdoc->isModified())
         icon = mDocModifiedIcon;
 
-    int newTabIndex = mTabs->addTab( icon, doc->title() );
-    mTabs->setTabData( newTabIndex, QVariant::fromValue<Document*>(doc) );
+    tabIdx = mTabs->addTab( icon, doc->title() );
+    mTabs->setTabData( tabIdx, QVariant::fromValue<Document*>(doc) );
 
     mDocModifiedSigMap.setMapping(tdoc, doc);
     connect( tdoc, SIGNAL(modificationChanged(bool)), &mDocModifiedSigMap, SLOT(map()) );
 
-    return newTabIndex;
+    return tabIdx;
 }
 
 void MultiEditor::setCurrent( Document *doc )

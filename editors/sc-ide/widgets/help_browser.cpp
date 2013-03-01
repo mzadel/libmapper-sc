@@ -24,16 +24,22 @@
 #include "main_window.hpp"
 #include "../core/sc_process.hpp"
 #include "../core/main.hpp"
+#include "../core/util/overriding_action.hpp"
 #include "QtCollider/widgets/web_page.hpp"
 
 #include <QVBoxLayout>
 #include <QToolBar>
 #include <QWebSettings>
 #include <QWebFrame>
+#include <QWebElement>
+#include <QAction>
+#include <QMenu>
 #include <QStyle>
 #include <QShortcut>
 #include <QApplication>
 #include <QDesktopWidget>
+#include <QDebug>
+#include <QKeyEvent>
 
 namespace ScIDE {
 
@@ -50,11 +56,7 @@ HelpBrowser::HelpBrowser( QWidget * parent ):
     mWebView = new QWebView;
     mWebView->setPage( webPage );
     mWebView->settings()->setAttribute( QWebSettings::LocalStorageEnabled, true );
-
-    // NOTE: we assume all web page shortcuts have Qt::WidgetShortcut context
-    mWebView->setContextMenuPolicy( Qt::ActionsContextMenu );
-    mWebView->addAction( webPage->action( QWebPage::Copy ) );
-    mWebView->addAction( webPage->action( QWebPage::Paste ) );
+    mWebView->setContextMenuPolicy( Qt::CustomContextMenu );
 
     // Set the style's standard palette to avoid system's palette incoherencies
     // get in the way of rendering web pages
@@ -65,25 +67,17 @@ HelpBrowser::HelpBrowser( QWidget * parent ):
     mLoadProgressIndicator = new LoadProgressIndicator;
     mLoadProgressIndicator->setIndent(10);
 
-    QToolBar *toolBar = new QToolBar;
-    toolBar->setIconSize( QSize(16,16) );
-    QAction *action = toolBar->addAction("Home");
-    connect( action, SIGNAL(triggered()), this, SLOT(goHome()) );
-    toolBar->addAction( mWebView->pageAction(QWebPage::Back) );
-    toolBar->addAction( mWebView->pageAction(QWebPage::Forward) );
-    toolBar->addAction( mWebView->pageAction(QWebPage::Reload) );
-    toolBar->addWidget(mLoadProgressIndicator);
-
     QVBoxLayout *layout = new QVBoxLayout;
     layout->setContentsMargins(0,0,0,0);
     layout->setSpacing(0);
-    layout->addWidget(toolBar);
     layout->addWidget(mWebView);
     setLayout(layout);
 
     connect( mWebView, SIGNAL(linkClicked(QUrl)), this, SLOT(onLinkClicked(QUrl)) );
     connect( mWebView, SIGNAL(loadStarted()), mLoadProgressIndicator, SLOT(start()) );
     connect( mWebView, SIGNAL(loadFinished(bool)), mLoadProgressIndicator, SLOT(stop()) );
+    connect( mWebView, SIGNAL(customContextMenuRequested(QPoint)),
+             this, SLOT(onContextMenuRequest(QPoint)) );
 
     connect( webPage->action(QWebPage::Reload), SIGNAL(triggered(bool)), this, SLOT(onReload()) );
     connect( webPage, SIGNAL(jsConsoleMsg(QString,int,QString)),
@@ -96,22 +90,49 @@ HelpBrowser::HelpBrowser( QWidget * parent ):
     // FIXME: should actually respond to class library shutdown, but we don't have that signal
     connect( scProcess, SIGNAL(classLibraryRecompiled()), mLoadProgressIndicator, SLOT(stop()) );
 
-    mEvaluateShortcut = new QShortcut(this);
-    mEvaluateShortcut->setContext( Qt::WidgetWithChildrenShortcut );
-    connect( mEvaluateShortcut, SIGNAL(activated()), this, SLOT(evaluateSelection()) );
+    createActions();
 
     applySettings( Main::settings() );
+}
+
+void HelpBrowser::createActions()
+{
+    QAction * action;
+    OverridingAction *ovrAction;
+
+    mActions[GoHome] = action = new QAction(tr("Home"), this);
+    connect( action, SIGNAL(triggered()), this, SLOT(goHome()) );
+
+    mActions[ZoomIn] = ovrAction = new OverridingAction(tr("Zoom In"), this);
+    connect(ovrAction, SIGNAL(triggered()), this, SLOT(zoomIn()));
+    ovrAction->addToWidget(mWebView);
+
+    mActions[ZoomOut] = ovrAction = new OverridingAction(tr("Zoom Out"), this);
+    connect(ovrAction, SIGNAL(triggered()), this, SLOT(zoomOut()));
+    ovrAction->addToWidget(mWebView);
+
+    mActions[Evaluate] = ovrAction = new OverridingAction(tr("Evaluate as Code"), this);
+    connect(ovrAction, SIGNAL(triggered()), this, SLOT(evaluateSelection()));
+    ovrAction->addToWidget(mWebView);
+
+    // For the sake of display:
+    mWebView->pageAction(QWebPage::Copy)->setShortcut( QKeySequence::Copy );
+    mWebView->pageAction(QWebPage::Paste)->setShortcut( QKeySequence::Paste );
 }
 
 void HelpBrowser::applySettings( Settings::Manager *settings )
 {
     settings->beginGroup("IDE/shortcuts");
 
-    mWebView->pageAction(QWebPage::Copy)
-            ->setShortcut( settings->shortcut("editor-copy") );
-    mWebView->pageAction(QWebPage::Paste)
-            ->setShortcut( settings->shortcut("editor-paste") );
-    mEvaluateShortcut->setKey( settings->shortcut("editor-eval-smart") );
+    mActions[ZoomIn]->setShortcut( settings->shortcut("editor-enlarge-font") );
+
+    mActions[ZoomOut]->setShortcut( settings->shortcut("editor-shrink-font") );
+
+    QList<QKeySequence> evalShortcuts;
+    evalShortcuts.append( settings->shortcut("editor-eval-smart") );
+    evalShortcuts.append( settings->shortcut("editor-eval-line") );
+    evalShortcuts.append( QKeySequence(Qt::Key_Enter) );
+    mActions[Evaluate]->setShortcuts( evalShortcuts );
 
     settings->endGroup();
 
@@ -165,10 +186,35 @@ void HelpBrowser::onReload()
     onLinkClicked( mWebView->url() );
 }
 
+void HelpBrowser::zoomIn()
+{
+    qreal zoomFactor = mWebView->zoomFactor();
+    zoomFactor = qMin( zoomFactor + 0.1, 2.0 );
+    mWebView->setZoomFactor(zoomFactor);
+}
+
+void HelpBrowser::zoomOut()
+{
+    qreal zoomFactor = mWebView->zoomFactor();
+    zoomFactor = qMax( zoomFactor - 0.1, 0.1 );
+    mWebView->setZoomFactor(zoomFactor);
+}
+
+void HelpBrowser::findText( const QString & text, bool backwards )
+{
+    QWebPage::FindFlags flags =
+            QWebPage::FindWrapsAroundDocument;// | QWebPage::HighlightAllOccurrences;
+    if (backwards)
+        flags |= QWebPage::FindBackward;
+
+    mWebView->findText( text, flags );
+}
+
 bool HelpBrowser::eventFilter(QObject *object, QEvent *event)
 {
     if (object == mWebView) {
-        if (event->type() == QEvent::MouseButtonPress) {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress: {
             QMouseEvent * mouseEvent = static_cast<QMouseEvent*>(event);
             switch (mouseEvent->button()) {
             case Qt::XButton1:
@@ -180,8 +226,22 @@ bool HelpBrowser::eventFilter(QObject *object, QEvent *event)
                 return true;
 
             default:
-                return false;
+                break;
             }
+            break;
+        }
+        case QEvent::ShortcutOverride: {
+            QKeyEvent * kevent = static_cast<QKeyEvent*>(event);
+            if ( kevent == QKeySequence::Copy ||
+                 kevent == QKeySequence::Paste )
+            {
+                kevent->accept();
+                return true;
+            }
+            break;
+        }
+        default:
+            break;
         }
     }
     return false;
@@ -192,7 +252,8 @@ void HelpBrowser::sendRequest( const QString &code )
     ScProcess *scProcess = Main::scProcess();
     if (scProcess->state() == QProcess::NotRunning) {
         qDebug() << "HelpBrowser: aborting request - sclang not running.";
-        MainWindow::instance()->showStatusMessage("Can not use help - interpreter not running!");
+        MainWindow::instance()->showStatusMessage(
+                    tr("Can not use help - interpreter not running!"));
         return;
     }
 
@@ -237,6 +298,111 @@ void HelpBrowser::onJsConsoleMsg(const QString &arg1, int arg2, const QString & 
     qWarning() << "*** ERROR in JavaScript:" << arg1;
     qWarning() << "* line:" << arg2;
     qWarning() << "* source ID:" << arg3;
+}
+
+void HelpBrowser::onContextMenuRequest( const QPoint & pos )
+{
+    QMenu menu;
+
+    QWebHitTestResult hitTest = mWebView->page()->mainFrame()->hitTestContent( pos );
+
+    if (!hitTest.linkElement().isNull()) {
+        menu.addAction( mWebView->pageAction(QWebPage::CopyLinkToClipboard) );
+    }
+
+    menu.addSeparator();
+
+    if (hitTest.isContentEditable() || hitTest.isContentSelected())
+        menu.addAction( mWebView->pageAction(QWebPage::Copy) );
+    if (hitTest.isContentEditable())
+        menu.addAction( mWebView->pageAction(QWebPage::Paste) );
+    if (hitTest.isContentSelected())
+        menu.addAction( mActions[Evaluate] );
+
+    menu.addSeparator();
+
+    menu.addAction( mWebView->pageAction(QWebPage::Back) );
+    menu.addAction( mWebView->pageAction(QWebPage::Forward) );
+    menu.addAction( mWebView->pageAction(QWebPage::Reload) );
+
+    menu.addSeparator();
+
+    menu.addAction( mActions[ZoomIn] );
+    menu.addAction( mActions[ZoomOut] );
+
+    menu.exec( mWebView->mapToGlobal(pos) );
+}
+
+HelpBrowserFindBox::HelpBrowserFindBox( QWidget * parent ):
+    QLineEdit(parent)
+{
+    setPlaceholderText(tr("Find..."));
+    connect( this, SIGNAL(textChanged(QString)), this, SIGNAL(query(QString)) );
+}
+
+bool HelpBrowserFindBox::event( QEvent * event )
+{
+    switch(event->type()) {
+    case QEvent::ShortcutOverride:
+    {
+        QKeyEvent *kevent = static_cast<QKeyEvent*>(event);
+        if (kevent->key() == Qt::Key_Escape) {
+            event->accept();
+            return true;
+        }
+    }
+    case QEvent::KeyPress:
+    {
+        QKeyEvent *kevent = static_cast<QKeyEvent*>(event);
+        switch (kevent->key()) {
+        case Qt::Key_Return:
+        case Qt::Key_Enter: {
+            bool backwards = kevent->modifiers() & Qt::ShiftModifier;
+            emit query( text(), backwards );
+            return true;
+        }
+        case Qt::Key_Escape:
+            clear();
+        default:
+            break;
+        }
+    }
+    default:
+        break;
+    }
+
+    return QLineEdit::event(event);
+}
+
+HelpBrowserDocklet::HelpBrowserDocklet( QWidget *parent ):
+    Docklet(tr("Help browser"), parent)
+{
+    mHelpBrowser = new HelpBrowser;
+
+    setAllowedAreas(Qt::AllDockWidgetAreas);
+    setWidget(mHelpBrowser);
+
+    mFindBox = new HelpBrowserFindBox();
+
+    toolBar()->addWidget( mHelpBrowser->loadProgressIndicator(), 1 );
+    toolBar()->addAction( mHelpBrowser->mActions[HelpBrowser::GoHome] );
+    toolBar()->addAction( mHelpBrowser->mWebView->pageAction(QWebPage::Back) );
+    toolBar()->addAction( mHelpBrowser->mWebView->pageAction(QWebPage::Forward) );
+    toolBar()->addAction( mHelpBrowser->mWebView->pageAction(QWebPage::Reload) );
+    toolBar()->addWidget( mFindBox );
+
+    connect( mFindBox, SIGNAL(query(QString, bool)),
+             mHelpBrowser, SLOT(findText(QString, bool)) );
+
+    connect(Main::scProcess(), SIGNAL(started()), this, SLOT(onInterpreterStart()));
+
+    OverridingAction * action;
+    action = new OverridingAction(this);
+    action->setShortcut(QKeySequence::Find);
+    action->addToWidget(mHelpBrowser);
+    action->addToWidget(toolBar());
+    connect( action, SIGNAL(triggered(bool)), mFindBox, SLOT(setFocus()) );
+    connect( action, SIGNAL(triggered(bool)), mFindBox, SLOT(selectAll()) );
 }
 
 } // namespace ScIDE

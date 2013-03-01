@@ -19,10 +19,16 @@
 */
 
 #include "find_replace_tool.hpp"
+#include "main_window.hpp"
 #include "code_editor/editor.hpp"
+#include "../core/main.hpp"
+#include "../core/settings/manager.hpp"
 
 #include <QApplication>
 #include <QTextBlock>
+#include <QToolButton>
+#include <QStyle>
+#include <QHBoxLayout>
 
 namespace ScIDE {
 
@@ -35,13 +41,24 @@ TextFindReplacePanel::TextFindReplacePanel( QWidget * parent ):
     mFindField = new QLineEdit;
     mReplaceField = new QLineEdit;
 
-    mNextBtn = new QPushButton(tr("Next"));
-    mPrevBtn = new QPushButton(tr("Previous"));
-    mFindAllBtn = new QPushButton(tr("Find All"));
-    mReplaceBtn = new QPushButton(tr("Replace"));
-    mReplaceAllBtn = new QPushButton(tr("Replace All"));
+    mNextBtn = new QToolButton();
+    mNextBtn->setIcon( style()->standardIcon( QStyle::SP_ArrowForward ) );
+    mNextBtn->setToolTip( tr("Find Next") );
 
-    mOptionsBtn = new QPushButton(tr("Options"));
+    mPrevBtn = new QToolButton();
+    mPrevBtn->setIcon( style()->standardIcon( QStyle::SP_ArrowBack ) );
+    mPrevBtn->setToolTip( tr("Find Previous") );
+
+    mReplaceBtn = new QToolButton();
+    mReplaceBtn->setText(tr("Replace"));
+    mReplaceAllBtn = new QToolButton();
+    mReplaceAllBtn->setText(tr("Replace All"));
+
+    mOptionsBtn = new QToolButton();
+    mOptionsBtn->setText(tr("Options"));
+    mOptionsBtn->setIcon( QIcon::fromTheme("preferences-other") );
+    mOptionsBtn->setPopupMode(QToolButton::InstantPopup);
+
     QMenu *optMenu = new QMenu(this);
     mMatchCaseAction = optMenu->addAction(tr("Match Case"));
     mMatchCaseAction->setCheckable(true);
@@ -57,17 +74,34 @@ TextFindReplacePanel::TextFindReplacePanel( QWidget * parent ):
     mReplaceLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
     mGrid = new QGridLayout();
-    mGrid->setContentsMargins(2,2,2,2);
+    mGrid->setContentsMargins(0,0,0,0);
+    mGrid->setSpacing(2);
+
+    QHBoxLayout *findBtnLayout = new QHBoxLayout();
+    findBtnLayout->setContentsMargins(0,0,0,0);
+    findBtnLayout->setSpacing(1);
+    findBtnLayout->addWidget(mPrevBtn);
+    findBtnLayout->addWidget(mNextBtn);
+    findBtnLayout->addStretch(0);
+    findBtnLayout->addWidget(mOptionsBtn);
+
     mGrid->addWidget(mFindLabel, 0, 0);
     mGrid->addWidget(mFindField, 0, 1);
-    mGrid->addWidget(mNextBtn, 0, 2);
-    mGrid->addWidget(mPrevBtn, 0, 3);
-    mGrid->addWidget(mFindAllBtn, 0, 4);
-    mGrid->addWidget(mOptionsBtn, 0, 5);
+    mGrid->addLayout(findBtnLayout, 0, 2);
+
+    QHBoxLayout *replaceBtnLayout = new QHBoxLayout();
+    replaceBtnLayout->setContentsMargins(0,0,0,0);
+    replaceBtnLayout->setSpacing(1);
+    replaceBtnLayout->addWidget(mReplaceBtn);
+    replaceBtnLayout->addWidget(mReplaceAllBtn);
+    replaceBtnLayout->addStretch(0);
+
     mGrid->addWidget(mReplaceLabel, 1, 0);
     mGrid->addWidget(mReplaceField, 1, 1);
-    mGrid->addWidget(mReplaceBtn, 1, 2);
-    mGrid->addWidget(mReplaceAllBtn, 1, 3);
+    mGrid->addLayout(replaceBtnLayout, 1, 2);
+
+    mGrid->setColumnStretch(1,1);
+
     setLayout(mGrid);
 
     setMode(Find);
@@ -78,12 +112,26 @@ TextFindReplacePanel::TextFindReplacePanel( QWidget * parent ):
 
     connect(mNextBtn, SIGNAL(clicked()), this, SLOT(findNext()));
     connect(mPrevBtn, SIGNAL(clicked()), this, SLOT(findPrevious()));
-    connect(mFindAllBtn, SIGNAL(clicked()), this, SLOT(findAll()));
     connect(mReplaceBtn, SIGNAL(clicked()), this, SLOT(replace()));
     connect(mReplaceAllBtn, SIGNAL(clicked()), this, SLOT(replaceAll()));
     connect(mFindField, SIGNAL(returnPressed()), this, SLOT(onFindFieldReturn()));
     connect(mFindField, SIGNAL(textChanged(QString)), this, SLOT(onFindFieldTextChanged()));
     connect(mReplaceField, SIGNAL(returnPressed()), this, SLOT(replace()));
+    // Update search results when options change:
+    connect(optMenu, SIGNAL(triggered(QAction*)), this, SLOT(findAll()));
+
+    Settings::Manager *settings = Main::settings();
+    QAction *action;
+
+    action = mActions[FindNext] = new QAction(tr("Find Next"), this);
+    action->setShortcut(tr("Ctrl+G", "Find Next"));
+    connect( action, SIGNAL(triggered()), this, SLOT(findNext()) );
+    settings->addAction( action, "editor-find-next", tr("Text Editor") );
+
+    action = mActions[FindPrevious] = new QAction(tr("Find Previous"), this);
+    action->setShortcut(tr("Ctrl+Shift+G", "Find Previous"));
+    connect( action, SIGNAL(triggered()), this, SLOT(findPrevious()) );
+    settings->addAction( action, "editor-find-previous", tr("Text Editor") );
 }
 
 void TextFindReplacePanel::setMode( Mode mode )
@@ -163,6 +211,8 @@ void TextFindReplacePanel::onFindFieldTextChanged()
         mSearchPosition = mEditor->textCursor().selectionStart();
 
     int count = mEditor->findAll(expr, flagz);
+    if (!expr.isEmpty())
+        reportFoundOccurrencies(count);
 
     QTextCursor searchCursor(mEditor->textDocument());
     searchCursor.setPosition(mSearchPosition);
@@ -206,8 +256,13 @@ void TextFindReplacePanel::findAll()
 {
     if (!mEditor) return;
 
+    QRegExp expr = regexp();
+
     // NOTE: empty expression removes any search highlighting
-    mEditor->findAll(regexp(), flags());
+    int count = mEditor->findAll(expr, flags());
+
+    if (!expr.isEmpty())
+        reportFoundOccurrencies(count);
 }
 
 void TextFindReplacePanel::replace()
@@ -227,11 +282,26 @@ void TextFindReplacePanel::replaceAll()
     if (!mEditor) return;
 
     QRegExp expr = regexp();
-    if (expr.isEmpty()) return;
+    if (expr.isEmpty())
+        return;
 
-    mEditor->replaceAll(expr, replaceString(), flags());
+    QTextDocument::FindFlags opt = flags();
+
+    int count = mEditor->replaceAll(expr, replaceString(), opt);
+
+    reportReplacedOccurrencies( count );
 
     mSearchPosition = -1;
+}
+
+void TextFindReplacePanel::reportFoundOccurrencies( int count )
+{
+    MainWindow::instance()->showStatusMessage( tr("%1 occurrencies found.").arg(count) );
+}
+
+void TextFindReplacePanel::reportReplacedOccurrencies( int count )
+{
+    MainWindow::instance()->showStatusMessage( tr("%1 occurrencies replaced.").arg(count) );
 }
 
 } // namespace ScIDE

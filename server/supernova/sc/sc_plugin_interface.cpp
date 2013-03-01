@@ -40,6 +40,8 @@
 #include "SC_fftlib.h"
 #include "../../common/SC_SndFileHelpers.hpp"
 
+#include <boost/math/constants/constants.hpp>
+
 // undefine the shadowed scfft functions
 #undef scfft_create
 #undef scfft_dofft
@@ -575,7 +577,7 @@ inline void initialize_rate(Rate & rate, double sample_rate, int blocksize)
 {
     rate.mSampleRate = sample_rate;
     rate.mSampleDur = 1. / sample_rate;
-    rate.mRadiansPerSample = 2 * M_PI / sample_rate;
+    rate.mRadiansPerSample = 2 * boost::math::constants::pi<double>() / sample_rate;
 
     rate.mBufLength = blocksize;
     rate.mBufDuration = blocksize / sample_rate;
@@ -704,6 +706,27 @@ void sc_plugin_interface::initialize(server_arguments const & args, float * cont
     world.mNumOutputs = args.output_channels;
 
     world.mRealTime = !args.non_rt;
+
+    /* rngs */
+    world.mNumRGens = args.rng_count;
+    world.mRGen = new RGen[world.mNumRGens];
+    std::vector<std::uint32_t> seeds(world.mNumRGens);
+
+    try {
+        std::random_device rd;
+        std::seed_seq seq({ rd(), rd(), rd() });
+        seq.generate(seeds.begin(), seeds.end());
+    } catch (...) {
+        auto now = std::chrono::high_resolution_clock::now();
+
+        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+
+        std::seed_seq seq({ seconds.count() });
+        seq.generate(seeds.begin(), seeds.end());
+    }
+
+    for (int i=0; i<world.mNumRGens; ++i)
+        world.mRGen[i].init(seeds[i]);
 }
 
 void sc_plugin_interface::reset_sampling_rate(int sr)
@@ -746,6 +769,7 @@ sc_plugin_interface::~sc_plugin_interface(void)
     delete[] world.mSndBufs;
     delete[] world.mSndBufsNonRealTimeMirror;
     delete[] world.mSndBufUpdates;
+    delete[] world.mRGen;
     delete world.mNRTLock;
 }
 

@@ -21,22 +21,28 @@
 #ifndef SCIDE_WIDGETS_HELP_BROWSER_HPP_INCLUDED
 #define SCIDE_WIDGETS_HELP_BROWSER_HPP_INCLUDED
 
+#include "util/docklet.hpp"
+
 #include <QWebView>
-#include <QDockWidget>
-#include <QShortcut>
 #include <QLabel>
+#include <QLineEdit>
 #include <QBasicTimer>
 #include <QTimerEvent>
+#include <QList>
+#include <QKeySequence>
 
 namespace ScIDE {
 
 namespace Settings { class Manager; }
 
+class HelpBrowserDocklet;
+class HelpBrowserFindBox;
+
 class LoadProgressIndicator : public QLabel
 {
     Q_OBJECT
 public slots:
-    void start( const QString & msg = QString("Loading") )
+    void start( const QString & msg = tr("Loading") )
     {
         mMsg = msg;
         mDotCount = 0;
@@ -54,7 +60,7 @@ protected:
             return;
 
         ++mDotCount;
-        if (mDotCount > 10)
+        if (mDotCount > 6)
             mDotCount = 1;
 
         QString string(mDotCount, '.');
@@ -74,6 +80,15 @@ class HelpBrowser : public QWidget
     Q_OBJECT
 
 public:
+    enum ActionRole {
+        GoHome,
+        ZoomIn,
+        ZoomOut,
+        Evaluate,
+
+        ActionCount
+    };
+
     HelpBrowser( QWidget * parent = 0 );
 
     QSize sizeHint() const { return mSizeHint; }
@@ -81,51 +96,81 @@ public:
 
     void gotoHelpFor( const QString & );
     void gotoHelpForMethod( const QString & className, const QString & methodName );
+    QWidget *loadProgressIndicator() { return mLoadProgressIndicator; }
+
+    QUrl url() const { return mWebView->url(); }
 
 public slots:
     void applySettings( Settings::Manager * );
     void goHome();
+    void zoomIn();
+    void zoomOut();
     void evaluateSelection();
+    void findText( const QString & text, bool backwards = false );
 
 signals:
     void urlChanged();
 
 private slots:
+    void onContextMenuRequest( const QPoint & pos );
     void onLinkClicked( const QUrl & );
     void onReload();
     void onScResponse( const QString & command, const QString & data );
     void onJsConsoleMsg(const QString &, int, const QString & );
 
 private:
+    friend class HelpBrowserDocklet;
+
+    void createActions();
     bool eventFilter( QObject * object, QEvent * event);
     void sendRequest( const QString &code );
 
     QWebView *mWebView;
-
-    QShortcut *mEvaluateShortcut;
     LoadProgressIndicator *mLoadProgressIndicator;
+
     QSize mSizeHint;
+
+    QAction *mActions[ActionCount];
 };
 
-class HelpBrowserDockable : public QDockWidget
+class HelpBrowserFindBox : public QLineEdit
 {
+    Q_OBJECT
+
 public:
-    HelpBrowserDockable( QWidget *parent = 0 ):
-        QDockWidget("Help browser", parent)
+    HelpBrowserFindBox( QWidget * parent = 0 );
+
+signals:
+    void query( const QString & text,  bool backwards = false );
+
+protected:
+    virtual bool event( QEvent * event );
+};
+
+class HelpBrowserDocklet : public Docklet
+{
+    Q_OBJECT
+
+public:
+    explicit HelpBrowserDocklet( QWidget *parent = 0 );
+    HelpBrowser *browser() { return mHelpBrowser; }
+
+    void raiseAndFocus()
     {
-        mHelpBrowser = new HelpBrowser;
-
-        setAllowedAreas(Qt::AllDockWidgetAreas);
-        setFeatures(DockWidgetFloatable | DockWidgetMovable | DockWidgetClosable);
-        setWidget(mHelpBrowser);
-
-        connect( mHelpBrowser, SIGNAL(urlChanged()), this, SLOT(show()) );
+        show();
+        raise();
+        mHelpBrowser->setFocus();
     }
 
-    HelpBrowser *browser() { return mHelpBrowser; }
+private slots:
+    void onInterpreterStart() {
+        if (isVisible() && mHelpBrowser->url().isEmpty())
+            mHelpBrowser->goHome();
+    }
 
 private:
     HelpBrowser *mHelpBrowser;
+    HelpBrowserFindBox *mFindBox;
 };
 
 } // namespace ScIDE

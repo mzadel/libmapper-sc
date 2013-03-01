@@ -41,7 +41,8 @@ ScProcess::ScProcess( Settings::Manager * settings, QObject * parent ):
     QProcess( parent ),
     mIpcServer( new QLocalServer(this) ),
     mIpcSocket(NULL),
-    mIpcServerName("SCIde_" + QString::number(QCoreApplication::applicationPid()))
+    mIpcServerName("SCIde_" + QString::number(QCoreApplication::applicationPid())),
+    mTerminationRequested(false)
 {
     mIntrospectionParser = new ScIntrospectionParser( this );
     mIntrospectionParser->start();
@@ -61,22 +62,22 @@ void ScProcess::prepareActions(Settings::Manager * settings)
 {
     QAction * action;
 
-    const QString interpreterCategory("Interpreter");
+    const QString interpreterCategory(tr("Interpreter"));
 
-    mActions[ToggleRunning] = action = new QAction(tr("Start or Stop Interpreter"), this);
+    mActions[ToggleRunning] = action = new QAction(tr("Boot Interpreter"), this);
     connect(action, SIGNAL(triggered()), this, SLOT(toggleRunning()) );
     settings->addAction( action, "interpreter-toggle-running", interpreterCategory);
 
-    mActions[Start] = action = new QAction(tr("Start Interpreter"), this);
+    mActions[Start] = action = new QAction(tr("Boot Interpreter"), this);
     connect(action, SIGNAL(triggered()), this, SLOT(startLanguage()) );
     settings->addAction( action, "interpreter-start", interpreterCategory);
 
-    mActions[Stop] = action = new QAction(tr("Stop Interpreter"), this);
+    mActions[Stop] = action = new QAction(tr("Quit Interpreter"), this);
     connect(action, SIGNAL(triggered()), this, SLOT(stopLanguage()) );
     settings->addAction( action, "interpreter-stop", interpreterCategory);
 
     mActions[Restart] = action = new QAction(
-        QIcon::fromTheme("system-reboot"), tr("Restart Interpreter"), this);
+        QIcon::fromTheme("system-reboot"), tr("Reboot Interpreter"), this);
     connect(action, SIGNAL(triggered()), this, SLOT(restartLanguage()) );
     settings->addAction( action, "interpreter-restart", interpreterCategory);
 
@@ -86,14 +87,9 @@ void ScProcess::prepareActions(Settings::Manager * settings)
     connect(action, SIGNAL(triggered()), this, SLOT(recompileClassLibrary()) );
     settings->addAction( action, "interpreter-recompile-lib", interpreterCategory);
 
-    mActions[RunMain] = action = new QAction(
-        QIcon::fromTheme("media-playback-start"), tr("Run Main"), this);
-    connect(action, SIGNAL(triggered()), this, SLOT(runMain()));
-    settings->addAction( action, "interpreter-main-run", interpreterCategory);
-
     mActions[StopMain] = action = new QAction(
-        QIcon::fromTheme("process-stop"), tr("Stop Main"), this);
-    action->setShortcut(tr("Ctrl+.", "Stop Main (a.k.a. cmd-period)"));
+        QIcon::fromTheme("media-playback-stop"), tr("Stop"), this);
+    action->setShortcut(tr("Ctrl+.", "Stop (a.k.a. cmd-period)"));
     connect(action, SIGNAL(triggered()), this, SLOT(stopMain()));
     settings->addAction( action, "interpreter-main-stop", interpreterCategory);
 
@@ -114,7 +110,7 @@ void ScProcess::toggleRunning()
 void ScProcess::startLanguage (void)
 {
     if (state() != QProcess::NotRunning) {
-        statusMessage("Interpreter is already running.");
+        statusMessage(tr("Interpreter is already running."));
         return;
     }
 
@@ -146,16 +142,14 @@ void ScProcess::startLanguage (void)
 
     QProcess::start(sclangCommand, sclangArguments);
     bool processStarted = QProcess::waitForStarted();
-    if (!processStarted) {
+    if (!processStarted)
         emit statusMessage(tr("Failed to start interpreter!"));
-    } else
-        onSclangStart();
 }
 
 void ScProcess::recompileClassLibrary (void)
 {
     if(state() != QProcess::Running) {
-        emit statusMessage("Interpreter is not running!");
+        emit statusMessage(tr("Interpreter is not running!"));
         return;
     }
 
@@ -166,11 +160,14 @@ void ScProcess::recompileClassLibrary (void)
 void ScProcess::stopLanguage (void)
 {
     if(state() != QProcess::Running) {
-        emit statusMessage("Interpreter is not running!");
+        emit statusMessage(tr("Interpreter is not running!"));
         return;
     }
 
     closeWriteChannel();
+
+    mTerminationRequested   = true;
+    mTerminationRequestTime = QDateTime::currentDateTimeUtc();
 
     bool finished = waitForFinished(200);
     if ( !finished && (state() != QProcess::NotRunning) ) {
@@ -183,6 +180,7 @@ void ScProcess::stopLanguage (void)
         if (!reallyFinished)
             emit statusMessage(tr("Failed to stop interpreter!"));
     }
+    mTerminationRequested = false;
 }
 
 void ScProcess::restartLanguage()
@@ -195,6 +193,12 @@ void ScProcess::restartLanguage()
 
 void ScProcess::onReadyRead(void)
 {
+    if (mTerminationRequested) {
+        // when stopping the language, we don't want to post for longer than 200 ms to prevent the UI to freeze
+        if (QDateTime::currentDateTimeUtc().toMSecsSinceEpoch() - mTerminationRequestTime.toMSecsSinceEpoch() > 200)
+            return;
+    }
+
     QByteArray out = QProcess::readAll();
     QString postString = QString::fromUtf8(out);
     emit scPost(postString);
@@ -203,14 +207,14 @@ void ScProcess::onReadyRead(void)
 void ScProcess::evaluateCode(QString const & commandString, bool silent)
 {
     if(state() != QProcess::Running) {
-        emit statusMessage("Interpreter is not running!");
+        emit statusMessage(tr("Interpreter is not running!"));
         return;
     }
 
     QByteArray bytesToWrite = commandString.toUtf8();
     size_t writtenBytes = write(bytesToWrite);
     if (writtenBytes != bytesToWrite.size()) {
-        emit statusMessage("Error when passing data to interpreter!");
+        emit statusMessage(tr("Error when passing data to interpreter!"));
         return;
     }
 
@@ -241,7 +245,7 @@ void ScProcess::onProcessStateChanged(QProcess::ProcessState state)
 {
     switch (state) {
     case QProcess::Starting:
-        mActions[ToggleRunning]->setText(tr("Stop Interpreter"));
+        mActions[ToggleRunning]->setText(tr("Quit Interpreter"));
         mActions[ToggleRunning]->setIcon(QIcon::fromTheme("system-shutdown"));
         mActions[Start]->setEnabled(false);
         mActions[Stop]->setEnabled(true);
@@ -250,19 +254,19 @@ void ScProcess::onProcessStateChanged(QProcess::ProcessState state)
         break;
 
     case QProcess::Running:
-        mActions[RunMain]->setEnabled(true);
         mActions[StopMain]->setEnabled(true);
         mActions[RecompileClassLibrary]->setEnabled(true);
+
+        onStart();
 
         break;
 
     case QProcess::NotRunning:
-        mActions[ToggleRunning]->setText(tr("Start Interpreter"));
+        mActions[ToggleRunning]->setText(tr("Boot Interpreter"));
         mActions[ToggleRunning]->setIcon(QIcon::fromTheme("system-run"));
         mActions[Start]->setEnabled(true);
         mActions[Stop]->setEnabled(false);
         mActions[Restart]->setEnabled(false);
-        mActions[RunMain]->setEnabled(false);
         mActions[StopMain]->setEnabled(false);
         mActions[RecompileClassLibrary]->setEnabled(false);
 
@@ -313,7 +317,7 @@ void ScProcess::onResponse( const QString & selector, const QString & data )
         sendActiveDocument();
 }
 
-void ScProcess::onSclangStart()
+void ScProcess::onStart()
 {
     if(!mIpcServer->isListening()) // avoid a warning on stderr
         mIpcServer->listen(mIpcServerName);
@@ -321,12 +325,6 @@ void ScProcess::onSclangStart()
     QString command = QString("ScIDE.connect(\"%1\")").arg(mIpcServerName);
     evaluateCode ( command, true );
     sendActiveDocument();
-
-    if (MainWindow::instance()) {
-        HelpBrowserDockable * helpBrowser = MainWindow::instance()->helpBrowserDockable();
-        if (helpBrowser->isVisible())
-            helpBrowser->browser()->goHome();
-    }
 }
 
 void ScProcess::setActiveDocument(Document * document)
