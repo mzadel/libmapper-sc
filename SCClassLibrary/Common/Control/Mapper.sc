@@ -177,8 +177,8 @@ MapperSignal {
 		^this.primitiveFailed
 	}
 
-	prCallAction { arg name, value;
-		action.value( name, value );
+	prCallAction { arg name, instanceid, value;
+		action.value( name, instanceid, value );
 	}
 
 }
