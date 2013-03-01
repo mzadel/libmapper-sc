@@ -40,7 +40,7 @@ MapperDevice {
 
 	removeInput { arg name;
 		var sigtoremove;
-		sigtoremove = inputsignals.detect( { var sig; sig.getName == name } );
+		sigtoremove = inputsignals.detect( { arg sig; sig.getName == name } );
 		if ( sigtoremove.notNil ) {
 			inputsignals.remove(sigtoremove);
 			this.prRemoveInput(sigtoremove);
@@ -49,7 +49,7 @@ MapperDevice {
 
 	removeOutput { arg name;
 		var sigtoremove;
-		sigtoremove = outputsignals.detect( { var sig; sig.getName == name } );
+		sigtoremove = outputsignals.detect( { arg sig; sig.getName == name } );
 		if ( sigtoremove.notNil ) {
 			outputsignals.remove(sigtoremove);
 			this.prRemoveOutput(sigtoremove);
