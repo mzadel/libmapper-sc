@@ -15,10 +15,14 @@ MapperDevice {
 	}
 
 	free {
-		this.prStopPolling;
-		inputsignals = [];
-		outputsignals = [];
-		this.prFree;
+		try {
+			this.prStopPolling;
+			inputsignals = [];
+			outputsignals = [];
+			this.prFree;
+		} {
+			"MapperDevice:free: already freed?".error;
+		}
 	}
 
 	addInput { arg name, length, type, unit, min, max, action;
@@ -44,6 +48,8 @@ MapperDevice {
 		if ( sigtoremove.notNil ) {
 			inputsignals.remove(sigtoremove);
 			this.prRemoveInput(sigtoremove);
+		} {
+			"MapperDevice:removeInput: signal not found".warn;
 		}
 	}
 
@@ -53,6 +59,8 @@ MapperDevice {
 		if ( sigtoremove.notNil ) {
 			outputsignals.remove(sigtoremove);
 			this.prRemoveOutput(sigtoremove);
+		} {
+			"MapperDevice:removeOutput: signal not found".warn;
 		}
 	}
 
