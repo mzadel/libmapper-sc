@@ -178,6 +178,11 @@ int mapperDeviceNew(struct VMGlobals *g, int numArgsPushed)
 	err = slotIntVal(c, &portrequested);
 	if (err) return errWrongType;
 
+	if (Mapper::getDeviceStruct(a) != NULL) {
+		post("mapperDeviceNew(): already initialized\n");
+		return errFailed;
+	};
+
 	dev = mdev_new(devicename->name, portrequested, 0);
 	devstruct = new Mapper::Device(dev);
 
@@ -195,6 +200,11 @@ int mapperDeviceFree(struct VMGlobals *g, int numArgsPushed)
 	mapper_device dev;
 
 	devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceFree(): null device, already freed?\n");
+		return errFailed;
+	}
+
 	dev = devstruct->m_dev;
 
 	if ( devstruct->m_polling ) {
@@ -234,6 +244,8 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 	int minint;
 	int maxint;
 
+	Mapper::Device *devstruct;
+
 	// parameters for mdev_add_input()
 	mapper_device dev;
 	char *signalname;
@@ -246,7 +258,14 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 
 	// parse the arguments
 
-	dev = Mapper::getDeviceStruct(pa)->m_dev;
+	devstruct = Mapper::getDeviceStruct(pa);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceAddInput(): null device, signal not added\n");
+		SetNil(pa);
+		return errNone;
+	}
+
+	dev = devstruct->m_dev;
 
 	err = slotSymbolVal(pb, &signalnamesymbol);
 	if (err) return errWrongType;
@@ -317,6 +336,8 @@ int mapperDeviceAddOutput(struct VMGlobals *g, int numArgsPushed)
 	int minint;
 	int maxint;
 
+	Mapper::Device *devstruct;
+
 	// parameters for mdev_add_output()
 	mapper_device dev;
 	char *signalname;
@@ -329,7 +350,14 @@ int mapperDeviceAddOutput(struct VMGlobals *g, int numArgsPushed)
 
 	// parse the arguments
 
-	dev = Mapper::getDeviceStruct(pa)->m_dev;
+	devstruct = Mapper::getDeviceStruct(pa);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceAddOutput(): null device, signal not added\n");
+		SetNil(pa);
+		return errNone;
+	}
+
+	dev = devstruct->m_dev;
 
 	err = slotSymbolVal(pb, &signalnamesymbol);
 	if (err) return errWrongType;
@@ -384,13 +412,19 @@ int mapperDeviceRemoveInput(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp - 1;
 	PyrSlot *b = g->sp;
 
+	Mapper::Device *devstruct;
 	mapper_device dev;
 	mapper_signal sig;
 	PyrObject *signalobj;
 
 	signalobj = slotRawObject(b);
 
-	dev = Mapper::getDeviceStruct(a)->m_dev;
+	devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceRemoveInput(): null device, signal not removed\n");
+		return errNone;
+	}
+	dev = devstruct->m_dev;
 	sig = (mapper_signal) slotRawPtr( signalobj->slots+0 );
 
 	if ( msig_properties(sig)->is_output ) {
@@ -415,13 +449,19 @@ int mapperDeviceRemoveOutput(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp - 1;
 	PyrSlot *b = g->sp;
 
+	Mapper::Device *devstruct;
 	mapper_device dev;
 	mapper_signal sig;
 	PyrObject *signalobj;
 
 	signalobj = slotRawObject(b);
 
-	dev = Mapper::getDeviceStruct(a)->m_dev;
+	devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceRemoveOutput(): null device, signal not removed\n");
+		return errNone;
+	}
+	dev = devstruct->m_dev;
 	sig = (mapper_signal) slotRawPtr( signalobj->slots+0 );
 
 	if ( ! msig_properties(sig)->is_output ) {
@@ -445,6 +485,10 @@ int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceStartPolling(): null device\n");
+		return errFailed;
+	};
 
 	// FIXME the way this works now, there's one thread per Mapper instance
 	// there should only be one thread of all of them; make a manager class or
@@ -460,6 +504,10 @@ int mapperDeviceStopPolling(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceStopPolling(): null device\n");
+		return errFailed;
+	};
 
 	devstruct->m_polling = false;
 	pthread_join(devstruct->m_thread, 0);
@@ -471,8 +519,15 @@ int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
+
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceIsPolling(): null device\n");
+		return errFailed;
+	};
+
 	SetBool( a, devstruct->m_polling );
+
 	return errNone;
 }
 
@@ -480,12 +535,21 @@ int mapperDeviceGetName(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceGetName(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getDeviceStruct(a)->m_dev;
+
+	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceGetName(): null device\n");
+		SetNil(a);
+		return errNone;
+	}
+	mapper_device dev = devstruct->m_dev;
+
 	const char *name = mdev_name(dev);
 	if( name )
 		SetSymbol( a, getsym(name) );
 	else
 		SetNil(a);
+
 	return errNone;
 }
 
@@ -493,8 +557,17 @@ int mapperDeviceGetPort(struct VMGlobals *g, int numArgsPushed);
 int mapperDeviceGetPort(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
-	mapper_device dev = Mapper::getDeviceStruct(a)->m_dev;
+
+	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
+	if ( devstruct == NULL ) {
+		post("mapperDeviceGetPort(): null device\n");
+		SetNil(a);
+		return errNone;
+	}
+	mapper_device dev = devstruct->m_dev;
+
 	SetInt( a, mdev_port(dev) );
+
 	return errNone;
 }
 
