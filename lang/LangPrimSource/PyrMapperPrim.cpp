@@ -201,7 +201,7 @@ int mapperDeviceFree(struct VMGlobals *g, int numArgsPushed)
 
 	devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceFree(): null device, already freed?\n");
+		post("mapperDeviceFree(): null device pointer, already freed?\n");
 		return errFailed;
 	}
 
@@ -260,7 +260,7 @@ int mapperDeviceAddInput(struct VMGlobals *g, int numArgsPushed)
 
 	devstruct = Mapper::getDeviceStruct(pa);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceAddInput(): null device, signal not added\n");
+		post("mapperDeviceAddInput(): null device pointer, signal not added\n");
 		SetNil(pa);
 		return errNone;
 	}
@@ -352,7 +352,7 @@ int mapperDeviceAddOutput(struct VMGlobals *g, int numArgsPushed)
 
 	devstruct = Mapper::getDeviceStruct(pa);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceAddOutput(): null device, signal not added\n");
+		post("mapperDeviceAddOutput(): null device pointer, signal not added\n");
 		SetNil(pa);
 		return errNone;
 	}
@@ -421,7 +421,7 @@ int mapperDeviceRemoveInput(struct VMGlobals *g, int numArgsPushed)
 
 	devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceRemoveInput(): null device, signal not removed\n");
+		post("mapperDeviceRemoveInput(): null device pointer, signal not removed\n");
 		return errNone;
 	}
 	dev = devstruct->m_dev;
@@ -457,7 +457,7 @@ int mapperDeviceRemoveOutput(struct VMGlobals *g, int numArgsPushed)
 
 	devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceRemoveOutput(): null device, signal not removed\n");
+		post("mapperDeviceRemoveOutput(): null device pointer, signal not removed\n");
 		return errNone;
 	}
 	dev = devstruct->m_dev;
@@ -484,7 +484,7 @@ int mapperDeviceStartPolling(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceStartPolling(): null device\n");
+		post("mapperDeviceStartPolling(): null device pointer\n");
 		return errFailed;
 	};
 
@@ -503,7 +503,7 @@ int mapperDeviceStopPolling(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceStopPolling(): null device\n");
+		post("mapperDeviceStopPolling(): null device pointer\n");
 		return errFailed;
 	};
 
@@ -520,7 +520,7 @@ int mapperDeviceIsPolling(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceIsPolling(): null device\n");
+		post("mapperDeviceIsPolling(): null device pointer\n");
 		return errFailed;
 	};
 
@@ -536,7 +536,7 @@ int mapperDeviceGetName(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceGetName(): null device\n");
+		post("mapperDeviceGetName(): null device pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -558,7 +558,7 @@ int mapperDeviceGetPort(struct VMGlobals *g, int numArgsPushed)
 
 	Mapper::Device *devstruct = Mapper::getDeviceStruct(a);
 	if ( devstruct == NULL ) {
-		post("mapperDeviceGetPort(): null device\n");
+		post("mapperDeviceGetPort(): null device pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -582,7 +582,7 @@ int mapperSignalSetMinimum(struct VMGlobals *g, int numArgsPushed)
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 
 	if ( sig == NULL ) {
-		post("mapperSignalSetMinimum(): null signal\n");
+		post("mapperSignalSetMinimum(): null signal pointer\n");
 		return errNone;
 	}
 
@@ -607,7 +607,7 @@ int mapperSignalSetMaximum(struct VMGlobals *g, int numArgsPushed)
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 
 	if ( sig == NULL ) {
-		post("mapperSignalSetMaximum(): null signal\n");
+		post("mapperSignalSetMaximum(): null signal pointer\n");
 		return errNone;
 	}
 
@@ -625,7 +625,7 @@ int mapperSignalIsOutput(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalIsOutput(): null signal\n");
+		post("mapperSignalIsOutput(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -639,7 +639,7 @@ int mapperSignalGetType(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalGetType(): null signal\n");
+		post("mapperSignalGetType(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -653,7 +653,7 @@ int mapperSignalGetLength(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalGetLength(): null signal\n");
+		post("mapperSignalGetLength(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -667,7 +667,7 @@ int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalGetName(): null signal\n");
+		post("mapperSignalGetName(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -681,7 +681,7 @@ int mapperSignalGetDeviceName(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalGetDeviceName(): null signal\n");
+		post("mapperSignalGetDeviceName(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -695,7 +695,7 @@ int mapperSignalGetUnit(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalGetUnit(): null signal\n");
+		post("mapperSignalGetUnit(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -710,7 +710,7 @@ int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalGetMinimum(): null signal\n");
+		post("mapperSignalGetMinimum(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -727,7 +727,7 @@ int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalGetMaximum(): null signal\n");
+		post("mapperSignalGetMaximum(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
@@ -746,7 +746,7 @@ int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed)
 
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	if ( sig == NULL ) {
-		post("mapperSignalUpdate(): null signal\n");
+		post("mapperSignalUpdate(): null signal pointer\n");
 		return errNone;
 	}
 	mapper_db_signal props = msig_properties(sig);
@@ -774,7 +774,7 @@ int mapperSignalGetFullName(struct VMGlobals *g, int numArgsPushed)
 	int length;
 
 	if ( sig == NULL ) {
-		post("mapperSignalGetFullName(): null signal\n");
+		post("mapperSignalGetFullName(): null signal pointer\n");
 		SetNil(a);
 		return errNone;
 	}
