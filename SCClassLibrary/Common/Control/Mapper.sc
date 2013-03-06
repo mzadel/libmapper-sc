@@ -17,6 +17,8 @@ MapperDevice {
 	free {
 		try {
 			this.prStopPolling;
+			inputsignals.do( _.prInvalidate );
+			outputsignals.do( _.prInvalidate );
 			inputsignals = [];
 			outputsignals = [];
 			this.prFree;
@@ -48,6 +50,7 @@ MapperDevice {
 		if ( sigtoremove.notNil ) {
 			inputsignals.remove(sigtoremove);
 			this.prRemoveInput(sigtoremove);
+			sigtoremove.prInvalidate;
 		} {
 			"MapperDevice:removeInput: signal not found".warn;
 		}
@@ -59,6 +62,7 @@ MapperDevice {
 		if ( sigtoremove.notNil ) {
 			outputsignals.remove(sigtoremove);
 			this.prRemoveOutput(sigtoremove);
+			sigtoremove.prInvalidate;
 		} {
 			"MapperDevice:removeOutput: signal not found".warn;
 		}
@@ -187,6 +191,11 @@ MapperSignal {
 
 	prCallAction { arg name, instanceid, value;
 		action.value( name, instanceid, value );
+	}
+
+	prInvalidate {
+		_MapperSignalInvalidate
+		^this.primitiveFailed
 	}
 
 }
