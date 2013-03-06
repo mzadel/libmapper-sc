@@ -434,9 +434,8 @@ int mapperDeviceRemoveInput(struct VMGlobals *g, int numArgsPushed)
 
 	mdev_remove_input( dev, sig );
 
-	// set the dataptr in the MapperSignal object to NULL to indicate that it's
-	// been freed
-	SetPtr(signalobj->slots+0, NULL);
+	// NB: the dataptr in the MapperSignal object should additionally be set to
+	// NULL by calling prInvalidate on it (to indicate that it has been freed)
 
 	return errNone;
 
@@ -471,9 +470,8 @@ int mapperDeviceRemoveOutput(struct VMGlobals *g, int numArgsPushed)
 
 	mdev_remove_output( dev, sig );
 
-	// set the dataptr in the MapperSignal object to NULL to indicate that it's
-	// been freed
-	SetPtr(signalobj->slots+0, NULL);
+	// NB: the dataptr in the MapperSignal object should additionally be set to
+	// NULL by calling prInvalidate on it (to indicate that it has been freed)
 
 	return errNone;
 
@@ -794,6 +792,16 @@ int mapperSignalGetFullName(struct VMGlobals *g, int numArgsPushed)
 
 }
 
+int mapperSignalInvalidate(struct VMGlobals *g, int numArgsPushed);
+int mapperSignalInvalidate(struct VMGlobals *g, int numArgsPushed)
+{
+	// set the signal's dataptr to null to indicate that it has been freed
+	// this should only be called internally from MapperDevice
+	PyrSlot *a = g->sp;
+	SetPtr(slotRawObject(a)->slots+0, NULL);
+	return errNone;
+}
+
 void initMapperPrimitives()
 {
 
@@ -825,6 +833,7 @@ void initMapperPrimitives()
 	definePrimitive(base, index++, "_MapperSignalGetMaximum", mapperSignalGetMaximum, 1, 0);
 	definePrimitive(base, index++, "_MapperSignalUpdate", mapperSignalUpdate, 2, 0);
 	definePrimitive(base, index++, "_MapperSignalGetFullName", mapperSignalGetFullName, 1, 0);
+	definePrimitive(base, index++, "_MapperSignalInvalidate", mapperSignalInvalidate, 1, 0);
 
 	s_callAction = getsym("prCallAction");
 
