@@ -583,6 +583,11 @@ int mapperSignalSetMinimum(struct VMGlobals *g, int numArgsPushed)
 
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 
+	if ( sig == NULL ) {
+		post("mapperSignalSetMinimum(): null signal\n");
+		return errNone;
+	}
+
 	int err = numericSlotToPointer( b, msig_properties(sig)->type, &minfloat, &minint, &min );
 	if (err) return errWrongType;
 
@@ -603,6 +608,11 @@ int mapperSignalSetMaximum(struct VMGlobals *g, int numArgsPushed)
 
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 
+	if ( sig == NULL ) {
+		post("mapperSignalSetMaximum(): null signal\n");
+		return errNone;
+	}
+
 	int err = numericSlotToPointer( b, msig_properties(sig)->type, &maxfloat, &maxint, &max );
 	if (err) return errWrongType;
 
@@ -616,6 +626,11 @@ int mapperSignalIsOutput(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalIsOutput(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	SetBool( a, msig_properties(sig)->is_output );
 	return errNone;
 }
@@ -625,6 +640,11 @@ int mapperSignalGetType(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalGetType(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	SetChar( a, msig_properties(sig)->type );
 	return errNone;
 }
@@ -634,6 +654,11 @@ int mapperSignalGetLength(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalGetLength(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	SetInt( a, msig_properties(sig)->length );
 	return errNone;
 }
@@ -643,6 +668,11 @@ int mapperSignalGetName(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalGetName(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	SetSymbol( a, getsym(msig_properties(sig)->name) );
 	return errNone;
 }
@@ -652,6 +682,11 @@ int mapperSignalGetDeviceName(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalGetDeviceName(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	SetSymbol( a, getsym(msig_properties(sig)->device_name) );
 	return errNone;
 }
@@ -661,6 +696,11 @@ int mapperSignalGetUnit(struct VMGlobals *g, int numArgsPushed)
 {
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalGetUnit(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	SetSymbol( a, getsym(msig_properties(sig)->unit) );
 	return errNone;
 }
@@ -671,6 +711,11 @@ int mapperSignalGetMinimum(struct VMGlobals *g, int numArgsPushed)
 
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalGetMinimum(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	mapper_db_signal props = msig_properties(sig);
 
 	return pointerToNumericSlot( props->type, props->minimum, a );
@@ -683,6 +728,11 @@ int mapperSignalGetMaximum(struct VMGlobals *g, int numArgsPushed)
 
 	PyrSlot *a = g->sp;
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalGetMaximum(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 	mapper_db_signal props = msig_properties(sig);
 
 	return pointerToNumericSlot( props->type, props->maximum, a );
@@ -697,6 +747,10 @@ int mapperSignalUpdate(struct VMGlobals *g, int numArgsPushed)
 	PyrSlot *b = g->sp;
 
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
+	if ( sig == NULL ) {
+		post("mapperSignalUpdate(): null signal\n");
+		return errNone;
+	}
 	mapper_db_signal props = msig_properties(sig);
 
 	float floatstorage;
@@ -720,6 +774,12 @@ int mapperSignalGetFullName(struct VMGlobals *g, int numArgsPushed)
 	char name[1024];
 	mapper_signal sig = (mapper_signal) slotRawPtr( slotRawObject(a)->slots+0 );
 	int length;
+
+	if ( sig == NULL ) {
+		post("mapperSignalGetFullName(): null signal\n");
+		SetNil(a);
+		return errNone;
+	}
 
 	length = msig_full_name(sig, name, 1024);
 
