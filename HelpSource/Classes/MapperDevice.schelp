@@ -1,0 +1,235 @@
+CLASS:: MapperDevice
+SUMMARY:: A libmapper device
+CATEGORIES:: Control
+RELATED:: Classes/MapperSignal
+
+DESCRIPTION::
+
+The MapperDevice class represents a device in the libmapper network.  It
+creates instances the link::Classes/MapperSignal:: class, which represent the
+device's signals.
+
+SUBSECTION:: About libmapper
+
+libmapper is a network protocol and software library that facilitates mapping
+between the inputs and outputs different entities on the network.  For example,
+libmapper can make it easier to connect a hardware controller device (e.g. a
+WiiMote) and a software synthesizer written in SuperCollider.
+
+Once a given entity's input and output signals are defined, the device and its
+signals appear in the libmapper GUI, outside of SuperCollider.  Outputs of one
+device can be connected graphically to inputs of another device, and can be
+subject to a mathematical transformation.  (I.e., a mapping can be easliy
+created between the device entities.)
+
+Incoming libmapper messages are connected to SuperCollider code by supplying
+action functions (i.e. callbacks) that are given the incoming data as
+arguments.
+
+For further information, please see http://libmapper.org/
+
+
+CLASSMETHODS::
+
+METHOD:: new
+Allocate a new MapperDevice instance.
+
+ARGUMENT:: devicename
+The desired device name on the mapper network.  The default value is
+code::'supercollider'::.  libmapper appends a number to this name (e.g.,
+code::'supercollider.1'::) to disambiguate it from other devices with the same
+name.
+
+ARGUMENT:: port
+The desired network port (the default is 9444).  If the port is already taken,
+libmapper will increment the port number until it finds a free port
+
+RETURNS:: A MapperDevice instance
+
+
+INSTANCEMETHODS::
+
+METHOD:: addInput
+Add an input signal to the device.
+
+ARGUMENT:: name
+The name of the signal.  This must include the leading slash, e.g.
+code::'/freq'::.
+
+ARGUMENT:: length
+The length of the signal.  A length of 1 indicates a scalar signal, and a
+length greater than one indicates that this is a vector-valued signal.
+
+ARGUMENT:: type
+The type of the signal specified as a link::Classes/Char::, either code::$i::
+for integer, or code::$f:: for float.
+
+ARGUMENT:: unit
+A string specifying the unit of the signal (e.g. code::'hz'::).
+
+ARGUMENT:: min
+The minimum possible value of the signal.  In the libmapper GUI, different
+mapping behaviours can be chosen at the min/max boundaries, such as clipping or
+folding.
+
+ARGUMENT:: max
+The maximum possible value of the signal.
+
+ARGUMENT:: action
+A SuperCollider function that will be called when each message is received.
+Use this function to pass the incoming value to your SuperCollider code, e.g.
+passing the incoming value to a running synth using
+link::Classes/Synth#-set#Synth:set::.  The arguments to the function are the
+signal name, the instance id number, and the signal's incoming value.
+
+RETURNS:: The newly-instantiated MapperSignal.  The user doesn't necessarily
+need to keep these references the signals since they are available through
+link::#-inputsignals#MapperDevice:inputsignals::.
+
+
+METHOD:: addOutput
+Add an input signal to the device.
+
+ARGUMENT:: name
+The name of the signal.  This must include the leading slash, e.g.
+code::'/freq'::.
+
+ARGUMENT:: length
+The length of the signal.  A length of 1 indicates a scalar signal, and length
+greater than one indicates that each libmapper message contains a vector.
+
+ARGUMENT:: type
+The type of the signal provided as a link::Classes/Char::, either code::$i::
+for integer, or code::$f:: for float.
+
+ARGUMENT:: unit
+A string specifying the unit of the signal (e.g. code::'hz'::).
+
+ARGUMENT:: min
+The minimum possible value of the signal.  In the mapping, different behaviours
+can be chosen at the min/max boundaries, such as clipping or folding.
+
+ARGUMENT:: max
+The maximum possible value of the signal.
+
+RETURNS:: The newly-instantiated MapperSignal.  The user doesn't necessarily
+need to keep these references the signals since they are available through
+link::#-outputsignals#MapperDevice:outputsignals::.
+
+METHOD:: inputsignals
+RETURNS:: A list of link::Classes/MapperSignal:: instances which contains this
+device's input signals.
+
+METHOD:: outputsignals
+RETURNS:: A list of link::Classes/MapperSignal:: instances which contains this
+device's output signals.
+
+METHOD:: removeInput
+Remove an input signal from the device.
+
+ARGUMENT:: name
+The name of the input signal to remove, including the leading slash (e.g.
+code::'/amplitude'::).
+
+METHOD:: removeOutput
+Remove an output signal from the device.
+
+ARGUMENT:: name
+The name of the output signal to remove, including the leading slash (e.g.
+code::'/amplitude'::).
+
+METHOD:: getName
+RETURNS:: The device's name on the libmapper network.  This will be the
+requested name for the device with a number appended (e.g.,
+code::'supercollider.1'::).  NB: this method will only return the name after
+the libmapper network has had some time to resolve any name collisions,
+typically a second or two after the MapperDevice is instantiated.
+
+METHOD:: getPort
+RETURNS:: The network port number that the device is using.  NB: this method
+will only return the port number after the libmapper network has had some time
+to resolve any name collisions, typically a second or two after the
+MapperDevice is instantiated.
+
+METHOD:: free
+Free the mapper device.  This should be done when the user is done with the
+device.  This will cause the device to disappear from the mapper GUI.
+
+PRIVATE:: init, prNew, prFree, prAddInput, prAddOutput, prRemoveInput, prRemoveOutput, prStartPolling, prStopPolling, prIsPolling
+
+EXAMPLES::
+
+code::
+
+//
+// libmapper-sc example code
+// Mark Zadel 2013
+//
+// This is an example of how to use the the SuperCollider bindings for
+// libmapper.
+//
+// see http://libmapper.org/ for further information
+//
+// The three basics steps are:
+//  1 allocate a MapperDevice
+//  2 add signals to it
+//  - (map to those signals from outside SuperCollider using libmapper, and do
+//    whatever work you want to do)
+//  3 free the device
+//
+
+
+a = MapperDevice.new;
+// can also provide the desired device name and desired port number as
+// arguments, eg: a = MapperDevice( "mydevicename", 9999 );
+
+// you have to wait briefly for the mapper device name and port to get
+// allocated before these will return the exepcted values
+a.getName;
+a.getPort;
+
+// add input and output signals to our device
+// NB a mapper device will not be visible on the mapper network (ie, in the
+// mapper gui) until at least one signal is added
+b = a.addInput( '/insig', 1, $f, 'cents', 1.neg, 15.7, { arg signame, instanceid, value; signame.postln; instanceid.postln; value.postln } );
+c = a.addOutput( '/outsigone', 1, $i, 'ceeents', 22, 33 );
+d = a.addOutput( '/outsigtwo', 3, $i, 'ceeents', 22, 33 );
+
+// return a list of input and output signals
+a.inputsignals;
+a.outputsignals;
+
+// query the signal for its properties
+b.isOutput;
+b.getType;
+b.getLength;
+b.getName;
+b.getDeviceName;
+b.getUnit;
+b.getMinimum;
+b.getMaximum;
+b.getFullName;
+
+// change the signal's min and max
+b.setMinimum( -10 );
+b.setMaximum( 111 );
+
+// send output on one of the output signals
+c.update(22);
+c.update(23);
+c.update(23.1);
+c.update(25);
+c.update(30);
+c.update(33);
+
+// you can remove signals if you need to while you're experimenting.  (this is
+// not necessary before freeing the device, however.)
+a.removeInput( '/insig' );
+a.removeOutput( '/outsigone' );
+
+// need to free the mapper device when we're done so that the libmapper network
+// knows that it's no longer active
+a.free;
+
+::
+

@@ -1,0 +1,85 @@
+
+CLASS:: MapperSignal
+SUMMARY:: Represents one signal of a libmapper device
+CATEGORIES:: Control
+RELATED:: Classes/MapperDevice
+
+DESCRIPTION::
+
+A MapperSignal represents one signal in a MapperDevice.  MapperSignal objects
+should not be created directly; they are allocated by link::Classes/MapperDevice#-addInput:: and
+link::Classes/MapperDevice#-addOutput::.
+
+See the link::Classes/MapperDevice:: help file for an introduction to libmapper.
+
+
+INSTANCEMETHODS::
+
+METHOD:: action
+
+Sets/gets the action function associated with this signal.  This is only used
+in input signals.  The action function is called with the following arguments:
+the signal name, the instance id number, the incoming value value.
+
+RETURNS:: If called as a getter, returns the action function associated with
+this signal.
+
+METHOD:: setMinimum
+Set the signal's minimum value.
+
+ARGUMENT:: value
+The new minimum value for the signal.
+
+METHOD:: setMaximum
+Set the signal's maximum value.
+
+ARGUMENT:: value
+The new maximum value for the signal.
+
+METHOD:: isOutput
+RETURNS:: Returns code::true:: if the signal is an output signal, and returns
+code::false:: if the signal is an input signal.
+
+METHOD:: getType
+RETURNS:: a character indicating the signal's type (code::$i:: for integer
+signals, and code::$f:: for floating-point signals).
+
+METHOD:: getLength
+RETURNS:: The signal's length.  A value of 1 indicates that this is a scalar
+signal, and a length greater than one indicates that this is a vector signal
+
+METHOD:: getName
+RETURNS:: The signal's name.  The name string includes the leading slash.
+
+METHOD:: getDeviceName
+RETURNS:: The name of the device that owns this signal.
+
+METHOD:: getUnit
+RETURNS:: A string representing the unit of this signal (e.g. code::'hertz'::).
+
+METHOD:: getMinimum
+RETURNS:: The signal's minimum value.
+
+METHOD:: getMaximum
+RETURNS:: The signal's maximum value.
+
+METHOD:: update
+For output signals, sends out a new message saying that the signal's value has
+been updated.  Other devices with input signals connected to this output will
+receive the new value, subject to the mapping defined in the libmapper GUI.
+
+ARGUMENT:: value
+The new value to send out.
+
+METHOD:: getFullName
+RETURNS:: A string containing the full name of the signal, including the
+device's name, e.g. code::'/supercollider.1/amplitude'::.
+
+PRIVATE:: prCallAction, prInvalidate
+
+
+EXAMPLES::
+
+See link::Classes/MapperDevice:: help file for example code.
+
+
