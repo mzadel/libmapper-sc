@@ -29,9 +29,9 @@ a.getPort;
 // add input and output signals to our device
 // NB a mapper device will not be visible on the mapper network (ie, in the
 // mapper gui) until at least one signal is added
-b = a.addInput( '/insig', 1, $f, \cents, 1.neg, 15.7, { arg signame, instanceid, value; signame.postln; instanceid.postln; value.postln } );
-c = a.addOutput( '/outsigone', 1, $i, \ceeents, 22, 33 );
-d = a.addOutput( '/outsigtwo', 3, $i, \ceeents, 22, 33 );
+b = a.addInput( '/insig', 1, $f, 'cents', 1.neg, 15.7, { arg signame, instanceid, value; signame.postln; instanceid.postln; value.postln } );
+c = a.addOutput( '/outsigone', 1, $i, 'ceeents', 22, 33 );
+d = a.addOutput( '/outsigtwo', 3, $i, 'ceeents', 22, 33 );
 
 // return a list of input and output signals
 a.inputsignals;
