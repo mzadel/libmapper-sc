@@ -6,25 +6,26 @@ RELATED:: Classes/MapperSignal
 DESCRIPTION::
 
 The MapperDevice class represents a device in the libmapper network.  It
-creates instances the link::Classes/MapperSignal:: class, which represent the
+creates instances of the link::Classes/MapperSignal:: class, which represent the
 device's signals.
+
+Incoming libmapper messages are forwarded to SuperCollider code through action
+functions (i.e., callbacks).  The action function's arguments contain the
+incoming signal data.  Outgoing messages are sent using
+link::Classes/MapperSignal#-update#MapperSignal:update::.
 
 SUBSECTION:: About libmapper
 
 libmapper is a network protocol and software library that facilitates mapping
-between the inputs and outputs different entities on the network.  For example,
-libmapper can make it easier to connect a hardware controller device (e.g. a
-WiiMote) and a software synthesizer written in SuperCollider.
+between the inputs and outputs of different entities on the network.  For example,
+libmapper can make it much easier to connect a hardware controller device (e.g. a
+WiiMote) to a software synthesizer written in SuperCollider.
 
-Once a given entity's input and output signals are defined, the device and its
+Once a given entity's input and output signals are declared, the device and its
 signals appear in the libmapper GUI, outside of SuperCollider.  Outputs of one
-device can be connected graphically to inputs of another device, and can be
-subject to a mathematical transformation.  (I.e., a mapping can be easliy
-created between the device entities.)
-
-Incoming libmapper messages are connected to SuperCollider code by supplying
-action functions (i.e. callbacks) that are given the incoming data as
-arguments.
+device can be connected graphically to inputs of another device.
+The data travelling through these connections can also be
+subjected to mathematical transformations.
 
 For further information, please see http://libmapper.org/
 
