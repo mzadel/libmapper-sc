@@ -7,8 +7,8 @@ RELATED:: Classes/MapperDevice
 DESCRIPTION::
 
 A MapperSignal represents one signal in a MapperDevice.  MapperSignal objects
-should not be created directly; they are allocated by link::Classes/MapperDevice#-addInput:: and
-link::Classes/MapperDevice#-addOutput::.
+should not be created directly; they are allocated by link::Classes/MapperDevice#-addInput#MapperDevice:addInput:: and
+link::Classes/MapperDevice#-addOutput#MapperDevice:addOutput::.
 
 See the link::Classes/MapperDevice:: help file for an introduction to libmapper.
 
