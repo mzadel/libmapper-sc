@@ -18,14 +18,16 @@ SUBSECTION:: About libmapper
 
 libmapper is a network protocol and software library that facilitates mapping
 between the inputs and outputs of different entities on the network.  For example,
-libmapper can make it much easier to connect a hardware controller device (e.g. a
+libmapper can make it much easier to connect a hardware controller device (e.g., a
 WiiMote) to a software synthesizer written in SuperCollider.
 
-Once a given entity's input and output signals are declared, the device and its
-signals appear in the libmapper GUI, outside of SuperCollider.  Outputs of one
-device can be connected graphically to inputs of another device.
-The data travelling through these connections can also be
-subjected to mathematical transformations.
+libmapper will automatically share information about your device and its
+signals with other compatible entities on the network, and will allow
+data connections to be established between different devices' outputs and
+inputs using a session-manager application (outside of SuperCollider, usually a
+GUI).  The data travelling through these connections is linearly scaled by
+default, but can optionally be configured to apply user-defined mathematical
+transformations.
 
 For further information, please see http://libmapper.org/
 
